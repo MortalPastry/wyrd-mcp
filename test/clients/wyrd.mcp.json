@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "wyrd": {
+      "command": "node",
+      "args": [
+        "../../dist/index.js",
+        "--grant",
+        "REPLACE-WITH-AN-ABSOLUTE-PATH-TO-A-DISPOSABLE-FOLDER"
+      ]
+    }
+  }
+}

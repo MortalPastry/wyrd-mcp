@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+npm-debug.log*
+yarn-error.log*
+yarn-debug.log*
+pnpm-debug.log*
+.npm/
+
+# Carries registry auth tokens. Never commit it.
+.npmrc
+
+.env
+.env.local
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
