@@ -39,6 +39,8 @@
     "start": "node dist/index.js",
     "test": "npm run build && node scripts/run-tests.mjs",
     "test:portable": "npm run build && node scripts/run-tests.mjs --portable",
+    "release:check": "node scripts/release.mjs --check",
+    "release:publish": "node scripts/release-publish.mjs",
     "drive": "npm run build && node scripts/drive.mjs",
     "mutate": "npm run build && node scripts/mutate.mjs"
   },

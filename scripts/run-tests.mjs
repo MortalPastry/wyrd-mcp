@@ -62,7 +62,22 @@ const FILES = ['test/fsgate.test.js', 'test/handshake.test.js', 'test/startup.te
 
 const child = spawn(process.execPath, ['--test', ...FILES], {
     cwd: repo,
-    env: { ...process.env, WYRD_ARM_LOG: logDir, ...(portable ? { WYRD_PORTABLE: '1' } : {}) },
+    env: {
+        ...process.env,
+        WYRD_ARM_LOG: logDir,
+        ...(portable ? { WYRD_PORTABLE: '1' } : {}),
+        // ⚠ COLOUR BREAKS THE SUMMARY PARSE, AND ONLY IN A REAL TERMINAL. `node --test` writes its
+        // summary in ANSI colour when stdout is a TTY, so `ℹ fail 0` arrives wrapped in escape
+        // sequences and the anchored match below finds nothing. Measured 2026-08-29: a run with
+        // 71 passing arms reported "could not read the fail count" and refused — correct behaviour
+        // for an unparseable summary, but the cause was the terminal, not the tests.
+        //
+        // ⚠ IT IS INVISIBLE TO A PIPED CALLER. CI and any tool that captures stdout get no colour
+        // and parse fine, so this passes every automated check and fails for the person at the
+        // keyboard — which is the population that matters most for a first run after `git clone`.
+        NO_COLOR: '1',
+        FORCE_COLOR: '0'
+    },
     stdio: ['ignore', 'pipe', 'inherit']
 });
 
@@ -75,8 +90,13 @@ child.stdout.on('data', chunk => {
 child.on('close', code => {
     let failures = [];
 
+    // ⚠ BELT AND BRACES WITH THE NO_COLOR ENV ABOVE, DELIBERATELY. Suppressing colour at the source
+    // is the fix; stripping it here is the guard for the case where some future runner, reporter or
+    // terminal emits it anyway. One mechanism can be defeated by a setting; the pair cannot, and the
+    // failure this protects against is a green suite reported as an unreadable one.
+    const plain = out.replace(/\[[0-9;]*m/g, '');
     const number = label => {
-        const match = out.match(new RegExp(`^\\u2139 ${label} (\\d+)$`, 'm'));
+        const match = plain.match(new RegExp(`^\\u2139 ${label} (\\d+)$`, 'm'));
         return match ? Number(match[1]) : null;
     };
     // In portable mode exactly the tier-2 arms are expected to be skipped; everything else must
