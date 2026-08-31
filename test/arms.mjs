@@ -57,6 +57,28 @@ export const FENCE_ARMS = {
     'A36-defaults': 'the load-bearing arms re-run on the PRODUCTION primitives, uninjected',
     'A37-request-separators': 'request paths in every separator spelling reach the same file',
     'A38-both-contained': 'BOTH readings in-grant and DIFFERENT — where the walk\'s choice bites',
+    'A39-not-filenames': 'stream syntax and reserved device names refuse in stage (a), on EVERY gate entry',
+    'A40-create': 'a new file is created through the gate; escaping parents refuse and create nothing',
+    'A41-exists-refuses': 'anything already at the name refuses EXISTS, unfollowed — hardlink and symlink included',
+    'A42-hash': 'a source hashes through the gate, and NO result carries an absolute path',
+    'A45-root-identity': 'a RE-SPELLED root is accepted, a REPLACED one refuses — case-folding fails both',
+    'A43-probe-errors': 'only ENOENT reaches the open — every other leaf-probe failure refuses',
+    'A44-short-write': 'a short write refuses IO_ERROR, never a success with a reduced count',
+    'A47-name-rules-host': 'both name screens follow the HOST on read, the stream screen is unconditional on CREATE, and neither takes an override',
+    // ⚠ THE WRITE-FAILURE OUTCOME — S1, ruled 2026-08-31. These arms assert RETENTION, never
+    // absence: a failed write leaves its target and REPORTS that it did. An arm here asserting the
+    // file is gone would be asserting the design that was ruled out.
+    //
+    // ⚠ THE `A47-` PREFIX IS SHARED WITH `A47-name-rules-host` AND THE TWO ARE UNRELATED. Ids are
+    // full strings, so nothing collides mechanically; the number is the plan's and is kept so the
+    // mutation table, the plan's acceptance list and this inventory all join on the same key.
+    'A47-write-throws-retains': 'a throwing write refuses AND reports the file it left behind',
+    'A48-short-write-retains': 'a short write refuses AND reports the truncated file it left behind',
+    'A49-close-fails-after-write': 'a failed close is a refusal, not a footnote — and the descriptor closes EXACTLY once',
+    'A50-refusal-before-open-retains-nothing': 'a pre-open refusal states retained: null — the other half of the check',
+    'A51-nonexistent-errno-retains-indeterminate': 'a non-EEXIST open failure is indeterminate; the injectable primitive promises nothing',
+    'A52-success-closes-once': 'a successful write closes exactly once — a regression guard, and it PASSES against main',
+    'A53-post-probe-exists-retains-nothing': 'an EEXIST at the OPEN retains nothing, witnessed by having reached the open',
     'META-primitives': 'per-primitive: each injected implementation is called at its site',
     'META-this-unbound': 'an injected callback receives `this === undefined`',
     'META-no-outside-names': 'no arm, refusal OR pass, names a path outside the root',
@@ -93,7 +115,12 @@ export const E2E_ARMS = {
     'E7-shadow': 'a same-named FILE listed before a real layer directory does not shadow it',
     'E8-not-text': 'a file that is not valid UTF-8 is refused NOT_TEXT, never returned altered',
     'E9-grant-injection': 'a grant carrying a control character or absurd length is refused at the door',
-    'E10-junction-preflight': 'the tier-1 preflight refuses when a junction cannot be created'
+    'E10-junction-preflight': 'the tier-1 preflight refuses when a junction cannot be created',
+    'E11-read-only-hint': '`read` declares readOnlyHint, so the guarantee is machine-readable',
+    // ⚠ THE OTHER HALF OF `E4`. E4 pins the built JAVASCRIPT's exports; the shipped `.d.ts` — a
+    // deep-importable public contract, since `files` ships all of `dist` and there is no `exports`
+    // map — was pinned by nothing until S1.
+    'E12-declaration-inventory': 'the shipped .d.ts matches its REVIEWED baseline, shapes and optionality included'
 };
 
 export const ALL_ARMS = { ...FENCE_ARMS, ...STARTUP_ARMS, ...E2E_ARMS };
@@ -130,6 +157,7 @@ export const SYMLINK_PRIVILEGE_ARMS = new Set([
     // `fs.symlinkSync(real, named, 'junction')` — a junction, which is ungated. It was classified
     // off the arm NAME, which is the one thing the note above this list says never to do. It runs
     // in tier 1 and passes there.
+    'A41-exists-refuses',   // s_out / s_in — both are symlinks, and the arm needs them to EXIST
     'A29-unc',              // unc_out — the only arm reaching !isAbsolute(rel)
     'A30-no-arbitration',   // probes s_out, sc_a, unc_out
     'A34-listing',          // listing\a_link — a symlink, and the arm asserts kind === 'link'

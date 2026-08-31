@@ -1,0 +1,39 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.wyrdmcp/wyrd",
+  "description": "Exposes one granted folder to any AI client, read-only, behind a path-containment fence.",
+  "repository": {
+    "url": "https://github.com/MortalPastry/wyrd-mcp",
+    "source": "github"
+  },
+  "version": "0.1.3",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "wyrd-mcp",
+      "version": "0.1.3",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--grant",
+          "description": "Absolute path to the single folder to serve, read-only. Wins over WYRD_GRANT. Every file inside it is readable, including hidden ones — grant a subfolder containing only what you mean to share.",
+          "isRequired": false,
+          "format": "filepath",
+          "isSecret": false
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "WYRD_GRANT",
+          "description": "Absolute path to the single folder to serve, read-only. Used when --grant is not passed. The server refuses to start if neither is set.",
+          "isRequired": false,
+          "format": "filepath",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

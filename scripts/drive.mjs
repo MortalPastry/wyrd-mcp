@@ -32,8 +32,29 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SERVER = path.join(repo, 'dist', 'index.js');
 
+/**
+ * ⚠⚠ THE DEFAULT GRANT IS OUTSIDE THIS REPO, AND THE `..` COUNT BROKE ON THE 2026-08-31 MOVE.
+ *
+ * `Test vault/` sits in the WORKSPACE that contains this repo, not in the repo. This line read
+ * `path.resolve(repo, '..', 'Test vault')` when `repo` WAS the repo root; after this package moved
+ * under `packages/wyrd/`, that same expression resolved to `packages/Test vault` and the drive died
+ * with `MCP error -32000: Connection closed` — the server refusing a grant that does not exist,
+ * surfacing as a transport error two layers away from the cause.
+ *
+ * ⚠ IT FAILED LOUDLY ONLY BY LUCK. Nothing happens to exist at `packages/Test vault`. Had anything
+ * been there, the drive would have run green against the WRONG TREE and reported a clean fence over
+ * a vault nobody chose — which is the sequencing rail below being silently violated by a path
+ * arithmetic error. **A relative path that counts `..` is a claim about directory depth, and a
+ * restructure is exactly what invalidates it without touching the line.**
+ *
+ * So the intermediate is NAMED rather than counted through: if this package moves again, `repoRoot`
+ * is the one thing to fix and its name says what it is supposed to be.
+ */
+const repoRoot = path.resolve(repo, '..', '..');          // packages/wyrd -> the lane repo root
+const workspace = path.resolve(repoRoot, '..');           // the repo root  -> the containing workspace
+
 const flag = process.argv.indexOf('--grant');
-const GRANT = flag === -1 ? path.resolve(repo, '..', 'Test vault') : process.argv[flag + 1];
+const GRANT = flag === -1 ? path.join(workspace, 'Test vault') : process.argv[flag + 1];
 
 console.log(`server : ${SERVER}`);
 console.log(`grant  : ${GRANT}`);

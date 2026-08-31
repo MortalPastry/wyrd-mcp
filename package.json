@@ -1,6 +1,7 @@
 {
   "name": "wyrd-mcp",
-  "version": "0.1.0",
+  "version": "0.1.3",
+  "mcpName": "com.wyrdmcp/wyrd",
   "license": "MIT",
   "type": "module",
   "description": "wyrd — an MCP server that exposes one granted folder to any AI client, read-only, behind a path-containment fence with documented limits.",
@@ -18,16 +19,17 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MortalPastry/wyrd.git"
+    "url": "git+https://github.com/MortalPastry/wyrd-mcp.git"
   },
-  "homepage": "https://github.com/MortalPastry/wyrd#readme",
+  "homepage": "https://github.com/MortalPastry/wyrd-mcp#readme",
   "bugs": {
-    "url": "https://github.com/MortalPastry/wyrd/issues"
+    "url": "https://github.com/MortalPastry/wyrd-mcp/issues"
   },
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "PRIVACY.md"
   ],
   "engines": {
     "node": ">=20"

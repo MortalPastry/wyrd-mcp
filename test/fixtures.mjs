@@ -207,6 +207,15 @@ export function buildFixture() {
     // ---- the hardlink, which no path-based fence can see ---------------------
     fs.linkSync(path.join(outside, 'secret.md'), path.join(grant, 'h_out.md'));
 
+    // ---- DANGLING links, whose targets DO NOT EXIST --------------------------
+    // ⚠ THE CORPUS SYSTEMATICALLY LACKED THESE UNTIL 2026-08-29, and the omission hid a real
+    // escape. Every other out-of-grant link here points at `outside/secret.md`, which EXISTS — so
+    // every arm exercised the case where the OS refuses on existence, and none exercised the case
+    // where a create FOLLOWS the link and brings the target into being outside the grant.
+    // `dangle_junc` needs no symlink privilege, so its arm runs in tier 1.
+    symlink(path.join(outside, 'nope.md'), path.join(grant, 'dangle_out'), 'file');
+    junction(path.join(outside, 'nodir2'), path.join(grant, 'dangle_junc_out'));
+
     return { base, grant, outside, teardown: () => teardown(base) };
 }
 

@@ -1,0 +1,68 @@
+import fs from 'node:fs';
+export type RequestRefusalReason = 'BAD_INPUT' | 'CLAMPED' | 'IS_ROOT' | 'ESCAPES' | 'ELOOP' | 'MISSING' | 'NOT_A_DIRECTORY' | 'NOT_A_FILE' | 'DENIED' | 'NAME_TOO_LONG' | 'ROOT_MOVED' | 'IO_ERROR' | 'STREAM_SYNTAX' | 'RESERVED_NAME' | 'EXISTS';
+export type ConfigRefusalReason = 'CONFIG_EMPTY' | 'CONFIG_NULL_BYTE' | 'CONFIG_CONTROL_CHAR' | 'CONFIG_TOO_LONG' | 'CONFIG_RELATIVE' | 'CONFIG_DRIVE_RELATIVE' | 'CONFIG_NAMESPACED' | 'CONFIG_MALFORMED' | 'GRANT_MISSING' | 'GRANT_NOT_A_DIRECTORY';
+export type FenceReason = RequestRefusalReason | ConfigRefusalReason;
+export interface FenceRefusal {
+    readonly ok: false;
+    readonly reason: FenceReason;
+    readonly detail: string;
+    readonly resolvedPath: string;
+}
+export interface Slice {
+    readonly ok: true;
+    readonly bytes: Buffer;
+    readonly offset: number;
+    readonly nextOffset: number;
+    readonly truncated: boolean;
+    readonly size: number;
+}
+export interface Entry {
+    readonly name: string;
+    readonly kind: 'file' | 'directory' | 'link' | 'other';
+    readonly size: number | null;
+}
+export interface Created {
+    readonly ok: true;
+    readonly rel: string;
+    readonly bytes: number;
+}
+export interface Retained {
+    readonly rel: string;
+    readonly state: 'indeterminate';
+}
+export interface WriteRefusal extends FenceRefusal {
+    readonly retained: Retained | null;
+}
+export interface Hashed {
+    readonly ok: true;
+    readonly rel: string;
+    readonly algorithm: 'sha256';
+    readonly digest: string;
+    readonly size: number;
+}
+export interface FsGate {
+    readFileInGrant(request: string, offset: number, limit: number): Promise<Slice | FenceRefusal>;
+    listDirInGrant(request: string): Promise<Entry[] | FenceRefusal>;
+    listGrantRoot(): Promise<Entry[] | FenceRefusal>;
+    disclosedRoot(): string;
+    createFileInGrant(request: string, bytes: Buffer): Promise<Created | WriteRefusal>;
+    hashInGrant(request: string): Promise<Hashed | FenceRefusal>;
+}
+export interface Primitives {
+    open(target: string, flags: string): number;
+    close(fd: number): void;
+    read(fd: number, buffer: Uint8Array, offset: number, length: number, position: number): number;
+    fstat(fd: number): fs.Stats;
+    lstat(target: string): fs.Stats;
+    readlink(target: string): string;
+    realpathNative(target: string): string;
+    readdir(target: string): fs.Dirent[];
+    openExclusive(target: string): number;
+    writeAll(fd: number, buffer: Buffer): number;
+}
+export interface CreateFsGateOptions {
+    readonly rawGrant: string;
+    readonly primitives?: Primitives;
+}
+export declare function isRefusal(value: unknown): value is FenceRefusal;
+export declare function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusal;

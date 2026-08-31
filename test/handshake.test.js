@@ -10,6 +10,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 import * as fsgate from '../dist/fsgate.js';
 import * as server from '../dist/server.js';
+import { extractDeclarationApi } from './declarations.mjs';
 import { preflightJunctionSupport, preflightSymlinkPrivilege } from '../scripts/preflight.mjs';
 import { declare as arm, tier2 } from './manifest.mjs';
 
@@ -70,6 +71,23 @@ test('the server declares exactly one tool, `read`, with a real description', { 
             assert.match(tools[0].description, /byte/i);
             assert.match(tools[0].description, /next_offset/);
             assert.match(tools[0].description, /truncated/);
+        });
+    } finally {
+        fs.rmSync(vault.base, { recursive: true, force: true });
+    }
+});
+
+test('`read` declares readOnlyHint over the wire', { timeout: TEST_TIMEOUT_MS }, async () => {
+    arm('E11-read-only-hint');
+    const vault = makeVault();
+    try {
+        await withClient(vault.grant, async client => {
+            const { tools } = await client.listTools();
+            // ⚠ Asserted through a real client over stdio, never off the source object. The claim
+            // is that the annotation ARRIVES — a field the server sets and the transport drops is
+            // exactly the failure a source-side assertion cannot see.
+            assert.ok(tools[0].annotations, '`read` must carry annotations');
+            assert.equal(tools[0].annotations.readOnlyHint, true);
         });
     } finally {
         fs.rmSync(vault.base, { recursive: true, force: true });
@@ -496,4 +514,47 @@ test('the fence module exports no raw primitive', () => {
     for (const banned of ['_open', '_lstat', '_readlink', '_realpathNative', '_readdir', '_validateDerivedAbsolute']) {
         assert.equal(banned in fsgate, false, `${banned} must never be exported`);
     }
+});
+
+test('E12-declaration-inventory — the shipped .d.ts matches its reviewed baseline', async () => {
+    arm('E12-declaration-inventory');
+
+    // ⚠⚠ THE OTHER HALF OF `E4`, AND IT WAS MISSING UNTIL S1. `E4` reads `Object.keys()` on the
+    // built JAVASCRIPT; an interface is erased at build, so the declaration file `tsconfig.json`
+    // emits and `package.json` ships — deep-importable, no `exports` map — was never pinned by
+    // anything. The runtime half passing read as the whole surface being pinned.
+    const built = path.join(repoRoot, 'dist', 'fsgate.d.ts');
+    const baselinePath = path.join(repoRoot, 'test', 'fsgate.d.ts.baseline');
+    const api = extractDeclarationApi(fs.readFileSync(built, 'utf8'));
+    const baseline = fs.readFileSync(baselinePath, 'utf8');
+
+    // ⚠ THE EXPECTATION IS A REVIEWED ARTIFACT, NOT A SECOND DERIVATION. Deriving both sides from
+    // the same `.d.ts` would agree with itself forever. Regenerate deliberately, having read the
+    // diff: `node scripts/declaration-baseline.mjs`.
+    assert.equal(api, baseline,
+        'the shipped declaration surface changed.\n' +
+        'This is a PUBLIC API change: dist/*.d.ts is shipped and deep-importable.\n' +
+        'Read the diff, confirm it is intended and versioned, then regenerate the baseline with\n' +
+        '  node scripts/declaration-baseline.mjs');
+
+    // ⚠ SHAPES, NOT NAMES — asserted directly for the one bit that IS the public break. A
+    // names-only inventory cannot see optionality, and `retained?:` would let every refusal site
+    // that forgot the field compile: exactly the hand-maintained-list shape the type exists to
+    // prevent.
+    assert.match(api, /^ {4}readonly retained: Retained \| null;$/m,
+        '`retained` must be REQUIRED on WriteRefusal');
+    assert.doesNotMatch(api, /retained\?:/, '`retained` must never become optional');
+    assert.match(api, /^ {4}createFileInGrant\(request: string, bytes: Buffer\): Promise<Created \| WriteRefusal>;$/m,
+        'createFileInGrant must return the write-specific refusal');
+
+    // ⚠ THE GUARD IS SHOWN TO BE ARMED. A comparison that cannot go red is decoration, and this
+    // file's whole subject is a check that only ever agreed with itself. Doctoring the ONE bit the
+    // arm claims to see must produce a different extraction.
+    const doctored = extractDeclarationApi(
+        fs.readFileSync(built, 'utf8').replace('readonly retained:', 'readonly retained?:'));
+    assert.notEqual(doctored, api, '⚠ the extractor cannot see optionality — this arm proves nothing');
+
+    // The delete capability was ruled OUT. `Primitives` is where one would have to appear.
+    assert.doesNotMatch(api, /\bunlink\b|\brm\b|\bdelete\b/,
+        'no delete primitive may appear on the shipped surface — ruled 2026-08-31');
 });

@@ -296,7 +296,18 @@ export function createServer(options: CreateServerOptions): Server {
                 name: 'read',
                 title: 'Read a file from the granted folder',
                 description: READ_DESCRIPTION,
-                inputSchema: READ_INPUT_SCHEMA
+                inputSchema: READ_INPUT_SCHEMA,
+                // ⚠ The read-only guarantee lived ONLY in prose until now — in the description and
+                // in `initialize.instructions` — and a directory's automated review reads the
+                // ANNOTATION, not the paragraph. `readOnlyHint` is the machine-readable form of a
+                // claim this server already makes and already keeps: `read` reaches the disk through
+                // `readFileInGrant` and no other path.
+                //
+                // ⚠ `openWorldHint` is deliberately NOT declared here. It is a defensible `false` —
+                // the grant is one local folder — but "which annotations to assert" is a judgment
+                // this slice did not take, and an annotation asserted casually is the same defect as
+                // a prose claim nobody checked.
+                annotations: { readOnlyHint: true }
             }
         ]
     }));

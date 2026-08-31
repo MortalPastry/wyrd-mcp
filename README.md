@@ -6,9 +6,9 @@ Point Claude Code, Codex, Cursor, ChatGPT or Claude Desktop at a folder of notes
 them. Wyrd serves exactly the folder you grant and refuses everything else, and it tells you plainly
 what that means before you grant anything.
 
-If the folder happens to be a [Mage](https://github.com/MortalPastry/wyrd) vault, wyrd notices and
-says which layers it found. If it is an ordinary folder of notes, it works the same way — vault
-structure is a detected bonus, never a requirement.
+If the folder happens to be a Mage vault — one organised into `Arc/` and `Mage/` layers — wyrd
+notices and says which layers it found. If it is an ordinary folder of notes, it works the same
+way; vault structure is a detected bonus, never a requirement.
 
 ## Install
 
