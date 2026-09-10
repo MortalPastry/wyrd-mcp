@@ -12,6 +12,7 @@
  * wanted it.
  */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -22,6 +23,7 @@ import { extractDeclarationApi } from './declarations.mjs';
 import { declare as arm } from './manifest.mjs';
 
 const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const normaliseLineEndings = text => text.replace(/\r\n?/g, '\n');
 
 test('the fence module exports no raw primitive', () => {
     arm('E4-export-inventory');
@@ -117,6 +119,25 @@ test('a grant carrying a control character or absurd length is refused at the do
     }
 });
 
+test('E16-baseline-byte-pin — generated baselines disable Git text conversion', () => {
+    arm('E16-baseline-byte-pin');
+
+    // This is deliberately an attribute assertion, not another E12 pass. E12 now tolerates the
+    // checkout artefact; this arm proves Git is configured not to create that artefact in the
+    // first place. Running from the package root also exercises the same repository-relative path
+    // in the private workspace and in the exported public workspace.
+    const declared = execFileSync(
+        'git',
+        ['-C', pkgRoot, 'check-attr', 'text', '--', 'test/fsgate.d.ts.baseline'],
+        { encoding: 'utf8' }
+    ).trim();
+    assert.equal(
+        declared,
+        'test/fsgate.d.ts.baseline: text: unset',
+        'the reviewed generated baseline must match a `-text` attribute so checkout preserves its bytes'
+    );
+});
+
 test('E12-declaration-inventory — the shipped .d.ts matches its reviewed baseline', () => {
     arm('E12-declaration-inventory');
 
@@ -166,11 +187,13 @@ test('E12-declaration-inventory — the shipped .d.ts matches its reviewed basel
     // ⚠⚠ AND NOTHING CALLS THAT SCRIPT AUTOMATICALLY. It is not in `prebuild`, not in `test`, not
     // in `mutate`, and not in the release gate — checked deliberately, because a regenerate step
     // inside the thing it grades erases the oracle.
-    assert.equal(api, baseline,
-        'the shipped declaration surface changed.\n' +
-        "This is a PUBLIC API change: it is wyrd-fence's declared `types` entry point.\n" +
+    assert.equal(normaliseLineEndings(api), normaliseLineEndings(baseline),
+        'the shipped declaration surface changed after line endings were normalised.\n' +
+        "This is a real PUBLIC API difference, not CRLF/LF checkout drift: it is wyrd-fence's " +
+        'declared `types` entry point.\n' +
         'Read the diff, confirm it is intended and versioned, then regenerate the baseline with\n' +
-        '  node scripts/declaration-baseline.mjs');
+        '  node scripts/declaration-baseline.mjs\n' +
+        'If E16-baseline-byte-pin fails instead, repair `.gitattributes`; do not regenerate the oracle.');
 
     // ⚠ SHAPES, NOT NAMES — asserted directly for the one bit that IS the public break. A
     // names-only inventory cannot see optionality, and `retained?:` would let every refusal site

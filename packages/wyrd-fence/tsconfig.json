@@ -1,5 +1,5 @@
 {
-  "//": "Deliberately identical to the Reader's compiler options. The fence moved out of that package unchanged, and its emitted `dist/fsgate.d.ts` is pinned byte-for-byte by this package's own `E12-declaration-inventory` arm (the Reader's until the 2026-09-01 relocation) against a reviewed baseline — a difference in strictness or target here would surface as a declaration diff that reads like an API change and is not one.",
+  "//": "Deliberately identical to the Reader's compiler options. The fence moved out of that package unchanged, and its emitted `dist/fsgate.d.ts` is compared character-for-character after line endings are normalised by this package's own `E12-declaration-inventory` arm (the Reader's until the 2026-09-01 relocation) against a reviewed baseline — a difference in strictness or target here would surface as a declaration diff that reads like an API change and is not one.",
   "compilerOptions": {
     "composite": true,
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",

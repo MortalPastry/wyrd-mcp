@@ -101,6 +101,9 @@ const FILE_OWNER = Object.freeze({
     fsgate: FENCE,
     preflight: FENCE,
     readme: FENCE,
+    // The workspace-root attribute row currently protects the fence's reviewed declaration
+    // baseline, so the fence matrix owns the mutation that proves that pin is active.
+    attributes: FENCE,
     main: READER,
     index: READER,
     server: READER,

@@ -1,0 +1,3 @@
+# Generated baselines are reviewed byte artifacts. Never rewrite their line endings.
+*.baseline -text
+mutation-baseline.json -text

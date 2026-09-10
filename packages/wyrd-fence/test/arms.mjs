@@ -202,7 +202,8 @@ export const GRANT_ARMS = {
 export const SURFACE_ARMS = {
     'E4-export-inventory': 'the fence module exports no raw primitive',
     'E9-grant-injection': 'a grant carrying a control character or absurd length is refused at the door',
-    'E12-declaration-inventory': 'the shipped .d.ts matches its REVIEWED baseline, shapes and optionality included'
+    'E12-declaration-inventory': 'the shipped .d.ts matches its REVIEWED baseline, shapes and optionality included',
+    'E16-baseline-byte-pin': 'the reviewed generated declaration baseline matches a -text attribute, so Git checkout performs no line-ending conversion'
 };
 
 /**
