@@ -1,56 +1,16 @@
 {
-  "name": "wyrd-mcp",
-  "version": "0.1.3",
-  "mcpName": "com.wyrdmcp/wyrd",
-  "license": "MIT",
+  "name": "wyrd-mcp-source",
+  "private": true,
   "type": "module",
-  "description": "wyrd — an MCP server that exposes one granted folder to any AI client, read-only, behind a path-containment fence with documented limits.",
-  "bin": {
-    "wyrd-mcp": "dist/index.js"
-  },
-  "keywords": [
-    "mcp",
-    "model-context-protocol",
-    "markdown",
-    "notes",
-    "read-only",
-    "obsidian",
-    "vault"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/MortalPastry/wyrd-mcp.git"
-  },
-  "homepage": "https://github.com/MortalPastry/wyrd-mcp#readme",
-  "bugs": {
-    "url": "https://github.com/MortalPastry/wyrd-mcp/issues"
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE",
-    "PRIVACY.md"
-  ],
+  "license": "MIT",
   "engines": {
     "node": ">=20"
   },
+  "workspaces": [
+    "packages/wyrd",
+    "packages/wyrd-fence"
+  ],
   "scripts": {
-    "clean": "node scripts/clean.mjs",
-    "prebuild": "node scripts/clean.mjs",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "npm run build && node scripts/run-tests.mjs",
-    "test:portable": "npm run build && node scripts/run-tests.mjs --portable",
-    "release:check": "node scripts/release.mjs --check",
-    "release:publish": "node scripts/release-publish.mjs",
-    "drive": "npm run build && node scripts/drive.mjs",
-    "mutate": "npm run build && node scripts/mutate.mjs"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.19.43",
-    "typescript": "7.0.2"
+    "build": "npm --workspace wyrd-fence run build && npm --workspace wyrd-mcp run build"
   }
 }

@@ -1,0 +1,55 @@
+{
+  "name": "wyrd-fence",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "description": "wyrd-fence: path containment for one granted folder, read and create. A pre-existing hard link inside it still reaches outside. See the README section 'Security boundary and limits'.",
+  "//types": "⚠⚠ `types` POINTS AT THE FILE CARRYING THE SHAPES, NEVER AT A BARREL. `extractDeclarationApi` (this package's OWN `E12-declaration-inventory` arm — it was the Reader's until the 2026-09-01 relocation and now lives in `test/`, beside the surface it grades) parses top-level statements out of ONE `.d.ts`. A barrel of `export * from './fsgate.js'` yields a single re-export statement and NO shapes: E12 goes green against an empty extraction, and the documented recovery — `node scripts/declaration-baseline.mjs` — regenerates the baseline from that same empty extraction, after which the arm compares nothing against nothing and CAN NEVER FAIL AGAIN. Adding an index barrel here is therefore not a tidying change; it silently disarms the only guard on this package's public type surface.",
+  "main": "./dist/fsgate.js",
+  "types": "./dist/fsgate.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/fsgate.d.ts",
+      "default": "./dist/fsgate.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "keywords": [
+    "path-traversal",
+    "containment",
+    "sandbox",
+    "symlink",
+    "security"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MortalPastry/wyrd-mcp.git"
+  },
+  "homepage": "https://github.com/MortalPastry/wyrd-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/MortalPastry/wyrd-mcp/issues"
+  },
+  "//files": "The build info sits inside `dist` so that deleting `dist` genuinely forces `tsc -b` to rebuild — a stale `.tsbuildinfo` beside a deleted output tree is how a build-mode compiler skips work it needed to do. It is negated here so it does not ship.",
+  "files": [
+    "dist",
+    "!dist/*.tsbuildinfo",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "//scripts": "⚠ `mutate` BUILDS ONCE AND THEN DRIVES THE RUNNER DIRECTLY, NEVER `npm test`. `test` is `build && run-tests`, so a mutation loop routed through it would recompile `dist/` from `src/` and ERASE the dist-patched mutant before the suite saw it — every mutant then SURVIVES and reads as a weak guard rather than as a dead instrument. Three false survivors were measured that way on 2026-08-31. `scripts/mutate.mjs` builds once by hand (`npm run build && npm run mutate`) and drives `scripts/run-tests.mjs` DIRECTLY. ⚠ `declaration-baseline` is deliberately ABSENT from every automatic hook — it regenerates E12's oracle and a human runs it by name, having read the diff.",
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "prebuild": "node scripts/clean.mjs",
+    "build": "tsc -b",
+    "test": "npm run build && node scripts/run-tests.mjs",
+    "test:portable": "npm run build && node scripts/run-tests.mjs --portable",
+    "mutate": "npm run build && node scripts/mutate.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "7.0.2"
+  }
+}

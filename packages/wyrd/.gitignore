@@ -1,0 +1,41 @@
+# ⚠ THIS IS THE PACKAGE'S OWN IGNORE FILE, AND IT EXISTS BECAUSE THE EXPORT NEEDS ONE.
+#
+# When this package moved under `packages/wyrd/` on 2026-08-31 the workspace `.gitignore` stayed at
+# the repo root — correct for the workspace, and out of reach of `release.mjs`, whose export root is
+# this directory. The public repo is a real repo and needs its own ignores, so it gets them here
+# rather than by the export reaching upward out of its own root, which would make the allow-list a
+# statement about a directory it does not govern.
+#
+# Nested ignore files are additive in git, so this does not fight the workspace root's copy; it
+# repeats the entries that are true of this package specifically.
+node_modules/
+dist/
+*.tsbuildinfo
+
+# ⚠ THE LOCKFILE IS DELIBERATELY ABSENT FROM THE PUBLIC REPO, AND UNTIL 2026-08-31 THAT WAS ONLY
+# TRUE IN A COMMENT. `release.mjs` states as an accepted cost that "the public repo now carries no
+# lockfile, so a consumer building from source resolves fresh within the `package.json` ranges" —
+# and a tracked `package-lock.json` was sitting there the whole time. The real lockfile is the
+# WORKSPACE ROOT's; a package-level copy exported here would pin a consumer's build to whatever
+# this machine resolved.
+#
+# ⚠ Removing it once was not enough: the export only ADDS and OVERWRITES, so a deletion is a
+# one-time act while `git add .` is forever. The ignore is what makes it stay gone.
+package-lock.json
+
+npm-debug.log*
+yarn-error.log*
+yarn-debug.log*
+pnpm-debug.log*
+.npm/
+
+# Carries registry auth tokens. Never commit it.
+.npmrc
+
+.env
+.env.local
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/

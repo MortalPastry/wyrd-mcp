@@ -1,0 +1,2239 @@
+{
+  "//": "THE RELOCATION CONTRACT. Hand-authored 2026-09-01, BEFORE anything moved, while packages/wyrd still held all 88 arms and all 69 mutation rows. It is a permanent historical record of what this suite measured on that date, and it is read by scripts/verify-relocation-contract.mjs.",
+  "//no-generator": "⚠⚠ THERE IS NO GENERATOR AND THERE MUST NEVER BE ONE. No --update, no --bless, no emit script. The absence is the control. When the verifier refuses, the only two moves are to put the missing thing back or to edit this file by hand, and the second is a review event rather than a keystroke. A regenerate command would make this file certify whatever the tree happens to contain, which is the same defect the fence's .d.ts baseline is written against. The initial rows were laid out once by a throwaway helper in a temp directory that was never committed; from this point the file has no producer.",
+  "//what-it-does-not-stop": "Nothing here prevents one change editing both the code and this file. The design document says the same of itself. The control is social, resting on a structural absence, and it is the strongest available.",
+  "//how-it-is-checked": "The verifier compares this against the LIVE inventories the harnesses are about to run — Object.keys(ALL_ARMS) as scripts/run-tests.mjs sees it, and ROWS as scripts/mutate.mjs sees it — never against a second read of the same declaration. It also holds the totals 88 / 69 / 66 / 3 as literals in code, so shrinking the denominator takes an edit to two files in agreement.",
+  "//measured": "Every number here was read off the disk or produced by a run on 2026-09-01 in a lane holding the build token: `npm test` reported 88 declared arms all executed, 0 failed, 0 skipped; `npm run mutate --json` reported 69 rows, 66 KILLED and 3 SURVIVED (M4, M48, M59), exit 0.",
+  "//moved-flag": "Every row carries moved:false. The later slices of the move flip it one row at a time, which is a deliberate edit to a permanent record. ⚠ THE HOLE, SAID OUT LOUD: a flipped flag only stays honest once the DESTINATION package has a runner of its own and the root aggregation of the plan's step 4 exists. Until then, flipping moved drops an id out of the Reader with nothing on the other side to catch it. That is why the plan puts steps 3 and 4 in the same change.",
+  "//undecided": "Five arms are recorded destination:'undecided' rather than guessed. Each carries the reading on both sides and a recommendation. A wrong destination that later reads as settled costs more than a blank does — the plan's own open question is exactly this allocation, and the honest answer at step 1 is to name the cases, not to resolve them.",
+  "//dispositions": "expectedDisposition is compared as a DISPOSITION, never as an exact red set: A35-root-moved has a measured noise floor, so requiring the same arms to go red every run would gate the matrix on a coin flip. A row contracted KILLED that survives FAILS. A row contracted SURVIVED that is killed is reported as a stale row and does not fail — failing on it would teach the next person to weaken the arm.",
+  "//merge-note-fence-version-gate": "For the slice that adds a fence-side runner: scripts/run-tests.mjs's fenceVersionGate finds `self` in the derived workspace set and asserts self.manifest.dependencies['wyrd-fence'] !== undefined. Reused verbatim on the fence, `self` IS the fence, which declares no dependency on itself, and the gate would refuse falsely. Measured by a sibling lane 2026-09-01.",
+  "//merge-note-junction-removal": "For any harness that creates a reparse point: fs.rmSync(junction, {recursive:true, force:true}) has been measured reporting success while the junction stayed on disk, with fs.existsSync then returning false. fs.unlinkSync removed it. Verify removal with lstat, not existsSync — and note `git ls-files --others` traverses a junction into the target tree.",
+  "date": "2026-09-01",
+  "source": "designs/2026-09-01-fence-test-relocation-plan.md",
+  "totals": {
+    "arms": 88,
+    "mutations": 69,
+    "armsByDestination": {
+      "wyrd-fence": 68,
+      "wyrd": 20
+    },
+    "armsByCurrentPackage": {
+      "wyrd": 88
+    },
+    "mutationsByDestination": {
+      "wyrd-fence": 66,
+      "wyrd": 3
+    }
+  },
+  "arms": [
+    {
+      "id": "A1",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "`..` traversal to an existing outside file",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A2",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "absolute path to an existing outside file",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A3",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "drive-relative `C:notes`",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A4",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "cross-volume absolute path",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A5",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "null byte, lexically not by errno",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A6",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the exact parent",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A7",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "`.` through listDirInGrant is IS_ROOT",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A8",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "`.` through readFileInGrant is IS_ROOT",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A9",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the sibling-prefix trap",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A10",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "`..` absorbed at the volume root is CLAMPED",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A11",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "terminal file symlink, out and in",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A12",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "symlink chain, out and in",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A13",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "junction out, and the IN-GRANT junction that kills the real mutant",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A14-M",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "THE MIRROR ESCAPE — junction alias plus relative symlink out",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A14-T",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the twin — same shape, in-grant target, must OPEN",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A15",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "junction cycle, and the self-junction that must not false-positive",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A16-in",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "dangling IN-GRANT junction is MISSING",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A16-out",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "dangling junction pointing outside is ESCAPES",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A17",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "missing in-grant file is MISSING",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A18",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "relative-target symlink, out and in",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A19",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "directory symlink to outside",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A20",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "junction chain, out and in",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A21",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "symlink cycle",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A21-rel",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "chain of RELATIVE targets, plus a relative cycle",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A22",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "self-descending directory symlink — the OS refuses first",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A22-hops",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "FINITE acyclic chain above the hop bound, with a twin below it",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A23-dsym",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the mirror shape with a DIRECTORY SYMLINK alias",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A24-hardlink-limit",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the documented hardlink limit, not a fence arm",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A25-case",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a case-only difference is accepted",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A26-pagination",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "next_offset reconstructs byte-for-byte",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A27-utf8",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a slice never splits a codepoint",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A28-symlinked-root",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "disclosedRoot is canonical, not the name given",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A29-unc",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a UNC link target — the only arm reaching !isAbsolute(rel)",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A30-no-arbitration",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "plain escapes refuse WITHOUT reaching the realpath arbitration",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A31-errno",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "every errno maps to its own reason, injected below the fence",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A32-hidden-intermediate",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a reparse point hidden inside another link target — the oracle",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A33-guards",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "offset, limit, kind and shape guards, table-driven",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A34-listing",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "entry kinds and sizes, and a file given to listDirInGrant",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A35-root-moved",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the root-identity re-check, stated as a narrowed window",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A36-defaults",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the load-bearing arms re-run on the PRODUCTION primitives, uninjected",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A37-request-separators",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "request paths reach the same file in every separator spelling the HOST recognises — measured on the fixture's own volume, with the backslash spellings held to safety and coherence where it is not one",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A38-both-contained",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "BOTH readings in-grant and DIFFERENT — where the walk's choice bites",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A39-not-filenames",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "stream syntax and reserved device names refuse in stage (a), on EVERY gate entry",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A40-create",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a new file is created through the gate; escaping parents refuse and create nothing",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures.\n\n⚠⚠ THE IN-GRANT JUNCTION LEG WAS INVERTED ON 2026-09-08 and this row's `asserts` deliberately does not name it either way — the locked text is about creation and escaping parents, both unchanged. Until that day the leg read *“an in-grant junction parent must still create”* and asserted the file landed on the CANONICAL parent, which is the measured route by which `Arc/` was writable: a junction named `Notes` pointing at `Arc` is in-grant by every containment predicate this fence owns, so `writePage({path:'Notes/planted.md'})` returned `ok: true` with the file at `vault/Arc/planted.md`. Option C's part 1 refuses it `PARENT_ALIAS` before the leaf is joined (C selected 2026-09-04, build ruled at `a50e90c`), and the leg now asserts the refusal plus `retained: null` plus that nothing landed on the canonical parent. ⚠ A CASE-ONLY PARENT SPELLING REPLACED IT AS THE POSITIVE CONTROL, measured on the fixture's own volume the way `A25-case` measures: it is not an alias, it must still create, and it is the false positive an EXACT comparison would have produced. `A66-parent-alias-refused` owns the new behaviour."
+    },
+    {
+      "id": "A41-exists-refuses",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "anything already at the name refuses EXISTS, unfollowed — hardlink and symlink included",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A42-hash",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a source hashes through the gate, and NO result carries an absolute path",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A45-root-identity",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a RE-SPELLED root is accepted, a REPLACED one refuses — case-folding fails both",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A43-probe-errors",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "only ENOENT reaches the open — every other leaf-probe failure refuses",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A44-short-write",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a short write refuses IO_ERROR, never a success with a reduced count",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A47-name-rules-host",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "both name screens follow the HOST on read, the stream screen is unconditional on CREATE, and neither takes an override",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A47-write-throws-retains",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a throwing write refuses AND reports the file it left behind",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A48-short-write-retains",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a short write refuses AND reports the truncated file it left behind",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A49-close-fails-after-write",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a failed close is a refusal, not a footnote — and the descriptor closes EXACTLY once",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A50-refusal-before-open-retains-nothing",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a pre-open refusal states retained: null — the other half of the check",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A51-nonexistent-errno-retains-indeterminate",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a non-EEXIST open failure is indeterminate; the injectable primitive promises nothing",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A52-success-closes-once",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a successful write closes exactly once — a regression guard, and it PASSES against main",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "A53-post-probe-exists-retains-nothing",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "an EEXIST at the OPEN retains nothing, witnessed by having reached the open",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "META-primitives",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "per-primitive: each injected implementation is called at its site",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "META-this-unbound",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "an injected callback receives `this === undefined`",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "META-no-outside-names",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "no arm, refusal OR pass, names a path outside the root",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "META-guard-armed",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the containment guard is armed and non-vacuous",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "SHAPE-no-mutator",
+      "group": "fence",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the gate is frozen, null-prototype, no setter",
+      "why": "Drives `createFsGate` directly against the fixture tree; `test/fsgate.test.js` moves whole into the fence with its fixtures."
+    },
+    {
+      "id": "S1-no-grant",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "no grant: static message, non-zero exit, factory never runs",
+      "why": "Drives `main()` and asserts the Reader's static no-grant message, its exit code, and that the gate factory never ran. Product startup behaviour; the fence is only the factory that must not be called."
+    },
+    {
+      "id": "S2-missing",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "non-existent absolute grant refuses AND prints the resolved path",
+      "why": "Drives `main()`. The refusal reason originates in the fence, but what is asserted is that the READER printed the resolved path — a disclosure property of this package."
+    },
+    {
+      "id": "S3-file-grant",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "a grant that is a file refuses",
+      "why": "Drives `main()` and asserts the Reader's exit code and reason plumbing for a grant that is a file."
+    },
+    {
+      "id": "S4-config-shapes",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "relative, drive-relative, namespaced, malformed, empty, null byte",
+      "why": "RULED 2026-09-01 → the FENCE. Every assertion is a direct `createFsGate` call with no product involvement, so the assertion is fence-owned source contract however the file it sat in was named. It now lives in `wyrd-fence/test/grant.test.js` with its id unchanged. The Reader keeps `S2-missing`, `S3-file-grant` and `S13-grant-source-parity` as its integration coverage of the same refusals reaching `main()`.\n\nAT STEP 1 THIS ROW READ: GENUINELY MIXED, decide at move time. Every assertion is a direct `createFsGate` call with no product involvement, so the assertion is fence-owned source contract. It lives in `startup.test.js`, which the plan keeps in the Reader. RECOMMENDATION: move the nine grant-shape cases to the fence and leave the Reader one integration arm proving `main()` surfaces a CONFIG_* reason. Do NOT duplicate the id."
+    },
+    {
+      "id": "S5-precedence",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "the command line overrides the environment",
+      "why": "Argument-and-environment precedence inside `main()`. The fence is injected as the factory and asserted only to be reached with the right grant."
+    },
+    {
+      "id": "S6-arg-forms",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "`--grant=value` and `--grant value`",
+      "why": "Exercises `readGrantArg` from this package's `dist/main.js`. No fence involvement."
+    },
+    {
+      "id": "S7-valid",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "a valid grant starts and discloses the canonical root",
+      "why": "Drives `main()` to a started server and asserts the Reader discloses the canonical root it was handed."
+    },
+    {
+      "id": "S8-link-grants",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a dangling grant link, and one resolving to a file",
+      "why": "RULED 2026-09-01 → the FENCE. Both cases call `createFsGate` directly on a dangling link and on a link to a file — fence grant-resolution contract. It moved with its tier-2 classification intact. The Reader keeps S2/S3 as its integration coverage of the same refusals.\n\nAT STEP 1 THIS ROW READ: GENUINELY MIXED, decide at move time. Both cases call `createFsGate` directly on a dangling link and on a link to a file — fence grant-resolution contract — but the arm is filed as startup and is tier 2. RECOMMENDATION: fence, with the Reader keeping S2/S3 as its integration coverage of the same refusals."
+    },
+    {
+      "id": "S9-import-touch",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "an import-time filesystem touch IS detected",
+      "why": "The import-time filesystem observer, which is this package's bootstrap instrument. Nothing fence-side."
+    },
+    {
+      "id": "S10-bootstrap-order",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "the bootstrap arms the instrument before importing",
+      "why": "Asserts this package's `dist/index.js` arms the observer before importing anything. Reader bootstrap order."
+    },
+    {
+      "id": "S11-child-no-grant",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "the child exits non-zero and names no candidate vault",
+      "why": "Spawns this package's built entrypoint as a child process and asserts what it prints. Reader binary behaviour."
+    },
+    {
+      "id": "S12-separator-spellings",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "every separator spelling of one folder is ACCEPTED, and the\n        genuine volume-changing manglings still refuse",
+      "why": "RULED 2026-09-01 → the FENCE. The separator sweep is direct `createFsGate`, and it is the slowest arm in either suite (~2.7s), so the runtime cost moved with the assertion rather than staying where it did not belong. The Reader keeps S13 as the proof that its own three grant SOURCES agree.\n\nAT STEP 1 THIS ROW READ: GENUINELY MIXED, decide at move time. The separator sweep is direct `createFsGate`, and it is the slowest arm in the suite (~2.7s), so where it runs is also a runtime decision. RECOMMENDATION: fence, with the Reader keeping S13 as the proof that its own three grant SOURCES agree."
+    },
+    {
+      "id": "S13-grant-source-parity",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "--grant X, --grant=X and WYRD_GRANT=X agree exactly",
+      "why": "Asserts `--grant X`, `--grant=X` and `WYRD_GRANT=X` agree through `main()`. Purely this package's configuration surface."
+    },
+    {
+      "id": "E1-handshake",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "initialize handshake over stdio",
+      "why": "The MCP initialize handshake over stdio. Product protocol behaviour."
+    },
+    {
+      "id": "E2-one-tool",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "exactly one tool, `read`, with a real description",
+      "why": "The advertised tool set and its description. Product protocol behaviour."
+    },
+    {
+      "id": "E3-read-and-refuse",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "serves in-grant, refuses an escape, end to end",
+      "why": "End-to-end read and refusal over the wire. This is exactly the integration coverage the plan asks the Reader to keep once the direct fence assertions leave."
+    },
+    {
+      "id": "E4-export-inventory",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the fence module exports no raw primitive",
+      "why": "Pins the fence module's runtime export list. Named by the plan as moving; it is a fence source contract that happens to be asserted from here."
+    },
+    {
+      "id": "E5-disclosure",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "initialize.instructions discloses the CANONICAL grant, and names no outside path",
+      "why": "`initialize.instructions` is the Reader's instruction channel. It consumes the fence's canonical root; the assertion is about what the Reader renders."
+    },
+    {
+      "id": "E6-preflight",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "the suite preflight refuses on denied symlink privilege, and separates the probe stages",
+      "why": "RULED 2026-09-01 → STAYS IN THE READER, and the fence's copy of the preflight is graded by a NEW id. The subject is `scripts/preflight.mjs`, suite infrastructure that both packages need after the move and that cannot be shared across a package boundary. The contract forbids one id living in two inventories, so this id keeps grading the Reader's copy and `FP1-preflight` grades the fence's. See `armsAddedPostMove`.\n\nAT STEP 1 THIS ROW READ: GENUINELY MIXED, decide at move time. The subject is `scripts/preflight.mjs` — SUITE INFRASTRUCTURE, not product and not fence source. Both packages need a preflight after the move. RECOMMENDATION: keep the id in whichever package owns the preflight module and have the other import it; if the module is duplicated, the second copy needs a NEW id, because the contract forbids one id living in two inventories."
+    },
+    {
+      "id": "E7-layers",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "Mage layers are named only when present, and a plain folder gets no vault paragraph",
+      "why": "Mage layer detection lives in this package's `dist/server.js`."
+    },
+    {
+      "id": "E7-shadow",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "a same-named FILE listed before a real layer directory does not shadow it",
+      "why": "Same subject as E7-layers — a file shadowing a layer directory in the Reader's own detection."
+    },
+    {
+      "id": "E8-not-text",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "a file that is not valid UTF-8 is refused NOT_TEXT, never returned altered",
+      "why": "NOT_TEXT is refused on the way out through the Reader's tool handler."
+    },
+    {
+      "id": "E9-grant-injection",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "a grant carrying a control character or absurd length is refused at the door",
+      "why": "Every assertion is a direct `createFsGate` call, including the injected-primitives case. Named by the plan as moving. The MOTIVE is a Reader concern (the grant is rendered into the instruction channel) and E5 remains the Reader's integration coverage of that."
+    },
+    {
+      "id": "E10-junction-preflight",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "the tier-1 preflight refuses when a junction cannot be created",
+      "why": "RULED 2026-09-01 → STAYS IN THE READER. Same subject and same reasoning as E6: the tier-1 junction preflight that gates portable mode. The fence's copy is graded by `FP2-junction-preflight`. See `armsAddedPostMove`.\n\nAT STEP 1 THIS ROW READ: GENUINELY MIXED, decide at move time. Same subject as E6 — the tier-1 junction preflight that gates portable mode. Same recommendation, same prohibition on duplicating the id."
+    },
+    {
+      "id": "E11-read-only-hint",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "asserts": "`read` declares readOnlyHint, so the guarantee is machine-readable",
+      "why": "`readOnlyHint` is a Reader tool-declaration property, machine-read by clients."
+    },
+    {
+      "id": "E12-declaration-inventory",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "asserts": "the shipped .d.ts matches its REVIEWED baseline, shapes and optionality included",
+      "why": "Compares the fence's shipped `.d.ts` against its reviewed baseline. Named by the plan as moving, together with the extractor and the baseline. Its resolution becomes fence-local: own manifest, own `types`, own baseline."
+    }
+  ],
+  "mutations": [
+    {
+      "id": "M1",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the absolute-request rejection",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M2",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the drive-relative regex",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M3",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the null-byte rejection",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M4",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "SURVIVED",
+      "mutates": "path.join -> path.resolve in stage (a)",
+      "why": "Documented explicit survivor: `path.join` -> `path.resolve` in stage (a) is equivalent given the drive-relative guard that M4+M2 removes alongside it."
+    },
+    {
+      "id": "M4+M2",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "path.resolve WITH the drive-relative guard also deleted",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M5",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete CLAMPED detection",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M6",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the `..` + sep prefix clause",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M7",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the exact-`..` clause",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M8",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete !path.isAbsolute(rel) from contains()",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M9",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete IS_ROOT",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M10",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["META-no-outside-names", "A39-not-filenames", "A42-hash"],
+      "//expectedRed": "MEASURED 2026-09-02 on the real machine, full fence matrix, twice as a measurement, byte-identical both runs, and reproduced by a third gated run once declared. ⚠ THE PLAN'S CLAIMED ARMS DO NOT REACH THIS MUTANT AT ALL. §5a records `A1 / A2 / A3 / A4 / A5 / A6 spy assertion`, and not one of the six goes red: moving I/O before the lexical refusal is caught instead by `META-no-outside-names` (the stage-(a) refusal is asserted to touch the filesystem for nothing but the root re-check, and hoisted I/O violates exactly that), and by `A39-not-filenames` and `A42-hash`, which reach the relocated I/O through their own paths. `mutation-baseline.json` recorded this same three-arm set as the measured red list, so the disagreement is between the PLAN and the machine rather than between two measurements. Declared to make the attribution permanent: a KILLED verdict alone could not distinguish this row still reaching the three arms from it reddening something incidental after the six it was written against had already stopped applying.",
+      "mutates": "move I/O before the lexical refusal",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M11a",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "judge the traversal reading by the SUBSTITUTED reading's containment",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M11b",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "judge the substituted reading by the TRAVERSAL reading's containment",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M39",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "always take the SUBSTITUTED reading (mutates the CHOICE)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M40",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "always take the TRAVERSAL reading (mutates the CHOICE)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M41",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "return a guessed branch's refusal without arbitrating (the HIGH-1 defect)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M42",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "never record that a guess was made",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M43",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "drop the trailing-separator fold from volumeIdentity (the UNC defect)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M12",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "skip the realpath arbitration (trust the walk)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M13",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "walk one level only (no chain recursion at all)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M29",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "lstat a multi-component link target OPAQUELY (regress fix 2)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M32",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "compare root STRINGS instead of volume identities (the shipped defect)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M33",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the volume-mangling check",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M34",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "invert the volume-mangling check",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M30",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the root-identity re-check (all three sites)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M31",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "invoke a primitive as a property of the table (leaks `this`)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M14",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "refuse every reparse point",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M15a",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "visited set keyed on the ORIGINAL request (absolute branch)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M15b",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "visited set keyed on the ORIGINAL request (relative branch)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M16",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the visited set, keep only the hop limit",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M17",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the TERMINAL-component reparse check",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M18",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A15", "A16-out", "A22", "A23-dsym", "A32-hidden-intermediate", "A30-no-arbitration", "A36-defaults", "A38-both-contained", "META-no-outside-names"],
+      "//expectedRed": "MEASURED 2026-09-02 on the real machine, full fence matrix, twice as a measurement, byte-identical both runs, and reproduced by a third gated run once declared. ⚠ THE PLAN'S CLAIMED ARM DOES NOT REACH THIS MUTANT. §5a records `A14-M`, and `A14-M` stays GREEN; deleting the intermediate-component reparse check is caught instead by the nine arms declared here. That count is the reason the declaration matters rather than an argument against it: a mutation reddening nine arms is the case where a KILLED verdict says least, because the row can stop reaching any particular one of them and still report KILLED off the remaining eight. ⚠ A WIDE SET IS NOT A WEAK CLAIM HERE — every name in it was produced by the run, and the check is exact, so a future narrowing of this mutation's reach becomes a refusal that names which arm it stopped reaching. The nine split into the containment arms `A15`, `A16-out`, `A22`, `A38-both-contained`, the reparse-specific `A23-dsym` and `A32-hidden-intermediate`, the arbitration arms `A30-no-arbitration` and `A36-defaults`, and `META-no-outside-names`.",
+      "mutates": "delete the INTERMEDIATE-component reparse check",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M19",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "conflate MISSING with ESCAPES",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M20-ENOTDIR",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the ENOTDIR errno mapping",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M20-EISDIR",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the EISDIR errno mapping",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M20-EACCES",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the EACCES errno mapping",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M20-EPERM",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the EPERM errno mapping",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M20-ELOOP",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the ELOOP errno mapping",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M20-ENAMETOOLONG",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the ENAMETOOLONG errno mapping",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M20-ERR_INVALID_ARG_VALUE",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the ERR_INVALID_ARG_VALUE errno mapping",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M21",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "realpathSync.native -> bare realpathSync",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M22",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "canonicalize more than once",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M23",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete BOTH missing-root refusals",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M24",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete BOTH not-a-directory refusals",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M25",
+      "file": "main",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete CLI-over-env precedence",
+      "why": "Patches this package's built `main.js`, so it measures the Reader and stays here."
+    },
+    {
+      "id": "M26",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "add a setter for the canonical root",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M27",
+      "file": "index",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "expectedDisposition": "KILLED",
+      "mutates": "instrument AFTER importing the app modules",
+      "why": "Patches this package's built `index.js`, so it measures the Reader and stays here."
+    },
+    {
+      "id": "M28",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "export a raw primitive",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M44",
+      "file": "server",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "expectedDisposition": "KILLED",
+      "mutates": "consider only the FIRST case-insensitive layer match",
+      "why": "Patches this package's built `server.js`, so it measures the Reader and stays here."
+    },
+    {
+      "id": "M45",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "drop the alternate-data-stream (colon) screen",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M46",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "drop the reserved-device-name screen",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M47",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "resolve the create path's PARENT lexically, bypassing the fence",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M48",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "SURVIVED",
+      "mutates": "open the create path NON-exclusively (wx -> w)",
+      "why": "Documented explicit survivor: opening the create path non-exclusively has no deterministic arm; the race it reopens is not constructible in-process. NOT equivalent."
+    },
+    {
+      "id": "M49",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "delete the leaf existence probe, leaving only wx",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M50",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "restore the single-call write (no loop) — the original short-write defect",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M51",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "restore the sawReparse gate on the realpath arbitration",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M52",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "let EVERY leaf-probe error proceed, not only ENOENT",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M54",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "restore case-folding on the root recheck",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M55",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "drop the stem trailing-space trim (NUL .txt survives)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M56",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "drop the COM0/LPT0 portability entries",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M53",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "report a short write as a success with a reduced count",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M58",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "invert the host derivation (win32 gets POSIX rules)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M59",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "SURVIVED",
+      "mutates": "relax the CREATE-path stream screen to the host derivation (reopens the ADS create escape) — SURVIVES on win32, see note",
+      "why": "Documented explicit survivor ON WIN32 ONLY: relaxing the CREATE-path stream screen to the host derivation is observable only off-win32. NOT equivalent."
+    },
+    {
+      "id": "M60",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "drop the stream screen on BOTH paths",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M65",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "drop the `retained` field from every write refusal",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M66",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "populate `retained` unconditionally, pre-open refusals included",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M67",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "restore the swallowed close error (revert fork 3b)",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M68",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "commit the success BEFORE observing the close outcome",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    },
+    {
+      "id": "M69",
+      "file": "fsgate",
+      "currentPackage": "wyrd",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "expectedDisposition": "KILLED",
+      "mutates": "set the close flag AFTER the call, reintroducing the double close",
+      "why": "Patches the fence's built `fsgate.js`, so it measures fence adequacy and belongs to the fence's own matrix."
+    }
+  ],
+  "//walked": "⚠⚠ WALKED FORWARD ON 2026-09-01 BY THE S2b MOVE, BY HAND, AND THIS IS THE WHOLE LIST OF WHAT CHANGED. (1) The five `destination: \"undecided\"` rows were resolved to the rulings the move was given — S4, S8 and S12 to the fence; E6 and E10 to the Reader — and each of those five rows now carries the ruling AND the text it read at step 1, so nothing was overwritten. (2) `moved` went true on every row whose destination is `wyrd-fence`: 68 arms and 66 mutation rows. (3) `totals.armsByDestination` was restated to match, because the verifier compares the rows to that tally and the two must move together. (4) `armsAddedPostMove` was appended. NOTHING ELSE WAS TOUCHED — no id was renamed, renumbered or removed, `currentPackage` still records where every row lived before the move, `totals.arms` is still 88, `totals.mutations` is still 69, and `totals.armsByCurrentPackage` still reads `{wyrd: 88}` because that is a fact about the past and not a reading of the tree.",
+  "//armsAddedPostMove": "⚠⚠ ARMS THAT DID NOT EXIST BEFORE THE MOVE, HELD OUTSIDE THE LOCKED 88 ON PURPOSE. `scripts/verify-relocation-contract.mjs` asserts `arms.length === 88` from code as well as from this file, so a row appended to `arms` would refuse — correctly, because the 88 is a historical measurement and adding to it would let a future session inflate a pre-move denominator with arms that were never part of it. New arms therefore live here, where they are still contracted (deleting one refuses) and still routed (an id in neither package's inventory refuses) without touching the locked number. ⚠ THIS IS NOT A LOOPHOLE FOR RE-HOMING A LOCKED ARM: an id that appears in `arms` may not appear here, and the verifier refuses if one does.",
+  "armsAddedPostMove": [
+    {
+      "id": "FP1-preflight",
+      "group": "suite",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-01",
+      "asserts": "the FENCE's own suite preflight refuses on denied symlink privilege, and separates the probe stages",
+      "why": "The duplicate of `E6-preflight` that the E6 ruling requires. `scripts/preflight.mjs` is suite infrastructure both packages need, and the fence cannot import a module out of the Reader and still be a package that publishes — so the module is duplicated and the second copy gets its own id, because one id cannot live in two inventories. What stops the two copies drifting silently is that each has an arm asserting the same behaviours: a change to one that the other does not get fails in exactly one package."
+    },
+    {
+      "id": "FP2-junction-preflight",
+      "group": "suite",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-01",
+      "asserts": "the FENCE's own tier-1 preflight refuses when a junction cannot be created",
+      "why": "The duplicate of `E10-junction-preflight`, for the same reason and under the same rule as FP1. It gates the fence's portable tier, whose whole premise is that junctions need no privilege — a claim that cannot be measured on a machine with Developer Mode ON, so it is checked rather than asserted."
+    },
+    {
+      "id": "S14-no-grant-claims",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-01",
+      "asserts": "the no-grant refusal states both refusals, the outside-reaching hard link, and the scoped read-only",
+      "why": "NO_GRANT_MESSAGE is the last surface a user reads before granting a folder, and no arm asserted a single one of its claims — `S1-no-grant` pins the two grant flags and the three layer names, which is a staticness check and not a truth check. Reverting the text to its pre-2026-09-01 wording (\"EVERY file inside it is readable\", \"It does not serve anything above it\") passed the entire battery. The arm belongs to the Reader because the message is the Reader's, printed by `main()`; the fence has no user-facing prose."
+    },
+    {
+      "id": "E13-read-description",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-01",
+      "asserts": "the `read` description states both refusals and the outside-reaching hard link, as the model receives it",
+      "why": "READ_DESCRIPTION is what the MODEL is told the tool does, and it was unguarded: `E2-one-tool` asserts only `byte`, `next_offset` and `truncated` — the pagination contract — and `E5-disclosure` reads `initialize.instructions`, a different string. Reverting the description to its pre-correction wording passed the whole battery. Asserted over the wire through a real client, like `E11-read-only-hint`, because the claim is that the text ARRIVES. Reader-owned: the tool declaration is the Reader's product surface and the fence declares no tool."
+    },
+    {
+      "id": "E14-surface-claims",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-01",
+      "asserts": "every DERIVED disclosure surface carries one declared claim set, every claim either carried or explicitly exempt per surface, and no retired wording anywhere",
+      "why": "The three repairs before it each pinned ONE surface with ONE more arm — S14 the refusal message, E13 the tool description, E5 the instructions — and three of the surfaces it covers (README.md, PRIVACY.md, server.json) had no arm at all. Nothing compared the surfaces to each other, so they could drift apart while every arm passed; they did, three times on 2026-09-01. This arm owns the RELATIONSHIP: one claim table, per-surface patterns or a written exemption, and the negatives checked against every surface including the exempt ones. Reader-owned because every surface is the Reader's product prose; the fence has none. Tier 1 — its fixture is a plain directory. ⚠ AMENDED 2026-09-02: the arm's surface LIST was a literal array and had been wrong four times running (4 → 5 → 6 → 8, each correction by a different reader), so it is now DERIVED — the shipped documents off `package.json`'s own `files`, one surface per tool from `listTools()` carrying every string in the tool object including its input-schema descriptions, and both manifests walked. The locked `asserts` wording was reconciled to match the arm body in the same edit, which is what changed."
+    },
+    {
+      "id": "A54-writeall-loop",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-01",
+      "asserts": "the SHIPPED writeAll completion loop — its no-progress break, its resumption after a partial write, and a throwing syscall",
+      "why": "`A44-short-write` injects `writeAll`, so it grades the CALLER's classification of a returned count and executes no line of `_writeAll`. That loop is module-private and calls `fs.writeSync` directly, below the injection seam, so its `n <= 0` break was unreached — measured 2026-09-01 by changing it to `n < 0` in the built output and watching all 70 fence arms stay GREEN. Fence-owned: `_writeAll` is the fence's shipped primitive and the arm reaches it through `createFsGate` with no `writeAll` supplied. The seam is `fs.writeSync` itself, patched for ONE descriptor inside the arm and asserted restored, because the alternative — a new injectable primitive — is another option on a security-adjacent factory. Tier 1: it needs a create in the grant and no symlink privilege. ⚠ NO MUTATION ROW: the matrix is locked at 69 by a code literal with no additions array, so this arm is ungraded by the matrix and its evidence is the before/after measurement above.\n\n⚠ SUPERSEDED 2026-09-02 — IT NOW HAS A MUTATION ROW. The sentence above said this arm gets none because the matrix is locked at 69 by a code literal with no additions array; `mutationsAddedPostMove` is that array, and `M70-writeall-no-progress` grades this arm. The measurement in the arm's own comment stands as the record of what was true before the row existed."
+    },
+    {
+      "id": "E15-refusal-vocabulary",
+      "group": "end-to-end",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-02",
+      "asserts": "every refusal the program can return — the fence's enumerated unions plus the Reader's own — is stated on a surface or exempted with a written reason",
+      "why": "E14 compares prose to prose: it makes the disclosure surfaces AGREE and cannot make them TRUE. On 2026-09-02 it was found holding three false claims in place across every surface it covers, green throughout, because all of them said the same wrong thing — one of the three being that `BAD_INPUT` is returned for a drive-relative request while no surface anywhere mentioned it. This arm has the shape that catches that class: one side DERIVED FROM THE PROGRAM (the fence's enumerated `RequestRefusalReason` and `ConfigRefusalReason` unions, read through its declared `types` entry, plus the literal reason codes in this package's own built `dist/server.js`), the other from the prose. A new refusal class then forces a documentation decision instead of widening the gap in silence. Reader-owned: every surface it checks is the Reader's product prose, and it asserts nothing about the fence — if the fence adds a reason, what fails is wyrd's DOCUMENTATION, not the fence. ⚠ It reads the fence's declaration file as DATA and imports nothing from it, so the 2026-09-01 relocation rule against a direct `wyrd-fence` import in this package's inventory is not reopened. Tier 1: its fixture is a plain directory."
+    },
+    {
+      "id": "A55-same-path-replacement",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "the PINNED F8 GAP, MEASURED: a different directory built at the IDENTICAL canonical path is served for read, list, hash and create — and what making the identity comparison unconditional would cost",
+      "why": "THE ROW THAT IS SUPPOSED TO GO RED. `rootStillCanonical` compares the granted directory's captured `dev`/`ino` only inside `if (current !== root)`, so the comparison never runs when the canonical path STRING is unchanged. Three independent readers — a read-only audit lane, a documentation lane and the parent — agreed at source that removing the granted folder and building a DIFFERENT one under the identical name would therefore be served, and none of them ran it; the claim reached `packages/wyrd-fence/README.md` as a source reading.\n\nMEASURED 2026-09-02 on the real filesystem with the shipped primitives, and CONFIRMED exactly as written: `readFileInGrant` returned the replacement's bytes, a file existing only in the replacement was served, `listGrantRoot` listed the replacement's entries, `hashInGrant` hashed it, and `createFileInGrant` created a file INSIDE it. The removal needed no privilege and hit no open-handle obstruction; the re-resolved path string was byte-identical and the replacement's `dev`/`ino` differed, so the fence held every observation the suppressed branch needed.\n\nIT ASSERTED THE GAP UNTIL 2026-09-03 AND NOW ASSERTS THE REFUSAL. While the fork was open this arm PINNED the hole — its passing meant the hole was still there — because whether the comparison should become unconditional was a decision for the maintainer, and an arm is how a fork stays decidable rather than drifting into a silent change. Option C was ruled, the comparison became unconditional, and the arm was inverted: every surface (read, list, hash, create AND append) must now refuse ROOT_MOVED on a replaced root, and the create and append legs additionally assert that nothing was written before the refusal. Its last leg still pins the COST, in the direction the ruling accepted: the identity branch fails closed when `dev`/`ino` are unavailable, so a filesystem reporting `ino === 0` now refuses every request from the first one, and that leg asserts the refusal so nobody can soften the fail-closed rule without saying so out loud.\n\nFence-owned: the behaviour is `rootStillCanonical`'s and the arm reaches it through `createFsGate` over a real temporary directory. Tier 1 — plain directories only, no symlink privilege. ⚠ NO MUTATION ROW, for the same reason `A54-writeall-loop` has none: the matrix is locked at 69 by a code literal with no additions array. Its evidence is the measurement above. ⚠ NEITHER `A35-root-moved` NOR `A45-root-identity` can reach this — A35 puts a junction at the old name and A45 stages a different SPELLING, so both take the one branch that does compare identity.\n\n⚠ SUPERSEDED 2026-09-02 — IT NOW HAS A MUTATION ROW. `M71-root-identity-unconditional` applies the F8 tightening in its simplest form to the built output and this arm goes red, which is what the hand demonstration showed and nothing re-ran. ADDING THE ROW IS NOT TAKING F8: it makes the current behaviour's detector permanent, so a future tightening is still a ruling and is still visible the moment it lands. `fsgate.ts` is unchanged."
+    },
+    {
+      "id": "PC1-pointers-resolve",
+      "group": "published-claims",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "every published pointer resolves to a heading and a file a stranger actually receives",
+      "why": "The fence's security account was unguarded by anything: a grep of both packages' test and scripts trees returned only prose references to `packages/wyrd-fence/README.md`, and `handshake.test.js` derives its document surfaces from the READER's `files`, so the fence's README is not reachable from that derivation at all. This arm is the one that catches the defect that actually recurred — a pointer into a file strangers cannot read. The published set is derived from `npm pack --dry-run --json`, npm's own authority, rather than from the `files` field: `files` is a declaration and pack is the fact, and here they differ (pack includes `package.json`, which `files` never names). If pack cannot run the arm reddens as UNDETERMINED rather than falling back to `files`."
+    },
+    {
+      "id": "PC2-retired-wordings",
+      "group": "published-claims",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "a retired wording does not come back on any published fence artifact",
+      "why": "The fence had three corrected falsehoods and nothing stopping any of them returning; the Reader's `RETIRED` mechanism earned its place on exactly this shape, where a corrected falsehood survived on four surfaces. Matching is on a whitespace-flattened, asterisk-stripped copy so a reflow or a `**bold**` marker cannot silently stop a match. ⚠ PUBLISHED ARTIFACTS ONLY, and that is load-bearing rather than lazy: `src/fsgate.ts` QUOTES the retired reparse wording in order to warn the next editor against it, so a source-level scan would redden on the warning — the same trap the Reader's table names for `src/server.ts`. `src/` does not ship, so it is correctly out of scope."
+    },
+    {
+      "id": "PC3-limits-section-live",
+      "group": "published-claims",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "the limits section is substantive and the source header still points at it rather than restating it",
+      "why": "The limits were consolidated into ONE home on 2026-09-02 because the source header's second copy went wrong while the code beside it stayed right. ⚠ The third clause is the one that decays: the header was reduced to a pointer deliberately, and the easiest future edit is to start explaining a limit in code again, re-creating the two-copy problem the design removed. This arm holds the section above a substance floor and holds the header and the description to pointing rather than restating. It checks structure, never truth — a limit that is stated and false passes here."
+    },
+    {
+      "id": "MF1-manifest-schema",
+      "group": "manifest",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-02",
+      "asserts": "the vendored MCP registry schema still spans the bounded validator, and server.json conforms to it",
+      "why": "`server.json` declares its own contract on line 1 — a `$schema` URL — and nothing in the tree read that declaration. No schema was vendored and no arm validated the file, so a malformed registry manifest was refused by the MCP Registry at SUBMISSION, which is after the npm publish has already happened. The schema is VENDORED at `test/server.schema.json` rather than fetched: a suite that downloads its schema fails offline, and worse, a registry-side revision would silently change what this package is measured against and redden the arm for a change nobody here made. ⚠ THE FIRST ASSERTION IS THE LOAD-BEARING ONE AND IT IS NOT ABOUT THE MANIFEST. `test/jsonschema.mjs` is a bounded draft-07 subset rather than a complete implementation, and a bounded validator that meets a keyword it does not implement and skips it reports valid for a document it did not fully read — the silent-green class this suite exists to refuse. So the schema's keyword vocabulary is asserted to lie inside what the validator asserts or knowingly ignores, and a re-vendored schema introducing `oneOf`, `if`/`then`, `dependencies` or `patternProperties` fails here naming the keyword. The arm also proves the validator BITES inside its own body against three constraint families — a missing `required` field, a broken `pattern`, an `anyOf` matching no alternative — because a validator whose only evidence is that it returned zero errors is indistinguishable from one that returns zero unconditionally. Reader-owned: `server.json` is the Reader's registry manifest and the fence has none. Tier 1 — it reads files and creates nothing."
+    },
+    {
+      "id": "MF2-manifest-cross-reference",
+      "group": "manifest",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-02",
+      "asserts": "server.json's declared $schema is the vendored copy's $id, and its name, version and npm identifier agree with package.json and with the built program",
+      "why": "SCHEMA CONFORMANCE CANNOT REACH THIS CLASS, and it is the class that actually breaks a release. A manifest can satisfy every constraint in the schema and still describe a DIFFERENT package than the one being published. ⚠ `mcpName` IS THE ROW WITH TEETH: the MCP Registry proves npm ownership by reading `mcpName` out of the PUBLISHED tarball and requiring it to equal the manifest's `name`, and before this arm the two were cross-referenced by nothing in this tree — they could disagree through a fully green suite and the submission would be refused after publish. The version pair and the npm `identifier` are the same shape: two files that must say the same thing with nothing making them. ⚠ THE $schema PIN IS WHAT KEEPS MF1 MEANINGFUL. The vendored copy is one dated revision of a schema that will be revised; if `server.json` could start declaring a different revision while MF1 went on measuring the old one, the manifest would be checked against a contract it no longer claims and would pass. Asserting the declaration equals the vendored `$id` makes a schema upgrade a two-file edit somebody has to mean — a visible event rather than a drift. ⚠ The grant flags are checked for PRESENCE in the BUILT `dist/main.js` rather than parsed out of it: a derivation precise enough to enumerate every flag the program accepts would be a second implementation of the argument reader, and the failure guarded here is a manifest naming something that does not exist at all. Reader-owned and tier 1, as MF1."
+    },
+    {
+      "id": "A56-append-core",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "the first append creates and the second appends; the result carries only rel and the exact byte count, and the fence creates no parent directory",
+      "why": "`appendLineInGrant` is the fence's SECOND write entry point and the first one whose target may already exist. Nothing in the create corpus reaches it: `A40-create` asserts that an existing leaf refuses EXISTS, which is the behaviour an append must NOT have. This arm holds the base contract — create-then-append, both records intact and in order, the exact byte count, and a result carrying nothing but `ok`/`rel`/`bytes`. ⚠ ITS LOAD-BEARING LEG IS THE ONE ABOUT THE PARENT: the fence issues no `mkdir`, so the Scribe's refusal on a missing `.wyrd/` is a real refusal rather than a directory quietly conjured for it, and a `mkdir` added later would take that decision away from the caller with nothing noticing. Fence-owned; tier 1 — plain files in the grant, no symlink privilege."
+    },
+    {
+      "id": "A57-append-parent-containment",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "missing, non-directory and escaping parents refuse; an in-grant junction parent refuses PARENT_ALIAS with nothing landing on the canonical parent; a real directory parent still creates and then appends",
+      "why": "The append path does NOT call `resolveNew` — that function refuses EXISTS on any existing leaf — so it performs the parent resolution itself, by the same calls in the same order. `M47` patches `resolveNew`'s parent resolution and cannot reach this second copy, so an append path resolving its parent lexically would be invisible to every existing arm. ⚠ TIER 1, AND THE JUNCTION LEG IS WHY: junction creation needs no privilege, so the unprivileged half of the parent-containment property is exercised on a machine without Developer Mode, which is where an unattended fence is most likely to be running. Fence-owned.\n\n⚠⚠ THE JUNCTION LEG WAS INVERTED ON 2026-09-08 AND THIS ROW READ, UNTIL THAT DAY: “an in-grant junction parent appends”, landing on the CANONICAL parent. That was the second measured route by which `Arc/` — the user's immutable provenance layer — was writable: `LINEAGE_PATH` is the fixed `.wyrd/lineage.jsonl`, so making `.wyrd` a junction to `Arc` needs no page-path trickery at all, and an ordinary `Mage/answer.md` stamp wrote `lineage.jsonl` INTO `Arc/` with `stamp_ok: true`. Option C mirrors `resolveNew`'s parent-alias comparison into this path (C selected 2026-09-04, build ruled at `a50e90c`), so the leg now asserts `PARENT_ALIAS`, `retained: null`, and that nothing landed on the canonical parent. ⚠ THE POSITIVE CONTROL GREW WITH THE INVERSION, deliberately: a real-directory parent must still CREATE and then APPEND to the same file, or the arm would prove only “refuses every parent with a link in it” and the existing-file branch — the one `resolveNew` cannot serve, and the reason this second copy exists — would never be reached. `A66-parent-alias-refused` owns the new behaviour on both write paths; this leg keeps the reproduced fixture pointed at the append copy."
+    },
+    {
+      "id": "A58-append-leaf-no-follow",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "a symlink, dangling link, junction or directory leaf refuses before any write and touches nothing outside; an ordinary file appends, and a hard-linked leaf refuses NOT_A_FILE with neither name written",
+      "why": "⚠⚠ THE ARM THE CREATE PATH GETS FOR FREE AND THE APPEND PATH DOES NOT, AND THAT ASYMMETRY IS THE WHOLE REASON IT EXISTS. `createFileInGrant` opens `wx`, so the operating system refuses every existing object without the fence inspecting anything — `A41-exists-refuses` rests on that. An append MUST open something that already exists, so `wx` is unavailable and the no-follow property is established by the leaf probe's own `lstat` inspection instead. A property held by inspection can be deleted; a property held by an OS flag cannot. It runs the same reproduced-escape corpus `A41` does — the outside hardlink, both dangling links, the junctions — and asserts the OUTSIDE TARGETS STILL DO NOT EXIST afterwards, which is the assertion that catches a refusal returned after the filesystem was already mutated. It re-runs on the UNINJECTED gate for M48's reason — the spy supplies `openAppend`, so the injected legs exercise the spy's flags and not the shipped ones. Fence-owned; tier 2 for its symlink leaves.\n\n⚠⚠ THE HARD-LINK LEG WAS FLIPPED ON 2026-09-02, FROM AN ASSERTED SUCCESS TO AN ASSERTED REFUSAL, AND THE BEHAVIOUR CHANGED WITH IT. THIS ROW READ, UNTIL THAT DAY: “⚠ THE HARD LINK IS ASSERTED AS A SUCCESS rather than omitted, and that is the documented limit made falsifiable: `h_out.md` is an ordinary regular file to every API there is, so the leaf probe sees a regular file and the append LANDS on a file whose other name is outside the grant — measured, not reasoned. An arm that quietly left the case out would read as coverage; if this ever starts refusing, the published limits are what need re-reading.” It started refusing, and the published limits were re-read: an adversarial correctness lens returned HIGH on the leg, because the read path and the append path were being held to one limit when they make different promises. The read path DISCLOSES through the alias, which is the limit as published; the append path WRITES through it, and a write to a file whose other name is outside the grant is an outside write that no limits section had ever claimed. The fix is a link-count screen at the pre-open `lstat` and again at the post-open `fstat` — refusing on MULTIPLICITY, since no API here can say WHERE the other name is. `A65-append-hardlink-refused` is the arm that owns the new behaviour and its post-open window; this leg keeps the reproduced outside-alias fixture (`h_out.md`) pointed at it, so the exact object that used to be written through is the one asserted refused. `M96-append-drop-preopen-nlink` grades it."
+    },
+    {
+      "id": "A59-append-probe-errors",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "only a leaf ENOENT selects create — every other probe errno maps and reaches no open",
+      "why": "`A43-probe-errors` pins the same rule on `resolveNew`'s probe, which the append path does not call. The two probes answer different questions — `resolveNew`'s decides whether the name is FREE, the append path's decides which MODE to open in — and a probe that read every errno as 'the name is free' would select the exclusive-create branch and refuse EEXIST, which reads as a clean containment refusal while meaning the fence never found out what was there. Each row carries A43's witness discipline: the probe hook is counted, so a row cannot pass because something refused earlier, and the open is instrumented to prove it was never reached. It also carries a POSITIVE CONTROL — a genuine ENOENT must still select create — without which every row passes for the trivial reason that the path refuses everything. Fence-owned; tier 1."
+    },
+    {
+      "id": "A60-append-target-changed",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "absent-to-present, present-to-missing, and pre/open/post identity changes each refuse TARGET_CHANGED before the write",
+      "why": "The arm for the new refusal reason, and for the window that reason exists to name. Five cases, each a different mechanism: a leaf that appeared since the probe (the `ax` open fails EEXIST rather than appending onto whatever arrived), a leaf that vanished (the existing branch carries NO `O_CREAT`, so the open fails rather than recreating an empty lineage file that reads as healthy), a DIFFERENT object under an unchanged name between probe and open, a name RE-POINTED after the open so the descriptor and the name diverge — which only an `fstat` can see and a path-based check before the open structurally cannot — and an identity the filesystem will not supply, where the path fails closed exactly as `rootStillCanonical` does. ⚠ THE SWAPPED-OBJECT CASE IS WHY THE IDENTITY IS READ AS BigInt: measured 2026-09-02 on this volume, files created in one directory receive ADJACENT inodes differing by 1, NTFS ids exceed Number.MAX_SAFE_INTEGER, and float64's ULP at that magnitude is 4 — so a number-form comparison merges a file with its own replacement, which is precisely the pair this reason exists to separate. Fence-owned; tier 1."
+    },
+    {
+      "id": "A61-append-name-screens",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "the CREATE screens run on an append: stream syntax and reserved device names refuse before any I/O",
+      "why": "The append path calls `lexicalStage` with `createScreens`, not `readScreens`, and the difference is the unconditional stream screen. It is not defence-in-depth here: the append path resolves the PARENT through the fence and joins the LEAF lexically, so the leaf never reaches the walk and `realpathNative` is never consulted for it before the open — the identical structure that made `<link>:<stream>` a REPRODUCED escape on the create path on 2026-08-29. `A39-not-filenames` and `A47-name-rules-host` assert the screens on the entry points that existed when they were written; neither reaches this one, so an append path wired to the read set would re-admit that class on every host with every existing arm green. The arm also asserts the screens touch NOTHING — the root re-check's own realpath is the sole permitted call, the same allowance `META-no-outside-names` makes for stage (a). Fence-owned; tier 1."
+    },
+    {
+      "id": "A62-append-one-write",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "on the PRODUCTION primitives: O_APPEND is in effect, appendOnce is called exactly once with the whole line, a short count is not retried, and concurrent appenders produce intact lines",
+      "why": "THE ARM FOR THE PROPERTY THE WHOLE PATH IS FOR, and every leg of it runs uninjected because the property belongs to the shipped flags and the shipped write. `O_APPEND` is measured rather than inferred from the flag name — a descriptor without it writes at position 0 and OVERWRITES, so two appends onto a pre-populated file separate the two outright. The one-call assertion uses `A54-writeall-loop`'s seam, `fs.writeSync` patched for a single descriptor and asserted restored, because reaching `_appendOnce` any other way means another option on a security-adjacent factory. ⚠ THE NO-RETRY LEG IS NOT A PERFORMANCE ROW: under `O_APPEND` every write re-selects the current end of file, so retrying after a short write appends the remainder AFTER whatever another appender landed in between — the fence would itself splice one record through another while looking like it was recovering. The concurrency leg drives N real gates over one file and asserts N intact, unique, fixed-width records, so a splice fails the shape check and a lost record fails the count. Fence-owned; tier 1."
+    },
+    {
+      "id": "A63-append-retention",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "pre-open refusals state retained: null; open, write, short-count and identity failures state the conservative indeterminate retention",
+      "why": "`WriteRefusal.retained` is a REQUIRED field, so the compiler enumerates the sites — but the compiler cannot check the VALUE, and a path that answered `null` everywhere would typecheck while telling every caller nothing was left behind. The A50/A51/A53 trio does this for `createFileInGrant`; none of them reaches the append path. The split is the same and the reasoning is `createFileInGrant`'s: a pre-open refusal opened nothing, and every post-open failure is INDETERMINATE because `openAppend` and `appendOnce` are injectable primitives whose contracts promise nothing about what a failing call materialised. ⚠ Its last leg asserts the fragment a short append genuinely leaves, in bytes on disk — the S1 ruling that a failed write RETAINS and REPORTS, never that the file is gone. Fence-owned; tier 1."
+    },
+    {
+      "id": "A64-append-close",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "success and failure each close exactly once, and a close failure cannot become a success",
+      "why": "The append path repeats `createFileInGrant`'s close structure — the attempt flag set BEFORE the call, the close outcome consulted before any success is committed — and repeating a structure is how a subtly different copy of it ships. `A49-close-fails-after-write` and `A52-success-closes-once` grade the create path's copy and cannot see this one. ⚠ THE COUNT IS `=== 1`, NOT `>= 1`, for the reason A49 records: a 'did it reach close' assertion goes green against the double-close defect, where the flag set after the call leaves it false when close throws and the `finally` closes a descriptor the runtime may already have reused. The injected close performs the REAL close and then throws, so the arm neither leaks a descriptor nor contradicts its own count. Fence-owned; tier 1."
+    },
+    {
+      "id": "S15-client-config-entrypoint",
+      "group": "startup",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-02",
+      "asserts": "the example client config resolves to the real built entrypoint and its grant is still a placeholder",
+      "why": "`test/clients/wyrd.mcp.json` is copy-paste configuration — the thing a stranger pastes into their client to run this server — and it hard-codes `../../dist/index.js` with no gate on the path whatsoever. A file that parses and reads plausibly can point nowhere: moving the config one directory, or renaming the build output, leaves it green here and broken on somebody else's machine, and the failure surfaces at the far end where it cannot be diagnosed. ⚠ THE COMPARISON IS ON RESOLVED ABSOLUTE PATHS, NOT ON THE STRING. Asserting the literal `../../dist/index.js` would pass a config spelled correctly and anchored somewhere else, which is the whole defect: the relative path is meaningful only against the CONFIG FILE'S OWN DIRECTORY, so that is what it is resolved against, and existence is then checked on the resolved result — the battery builds before it tests, so an absent file there is a real break rather than an ordering accident. ⚠ THE SECOND HALF IS A LEAK CHECK, NOT A CORRECTNESS CHECK: the `--grant` value must still be the literal `REPLACE-WITH-AN-ABSOLUTE-PATH-TO-A-DISPOSABLE-FOLDER`, because a committed real path discloses the author's disk layout in a file that exists to be copied, and it is exactly the edit somebody makes once while testing by hand and never undoes. Reader-owned: the config starts the Reader's `dist/index.js` and the fence ships no client example. Tier 1 — it reads two files and creates nothing."
+    },
+    {
+      "id": "A65-append-hardlink-refused",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "asserts": "a leaf whose link count exceeds one refuses NOT_A_FILE at the pre-open reading with nothing opened, the same leaf appends once single-named, and a link created between the probe and the open is caught by the post-open reading before appendOnce",
+      "why": "THE ARM FOR THE ONE PLACE THE APPEND PATH IS STRICTER THAN THE READ PATH RATHER THAN MATCHING IT. A pre-existing hard link inside the grant whose other name is outside it defeats every path-based check the fence has: `isSymbolicLink()` is false, `readlink` throws `EINVAL`, `realpathNative` returns the in-grant name, and the dev/ino identity binding agrees with itself perfectly — because it IS one object and the in-grant name is a genuine name for it. `A58-append-leaf-no-follow` asserted that as a documented SUCCESS until 2026-09-02, when an adversarial correctness lens returned HIGH on it: the read path only DISCLOSES through the alias, which is the published limit, while an append WRITES through it, and that is an outside write no limits section had claimed. The screen is the link count, read at the pre-open `lstat` and again from the post-open `fstat`.\n\n⚠ THE TWO READINGS ARE SEPARATE CLAIMS AND THE ARM DRIVES BOTH, because they close windows on opposite sides of one syscall — the pre-open reading catches a link that was there all along, the post-open one catches a link created after the probe. `M96-append-drop-preopen-nlink` and `M97-append-drop-postopen-nlink` grade them independently; a single row deleting both would be KILLED by either leg while proving neither carries its own weight.\n\n⚠ THE POST-OPEN LEG IS A REAL RACE, NOT A SPY, AND IT COULD NOT HAVE BEEN ONE. `exactIdentityOf` and `exactIdentityOfDescriptor` read the filesystem DIRECTLY rather than through the injectable table — `Primitives.lstat`/`fstat` are typed to the number form, which cannot carry an exact NTFS id — so no injected stat can stage an `nlink`. The seam that IS available is `openAppend`: the arm calls `fs.linkSync` from inside it, which puts the second name in existence after the probe read 1 and before the descriptor the post-open `fstat` reads. Two witnesses make it a claim about that window rather than about the earlier check — the link is asserted to have actually been created, and the pre-open count is asserted to have been 1.\n\n⚠ REFUSED ON MULTIPLICITY, NOT ON ESCAPE, and the arm asserts that cost rather than hiding it: no API here can say WHERE the other name is, so a file with a second name ANYWHERE is refused, in-grant siblings included. The arm's first leg removes the alias and asserts the SAME leaf then appends, which is what makes the refusal a claim about the link count rather than about the file. ⚠ THE REASON IS `NOT_A_FILE` RATHER THAN A NEW ONE: `DENIED` is this module's mapping for `EACCES`/`EPERM` alone and would send a caller to retry with privilege it can never have; `NOT_A_FILE` already carries the directory and non-regular-leaf cases and points at the correct remedy, a different name. No new reason means the Reader's `E15-refusal-vocabulary` row and the `.d.ts` baseline are untouched.\n\nFence-owned: the behaviour is `appendLineInGrant`'s and the arm reaches it through `createFsGate`. ⚠ TIER 1, DELIBERATELY — `fs.linkSync` needs no Developer Mode, so the one escape class the append path screens and the create path does not is measured on the machine an unattended fence actually runs on."
+    },
+    {
+      "id": "A66-parent-alias-refused",
+      "group": "fence",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-08",
+      "asserts": "an in-grant junction parent refuses PARENT_ALIAS with retained: null on BOTH write paths and leaves the aliased directory unchanged, the comparison fires ahead of the leaf probe so an existing leaf cannot hide the alias, a DEEPER aliased ancestor refuses the same way, EVERY refusing leg \u2014 create, append, occupied leaf, the deeper pair and the symlink pair \u2014 is checked CASE-FOLDED to name the caller's own spelling and never the alias TARGET, a directory-SYMLINK alias refuses identically where the privilege allows the fixture, and a case-only spelling of a real directory still writes",
+      "why": "⚠⚠ THE ARM FOR THE ONE PROPERTY THIS FENCE'S CONTAINMENT PREDICATES CANNOT EXPRESS: a write goes where it was SPELLED. An in-grant junction resolves INSIDE the grant, so `ESCAPES` is false, the walk is happy, the realpath arbitration is happy, and every check the fence owns returns yes while the bytes land somewhere the caller never named. Reproduced twice against the shipped gate on 2026-09-04 with the Scribe's real vault: `mklink /J Notes Arc` (no privilege needed) then `writePage({path:'Notes/planted.md'})` returned `ok: true` with the file at `vault/Arc/planted.md`; separately, `.wyrd` as a junction to `Arc` made an ordinary `Mage/answer.md` stamp write `lineage.jsonl` INTO `Arc/`. Option C was selected 2026-09-04 and its build ruled at `a50e90c`.\n\n⚠ THE FENCE DOES NOT KNOW WHAT `Arc/` IS, AND THE FIXTURE SAYS SO: the protected directory is named `protected_dir`, not `Arc`. `Arc/` immutability is the Scribe's doctrine (D7); what this package owns is the narrower and more general property, and naming the fixture after the consumer's rule would import a rule this package does not hold.\n\n⚠⚠ THE ORDERING LEG IS THE ONE THE SCRIBE'S CONFIG LOAD RESTS ON. `protected_dir/occupied.md` already exists, so `alias_dir/occupied.md` names a taken name through an aliased parent — and it must still answer `PARENT_ALIAS` rather than `EXISTS`. If the comparison sat after the leaf probe an already-present file would HIDE the alias, which is exactly how an existing `Arc/scribe.json` would hide a `.wyrd -> Arc` junction from a read-first `loadConfig`. That single assertion is what makes `ST39-config-parent-alias-refused` a claim about ordering rather than about the alias.\n\n⚠ BOTH WRITE PATHS, BECAUSE THERE ARE TWO COPIES OF THE COMPARISON AND NOT ONE. `appendLineInGrant` does not call `resolveNew` — that function refuses EXISTS the moment its leaf probe finds anything, right for a create and fatal for an append — so it duplicates the parent resolution and the comparison duplicates with it. `M103` and `M104` grade the two copies independently; a row on one is not evidence about the other, and `M105` grades the case FOLD separately from both guards.\n\n⚠ THE CASE-FOLD LEG IS THE FALSE POSITIVE, ASSERTED RATHER THAN REASONED ABOUT. Asking for `vault\\mage` where the directory is `Mage` returns the canonical `vault\\Mage`, so an EXACT comparison refuses an ordinary user spelling — the same class `rootStillCanonical` records, where exact comparison was revision 2 of 3 and had to be replaced. Measured 2026-09-04, 8 names, 8/8 agreeing: wherever Windows resolves a differently-cased spelling, `toLowerCase()` folds equal too; wherever JavaScript would mis-fold (`Straße`, `Meſſe`, `ΟΔΟΣ`, `İstanbul`) Windows returns ENOENT and there is no alias to catch. The leg is measured on the fixture's own volume the way `A25-case` measures, never inferred from `process.platform`, and on a case-SENSITIVE volume it is HELD BACK and the accepted cost — a genuine `mage -> Mage` alias folds equal and is ALLOWED — is printed where the run is read.\n\n⚠⚠ THREE LEGS WERE ADDED ON 2026-09-08 AND THE `asserts` TEXT GREW WITH THEM, which is the edit the reconciliation check is asking about: the arm genuinely measures more than it did, so the CONTRACT was the half that had gone stale. (1) A DEEPER ALIASED ANCESTOR — `alias_dir/sub/x.md` puts the alias one level above the write's own parent, and a comparison reading only the final component would pass it; the fixture gained `protected_dir/sub` for it. (2) THE DETAIL MUST NOT NAME THE ALIAS TARGET — the comparison's own comment calls reporting the caller's spelling a legibility rule, and until this leg landed nothing enforced it; echoing `parent.rel` would tell a caller who probed with a junction what it resolves to. (3) A DIRECTORY-SYMLINK VARIANT — `A14-M`/`A23-dsym` measured that the OS resolves a directory symlink by the SUBSTITUTED spelling where it resolves a junction by the traversal one, so a guard shown holding for junctions is not thereby shown holding for symlinks. ⚠ THE SYMLINK LEG IS HELD BACK IN-ARM WITH A PRINTED LINE rather than putting the arm behind `tier2()`: the junction legs need no privilege and are the tier-1 coverage this row exists for, and skipping the whole arm to gain one privileged leg would trade the reachable escape for the unreachable one.\n\n\u26a0\u26a0 THE DETAIL LEG WAS WIDENED AGAIN ON 2026-09-08 AND THE CONTRACT IS AGAIN THE STALE HALF, for the same reason and by the same test \u2014 the arm body decides, and it now measures more. Two changes. (1) THE COMPARISON IS CASE-FOLDED. It was `detail.includes('protected_dir')`, and this host's volume FOLDS CASE, so a detail naming `Protected_Dir` or `PROTECTED_DIR` would have passed a check written to forbid exactly that disclosure. A check that catches only the lowercase spelling of a leak is not a check, and the same fold was applied to `ST40-planted-page-refused` in the Scribe, which had the identical hole against `Arc`. (2) THE CHECK NOW RUNS ON EVERY REFUSING LEG. It ran on three of six \u2014 create, append and occupied leaf \u2014 while the DEEPER APPEND and the SYMLINK APPEND had no detail assertion of any kind, and the deeper create and symlink create asserted only the negative half without requiring the caller's own spelling. That is the class rather than an oversight: the property was asserted on the legs someone remembered instead of on the surface, which is the same failure `ST18-no-outside-names` exists to prevent one package over. The symlink legs matter most here because they need privilege, so they run least often and drift least visibly.\n\nFence-owned; TIER 1, because a junction needs no Developer Mode and this escape is reachable on the machine an unattended fence actually runs on."
+    }
+  ],
+  "//mutationsAddedPostMove": "⚠⚠ MUTATION ROWS THAT DID NOT EXIST BEFORE THE MOVE, HELD OUTSIDE THE LOCKED 69 FOR THE SAME REASON `armsAddedPostMove` IS HELD OUTSIDE THE 88. `scripts/verify-relocation-contract.mjs` asserts `mutations.length === 69` from code as well as from this file, and the 66/3 destination split with it, so a row appended to `mutations` refuses — correctly, because the 69 is a historical measurement. Until 2026-09-02 there was no array beside it, and what that produced was not a hardened denominator but an UNGRADEABLE one: an arm added after the move could never receive a mutation row at all. `A54-writeall-loop` and `A55-same-path-replacement` were both added post-move and both stood on a measurement written into a source comment — and a comment is not re-run, so the arm pinning open fork F8 had its detector recorded in prose. Rows here are CONTRACTED (deleting one refuses), ROUTED (an id in no package's matrix refuses), TEXT-CHECKED (`mutates` against the live `what`) and GRADED (a contracted KILL that comes back SURVIVED fails the run, and ANCHOR-NOT-FOUND fails it too): everything a locked row gets except a place in a number about the past. ⚠ SINCE 2026-09-02 A ROW MAY ALSO DECLARE `expectedRed`, THE EXACT SET OF ARMS THAT MUST GO RED, and both rows here do — that field is opt-in on EVERY row in this contract, locked and added alike, and a row carrying none is ungated exactly as all of them were before. What it buys is attribution: a DISPOSITION cannot say which arm caught a mutation, and `M71-root-identity-unconditional` reddens two. ⚠ DECLARING ONE IS A CLAIM YOU MUST HAVE MEASURED — the checker compares it exactly, minus the arms on its own measured noise-exemption list, and both of these sets were measured on the real machine before they were written here. ⚠ NOT A LOOPHOLE FOR RE-HOMING A LOCKED ROW: an id that appears in `mutations` may not appear here, and the verifier refuses if one does. ⚠ AND NOT A ROUTE TO THE LOCKED FIGURES: `totals.mutations`, `totals.mutationsByDestination` and the code-side 69/66/3 are all still computed from `mutations` ALONE, so no addition can turn a failing count into a passing one.",
+  "//mutationsAddedPostMove-reader": "⚠⚠ `M90`–`M95` GRADE SIX READER ARMS THAT NOTHING GRADED, ADDED 2026-09-02. `S14-no-grant-claims`, `E13-read-description`, `E14-surface-claims`, `E15-refusal-vocabulary`, `MF1-manifest-schema` and `MF2-manifest-cross-reference` were each written because a product surface was found carrying a falsehood with no arm on it — and every one then stood in exactly the position that surface had been in: asserted, green, named by no mutation row. The Reader's matrix had held three rows since the fence move and `mutationsAddedPostMove` had been used only from the fence side. ⚠ TWO OF THE SIX NEEDED A DRIVER EXTENSION, AND IT IS THE MAP ENTRY AND NOTHING ELSE: `MF1` and `MF2` assert `server.json` and `package.json`, which are PRODUCT files — the registry manifest and the packed manifest — that ship and are simply not produced by `tsc`, so the Reader's `FILES` map (which could only name things under `dist/`) gained `serverjson` and `pkgjson`, and `FILE_OWNER` in `scripts/verify-relocation-contract.mjs` gained their owner. Every mechanism the harness has — the module-scope read, the exact-once anchor preflight, the write, the `finally` restore and the byte-for-byte restore verification — was already keyed off `FILES` and says nothing about what a value points at; the files are read and restored as TEXT, never parsed and re-serialised, because a JSON round-trip would reflow the file and the restore verification would then be comparing a reformatted file against itself. ⚠ `M95` MUTATES `mcpName` RATHER THAN `name` OR `version` FOR A MECHANICAL REASON: `scripts/run-tests.mjs` gates on this manifest's `name`, `version`, `dependencies` and `engines.node` BEFORE the suite runs, so a row touching one of those would redden the harness gate instead of an arm and report a kill that measured nothing about the arm it names. ⚠ THE RED SETS OVERLAP AND ARE NOT NARROWED TO LOOK CLEANER: `E14-surface-claims` asserts that a claim appears on every surface carrying it, so deleting a claim from the refusal message or the tool description reddens both the arm pinning that surface and the arm pinning the agreement. Narrowing around E14 would mean mutating something no surface claims, which is not a defect any of these arms exists to catch. ⚠ ONE SET WAS WRONG WHEN WRITTEN AND IS RECORDED THAT WAY: `M92` was predicted to redden `E14-surface-claims` alone and also reddens `E5-disclosure`, a locked pre-move arm reading the same string — reported, declared, and its `plan` corrected, rather than absorbed. Every set here was measured twice, identically, on the real machine before it was written down. ⚠⚠ AND TWO ROWS WERE RETARGETED THE SAME DAY THEY WERE WRITTEN, WHICH IS THE MORE USEFUL RECORD: `M90` and `M91` both killed on their first measurement, both named the right arms, and both graded the WRONG THING. A cold review lens asked of each not \"does it kill\" but \"is the CLAIM lost under the mutant\", and the answer was no twice — `M91` deleted a qualifying phrase while the tool description still stated the `NOT_TEXT` refusal three other ways, so `E13`/`E14` reddened only because their regexes wanted the deleted WORDING; `M90` deleted the WYRD_OBSERVE unchecked-destination clause, which `S14-no-grant-claims` pins incidentally but is none of the four claims this contract registers S14 to assert. Both are one failure with two faces — A ROW THAT KILLS IS NOT YET A ROW THAT MEASURES — and the cheap falsifier is now the standard for anything added to this array: READ THE MUTATED STRING and ask whether a consumer could still derive the claim from what survives. `M90` now deletes the outside-reaching hard-link warning (a registered S14 claim) and `M91` the whole invalid-UTF-8 refusal sentence (so nothing in the description tells the model that refusal exists); both were re-measured twice, identically, and their sets are unchanged from the pre-retarget rows, which is precisely why a red set alone could never have caught this. ⚠ NO ARM IN THIS SLICE WAS FOUND UNGRADEABLE: all six received a killing row against the PRODUCT. `S15-client-config-entrypoint` was excluded from the slice for being the case that would have — it asserts a test-tree fixture rather than a product file.",
+  "//mutationsAddedPostMove-append": "⚠⚠ `M72`–`M89` GRADE `appendLineInGrant`, ADDED 2026-09-02 WITH IT. Every guard on that path needs its own row for a MECHANICAL reason rather than a cautious one: the append path does NOT call `resolveNew` — that function refuses EXISTS the moment its leaf probe finds anything, which is right for a create and fatal for an append — so the parent resolution, the name screens and the derived-absolute containment check are performed a SECOND time, in a second body. `M47` patches `resolveNew`'s parent resolution and cannot reach the append path's copy; `M45`/`M60` patch the shared screens and say nothing about which SET this path passes them. A row on one write path is not evidence about the other, and the same holds for `M48`/`M49`/`M50`/`M53`/`M65`/`M67`, each of which has an append sibling here. ⚠ `expectedRed` IS DECLARED ONLY WHERE THE SET WAS MEASURED IDENTICALLY TWICE, per the field's own rule; the append rows that carry none are UNGATED on their red set and graded on disposition alone, exactly as every row was before 2026-09-02.\n\n⚠⚠ `M96`–`M97` ARE APPEND ROWS TOO AND THEY SKIP `M90`–`M95` ON PURPOSE — the numbering is NOT a gap in this slice. The Reader slice above claimed `M90`–`M95` the same day, from the other package, and an id may not be reused across the two matrices; taking the next free numbers was the only choice that kept both slices' ids stable. They grade the LINK-COUNT screen added to `appendLineInGrant` on 2026-09-02, after an adversarial correctness lens returned HIGH on `A58-append-leaf-no-follow`'s hard-link leg: that leg asserted an append THROUGH a hard link as a documented success, inherited from the read path's published limit, and the two paths do not make the same promise — a read through the alias discloses, a write through it writes outside the grant. The screen refuses on link count at the pre-open `lstat` (`M96`) and again at the post-open `fstat` (`M97`), and the two rows are separate because deleting either leaves the other's window closed.",
+  "mutationsAddedPostMove": [
+    {
+      "id": "M70-writeall-no-progress",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A54-writeall-loop"],
+      "//expectedRed": "MEASURED 2026-09-02 on the real machine, full suite, and this row is the clean case: the mutation reddens exactly the arm it was written to grade and nothing else. Declared exactly for that reason — an unaccompanied kill is the state an exact set can actually assert, and if this row ever starts reddening a second arm, that is a change in what it reaches and wants reading rather than absorbing.",
+      "mutates": "report a no-progress write as a completed one — the `n <= 0` break of the shipped completion loop",
+      "why": "Grades `A54-writeall-loop`, which had nothing grading it: `_writeAll` is module-private and reaches `fs.writeSync` below the injection seam, so its completion loop was unreached until that arm existed and the arm's only evidence was a measurement in its own comment. Fence-owned — it patches the fence's built `fsgate.js`. ⚠ DELIBERATELY NOT the `n <= 0` → `n < 0` patch that comment records: with the arm in place that form never terminates and the suite hangs to the harness timeout instead of going red, so the row keeps the branch and takes a terminating form. Reasoning at the row, in `packages/wyrd-fence/scripts/mutate.mjs`."
+    },
+    {
+      "id": "M71-root-identity-unconditional",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A55-same-path-replacement"],
+      "//expectedRed": "⚠⚠ THE SET NARROWED FROM THREE ARMS TO ONE ON 2026-09-03, WHEN F8 WAS CLOSED (option C, ruled), AND THE NARROWING IS A REAL IMPROVEMENT RATHER THAN A WEAKENING. Under the old direction this row SIMULATED the fix by making the comparison unconditional, which added an `lstat` of the canonical root to every request — so it also reddened `META-no-outside-names` and `A61-append-name-screens`, both of which assert that a stage-(a) refusal touches the filesystem for nothing but the root re-check. That collateral was recorded honestly and it cost something: a KILLED verdict could come back off META alone and prove nothing about `A55`, which is the only arm this row exists for.\n\nNow the source is unconditional and those two arms allow the root re-check's TWO calls (see `isRootRecheck` in `fsgate.test.js`), so restoring the gap REMOVES an `lstat` rather than adding one and neither arm notices. The set is exactly `A55-same-path-replacement` — the detector, alone. ⚠ MEASURED on the real machine 2026-09-03 before being written here, per this field's own rule.",
+      "mutates": "restore the conditional root identity comparison (reintroduce the F8 gap)",
+      "why": "Grades `A55-same-path-replacement`, which asserts that a directory destroyed and recreated under the identical canonical path is REFUSED. Fence-owned — it patches the fence's built `fsgate.js` and restores it byte-for-byte.\n\n⚠⚠ THE ROW INVERTED ON 2026-09-03 WHEN JOE RULED F8 OPTION C, AND KEEPING IT BEATS RETIRING IT. It used to mutate `if (current !== root) {` into `if (true) {` — with the gap open, that SIMULATED the fix and the then-pinned `A55` went red. The source no longer contains that line. So the row now travels the other way: it reintroduces the conditional, putting the F8 gap back, and `A55` reddens because it now asserts the refusal. Same guard, same arm, opposite direction.\n\nWhat it buys is that F8 cannot silently reopen. A refactor that restores the conditional — or any change that makes the identity check skippable on an unchanged spelling — comes back SURVIVED and fails the run. That is the same service the row gave while the gap was open, pointed at the state worth protecting now. Reasoning at the row, in `packages/wyrd-fence/scripts/mutate.mjs`."
+    },
+    {
+      "id": "M72-append-line-framing",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A56-append-core","A63-append-retention"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. `A63-append-retention` is the second arm because its pre-open loop drives an unterminated line and asserts `retained: null` on the refusal — with the framing check gone that request reaches the open and retains, so the arm is a real second detector rather than noise.",
+      "mutates": "accept a line that is not exactly one LF-terminated record",
+      "why": "Grades `A56-append-core`'s framing leg. The fence does not parse the record — it is already serialised by the caller — but a file of LF-delimited records is corrupted irrecoverably by a fragment or by two records arriving as one call, and the framing check is the only thing standing between the caller's mistake and that state."
+    },
+    {
+      "id": "M73-append-read-screens",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "SURVIVED",
+      "mutates": "run the READ name screens on an append instead of the create screens (reopens the ADS leaf class on every host) — SURVIVES on win32, see note",
+      "why": "⚠⚠ CONTRACTED SURVIVED, AND IT IS `M59`'S TWIN RATHER THAN A WEAK ARM — MEASURED 2026-09-02, not assumed. `readScreens` and `createScreens` differ in exactly one field, `stream`, and on win32 both are `true`; on this host the two sets are the same value, so swapping them changes nothing that runs. Off win32 they diverge and this mutation re-admits the alternate-data-stream leaf class on the append path, which on a write path is the class REPRODUCED writing outside the grant on 2026-08-29. ⚠ NOT EQUIVALENT, and this lane has confused the two before: an equivalent mutant means the guard could be deleted, and this one means the guard's whole purpose lives on a platform this suite cannot exercise. The row is kept as the only written record that the append path's screen-set choice is untested here, and it folds into the standing `POSIX is reasoned, never measured` row beside `M59`. `A61-append-name-screens` still asserts the screens FIRE on this host; what nothing here can assert is that the append path passes the create SET."
+    },
+    {
+      "id": "M74-append-parent-lexical",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A57-append-parent-containment","A66-parent-alias-refused"],
+      "//expectedRed": "MEASURED 2026-09-02 and RE-MEASURED 2026-09-08, twice each, identically. The set was `[A57]` alone until 2026-09-08 — the clean case, reddening exactly the arm it was written to grade — and it WIDENED by one when `A66-parent-alias-refused` landed. ⚠ WIDENED AFTER A MEASURED RUN, NOT TO SILENCE ONE: `A66`'s append leg drives this same lexically-bypassed resolution, so the reach is the new arm doing the job it was written for. A lexical parent skips `realpathNative` entirely, which means the resolved parent EQUALS the spelled one, which means the alias comparison finds nothing and the aliased append is accepted — the row reproduces the `.wyrd -> Arc` route through a second, independent defect.",
+      "mutates": "resolve the append path's PARENT lexically, bypassing the fence",
+      "why": "Grades `A57-append-parent-containment`. `M47` is the same mutation on `resolveNew` and cannot reach here: the append path resolves its own parent because `resolveNew` refuses EXISTS on any existing leaf, so there are two copies of this resolution and a row on one is not evidence about the other."
+    },
+    {
+      "id": "M75-append-leaf-probe-deleted",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["META-primitives","META-this-unbound","A45-root-identity","A56-append-core","A57-append-parent-containment","A66-parent-alias-refused","A58-append-leaf-no-follow","A59-append-probe-errors","A60-append-target-changed","A62-append-one-write","A63-append-retention","A64-append-close"],
+      "//expectedRed": "MEASURED 2026-09-02 and RE-MEASURED 2026-09-08, twice each, identically. THE WIDEST SET IN THE MATRIX, and the width is the finding rather than a defect in the row: deleting the probe forces the exclusive-create branch for every request, so every append that should have appended now refuses EEXIST and every arm that appends twice goes red. Declared in full because the set is stable and because a NARROWING here — this row starting to redden fewer arms — would mean the probe had stopped being load-bearing, which is exactly what wants noticing.\n\n⚠⚠ THE 2026-09-08 RE-MEASUREMENT WAS FORCED AND IT IS THE INTERESTING PART. Option C inverted `A57-append-parent-containment`'s junction leg into a `PARENT_ALIAS` refusal, and an adversarial round predicted this row would LOSE `A57` as a detector, because a refusal reaches no append. It did not: `A57`'s repair gave it a real-directory positive control that appends TWICE — deliberately, so the existing-file branch this whole second copy of the resolution exists to serve is reached — and that second append is exactly what a deleted probe turns into an EEXIST. ⚠ A PREDICTED LOSS THAT DID NOT MATERIALISE IS STILL A MEASUREMENT AND NOT A DISMISSAL: the set was re-measured before it was left alone, and `A66-parent-alias-refused` was ADDED because its own append leg drives this path too.",
+      "mutates": "delete the append leaf probe entirely, taking the create branch unconditionally",
+      "why": "Grades `A58-append-leaf-no-follow`, `A59-append-probe-errors` and `A60-append-target-changed` together — the probe is what all three rest on. ⚠ THE APPEND PATH CANNOT FALL BACK ON `wx` THE WAY THE CREATE PATH DOES. `M49` deletes `resolveNew`'s probe and the exclusive open still refuses every existing object; here the probe is the only inspection there is, because an append must open something that already exists."
+    },
+    {
+      "id": "M76-append-accepts-link-leaf",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A58-append-leaf-no-follow","A63-append-retention"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. `A63` is a genuine second detector: its pre-open loop drives a directory leaf and asserts `retained: null`, and an accepted non-file leaf reaches the open.",
+      "mutates": "accept a non-file or link leaf on the append path (the probe still runs, its verdict is ignored)",
+      "why": "Grades `A58-append-leaf-no-follow` at the narrower point `M75` covers wholesale: the probe runs, so every errno row still behaves, and only the KIND verdict is discarded. That is the shape a maintainer produces by relaxing a predicate rather than by deleting a call, and it is the one that re-admits the symlink, junction and directory leaves."
+    },
+    {
+      "id": "M77-append-create-not-exclusive",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A60-append-target-changed"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically — and the FIRST measurement of this row was SURVIVED, which is why the set is worth having. A60's race cases originally injected `openAppend`, so the shipped `_openAppend` was never reached and the row graded the spy. `A58-append-leaf-no-follow` is NOT in the set: every leaf it drives refuses at the probe, before the open flag can matter.",
+      "mutates": "open the append create branch NON-exclusively ('ax' -> 'a')",
+      "why": "Grades `A58-append-leaf-no-follow` and `A60-append-target-changed`. `M48` is the same mutation on the create path and SURVIVES there for a measured reason — the leaf probe already refused everything the flag would have caught. Here it must not survive: `'a'` also carries `O_CREAT`, so the row tests both the exclusivity of the create branch and the arms that watch a leaf appearing between probe and open."
+    },
+    {
+      "id": "M78-append-existing-creates",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A60-append-target-changed"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically — SURVIVED on its first measurement for the same reason as M77, and repaired by staging the removal at `fs.lstatSync` rather than by replacing the open.",
+      "mutates": "add O_CREAT to the append EXISTING branch (a leaf deleted after observation is silently recreated empty)",
+      "why": "Grades `A60-append-target-changed`. ⚠ THIS IS THE QUIETEST DEFECT ON THE PATH and the reason the existing branch is spelled with constants rather than with the mode string `'a'`: a lineage file deleted between the probe and the open would be recreated empty, appended to, and would then read as perfectly healthy while having lost every prior record. Nothing downstream can tell that file from one that was always short."
+    },
+    {
+      "id": "M79-append-no-o-append",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A62-append-one-write"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. The clean case: only the arm that measures the flag's EFFECT sees it.",
+      "mutates": "drop O_APPEND from the existing branch, so an append overwrites from position 0",
+      "why": "Grades `A62-append-one-write`'s first leg, which measures the flag's EFFECT rather than inferring it from the flag's name. ⚠ THE EXISTING BRANCH ONLY, DELIBERATELY: dropping the flag from `'ax'` is not expressible because `ax` IS the append-create mode, and a row mutating both branches would be two changes under one id. The existing branch is where the flag is spelled out and where a maintainer would plausibly drop it."
+    },
+    {
+      "id": "M80-append-write-before-verify",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["META-primitives","META-this-unbound","A56-append-core","A57-append-parent-containment","A58-append-leaf-no-follow","A60-append-target-changed","A62-append-one-write","A63-append-retention","A65-append-hardlink-refused"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. Wide because an unconditional extra write lands on every append in the suite, doubling records and breaking every byte comparison — which is itself the point: moving the verification after the write is not a subtle change, and a NARROWING of this set would mean the extra write had stopped happening. ⚠ `A65-append-hardlink-refused` WAS ADDED TO THE SET ON 2026-09-02, WIDENED AFTER A MEASURED RUN AND NOT TO SILENCE ONE. The arm did not exist when this set was first measured; its post-open leg asserts that a link created between the probe and the open is caught BEFORE `appendOnce`, and that assertion is exactly what a write moved above the verification breaks — so the reach is the arm doing the job it was written for, on the one row whose defect is position rather than presence. The refusal that surfaced it is the check working: a red arm the set did not name. ⚠ `A57-append-parent-containment` WAS ADDED ON 2026-09-09, THE SAME SHAPE AGAIN. Option C (2026-09-08) inverted A57's junction leg into a `PARENT_ALIAS` refusal and gave it a REAL-DIRECTORY positive control that appends TWICE to one file and compares the bytes on disk — so the row's doubled record now breaks that comparison too, which is the sentence at the top of this note doing what it says on one more arm. Measured on the first full fence-matrix run since E12 went green for this diff; the previous run of this row predates the arm's repair. The set was widened after reading A57's assertions (lines ~2343–2352), not to make the run pass.",
+      "mutates": "write BEFORE the pre-write identity verification (the whole check becomes decoration)",
+      "why": "Grades `A58-append-leaf-no-follow` and `A60-append-target-changed`. The verification's whole value is its POSITION: performed after the write it still refuses, still reports the right reason, and still reads as a working control — while the bytes have already landed on whatever the descriptor holds. That is the shape of a refusal returned after the filesystem was already mutated, which is what made the 2026-08-29 create-path escapes invisible."
+    },
+    {
+      "id": "M81-append-drop-preopen-identity",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A60-append-target-changed"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. The clean case, and the attribution matters: this row and M82 close windows on opposite sides of the open, so both reddening only A60 is what says A60's cases genuinely separate them.",
+      "mutates": "drop the PRE-OPEN-vs-descriptor identity comparison (a swap between probe and open is served)",
+      "why": "Grades `A60-append-target-changed`'s swapped-object case. This is the comparison that closes the window between the leaf probe and the open, and it is the one the descriptor-vs-name comparison cannot cover: after a clean swap the descriptor and the name agree with each other perfectly — they simply both name the replacement."
+    },
+    {
+      "id": "M82-append-drop-postopen-identity",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A60-append-target-changed"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. See M81 — the mirror row, same single detector.",
+      "mutates": "drop the descriptor-vs-post-open identity comparison (a name re-pointed after the open is served)",
+      "why": "Grades `A58-append-leaf-no-follow` and `A60-append-target-changed`. The mirror of `M81`: this is the comparison that catches a name re-pointed AFTER the open, which the pre-open reading cannot see. Both exist because they close windows on opposite sides of the same syscall, and either alone leaves one open."
+    },
+    {
+      "id": "M83-append-skip-realpath-containment",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A58-append-leaf-no-follow"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically — and SURVIVED on its first measurement, with NO arm going red at all. Every leaf in A58 refused at the probe, so the post-open containment check was unreached; the arm gained a leg that stages the operating system's answer for a reparse tag this runtime cannot classify, which is the only class that reaches that line. `META-no-outside-names` is NOT in the set: it sweeps refusal FIELDS, and this mutation leaks nothing into one.",
+      "mutates": "skip the post-open realpath containment check on the append path",
+      "why": "Grades `A58-append-leaf-no-follow` and `META-no-outside-names`. `realpathNative` is `GetFinalPathNameByHandle` on a handle opened following reparse points, so it is the operating system's own answer to where the name landed — the same arbitration the read path takes, applied after the open rather than before. Without it a reparse tag this runtime cannot classify is appended through, which is the class the read path's unconditional arbitration was added to close on 2026-08-29."
+    },
+    {
+      "id": "M84-append-retries-short-write",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A62-append-one-write","A63-append-retention"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. `A63`'s fragment leg drives a writer that completes 2 of N bytes, and a retrying loop finishes the line — so the arm's byte assertion is a real second detector.",
+      "mutates": "retry after a short append (which under O_APPEND splices another writer's record between the fragments)",
+      "why": "Grades `A62-append-one-write`'s no-retry leg, and it is the row that inverts `M50`'s lesson one path over. On the create path the single-call write was the DEFECT and the completion loop the repair; here the loop is the defect, because every write to an `O_APPEND` descriptor re-selects the current end of file — so a retry appends the tail after whatever another appender landed in between, and the fence splices one record through another while looking like it is recovering. ⚠ THE ROW IS BOUNDED rather than a `while`, for `M70`'s reason: a non-terminating loop hangs the suite to the harness timeout, and a row whose only channel is a timeout measures the timeout."
+    },
+    {
+      "id": "M85-append-short-write-is-success",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A62-append-one-write","A63-append-retention"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. Both arms assert a short append REFUSES; this row makes it succeed, so both are genuine detectors.",
+      "mutates": "report a short append as a success with a reduced count",
+      "why": "Grades `A62-append-one-write` and `A63-append-retention`. `M53` is this mutation on the create path; the append path classifies its own count and inherits nothing. A caller handed `ok: true` with a reduced count has no way to notice that its record is a fragment, and the fragment stays on disk."
+    },
+    {
+      "id": "M86-append-retained-null",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A62-append-one-write","A63-append-retention"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. `A62`'s short-append leg asserts `retained !== null`, which is what puts it in the set alongside the arm written for retention.",
+      "mutates": "claim retained: null on every append refusal, including the post-open ones",
+      "why": "Grades `A63-append-retention`. ⚠ `retained` IS A REQUIRED FIELD, so it cannot be OMITTED without failing the build — which is precisely what the required field bought. What a dist patch can do is what a maintainer's mistake would do: pass `null` where the answer is indeterminate, claiming nothing was left behind. `M65` is the same shape on the create path and reaches none of these sites."
+    },
+    {
+      "id": "M87-append-close-swallowed",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A64-append-close"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. The clean case.",
+      "mutates": "swallow a close failure on the append path and report success anyway",
+      "why": "Grades `A64-append-close`. `M67` is this mutation on the create path and cannot reach the append path's own copy of the structure. The bytes may never have reached the disk when close fails, so a success committed above that point is a claim the fence has no way to back — and the append path repeats the structure rather than sharing it, which is how a subtly different copy ships."
+    },
+    {
+      "id": "M88-append-returns-absolute",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["META-no-outside-names","A56-append-core","A57-append-parent-containment"],
+      "//expectedRed": "RE-MEASURED 2026-09-08, twice, identically, and UNCHANGED — but the reason `A57` is in it changed, so the note is rewritten rather than left standing. Until 2026-09-08 the note read: “`A57` is in the set because its junction leg asserts the result's `rel` is the CANONICAL relative parent, which an absolute return breaks — a second, independent reading of the same no-absolute-paths property.” Option C inverted that junction leg into a `PARENT_ALIAS` refusal, which returns before anything is appended, so the leg named there stopped reaching this mutant. The set survives because `A57`'s repair gave it a REAL-DIRECTORY positive control that appends and asserts `plainParent.rel` — the same second reading of the same property, on a parent that still resolves. ⚠ THE SET WAS RE-MEASURED RATHER THAN REASONED ABOUT: an unchanged set after an inverted arm is exactly the case where reasoning would have been wrong in either direction, and a lost detector would have been invisible.",
+      "mutates": "return the RESOLVED ABSOLUTE path as the append result's rel",
+      "why": "Grades `A56-append-core` and `META-no-outside-names`. The gate-mediated shape was ruled on 2026-08-29 after a first attempt returned resolved pathnames and failed its review round with five HIGHs, two REPRODUCED as live escapes. This row is that regression on the newest surface: a result carrying a resolved absolute both discloses the disk layout and hands a caller a string it could re-open outside the fence's guarantee."
+    },
+    {
+      "id": "M89-append-no-root-recheck",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A35-root-moved", "A45-root-identity", "A55-same-path-replacement"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. The run reddens `A35-root-moved` alongside `A45-root-identity` and `A55-same-path-replacement`; `A35` was deliberately not declared while it was on the verifier's measured noise-exemption list, because the comparison dropped it from both sides and declaring it would have claimed a pin that did not exist. The exemption was retired on 2026-09-04 after the 2026-09-03 re-measurement established deterministic write-path reach, so the measured `A35` result is now declared. `A45-root-identity` is the arm that discriminates — its append leg asserts a re-spelled root is ACCEPTED and a replaced one REFUSES, which only holds if this path calls the recheck itself.",
+      "mutates": "omit the root re-check on the append path only",
+      "why": "Grades `A35-root-moved` and `A45-root-identity`, whose append legs were added with this path. ⚠ THE ANCHOR IS THE APPEND PATH'S OWN CALL, NOT THE SHARED FUNCTION: `M30` deletes the recheck at its three original sites, so a row that came back SURVIVED here would mean the append path had stopped calling `rootStillCanonical` independently — which is exactly the state a new entry point reaches by being written without it."
+    },
+    {
+      "id": "M96-append-drop-preopen-nlink",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A58-append-leaf-no-follow","A65-append-hardlink-refused"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. Exactly two arms and no more, which is the attribution this row was written for: `A65-append-hardlink-refused` owns the new behaviour and `A58-append-leaf-no-follow` holds the reproduced outside-alias fixture (`h_out.md`) that used to be written through. ⚠ NARROWNESS IS THE POINT HERE, unlike `M80`'s wide set — dropping this check changes NOTHING for a single-named leaf, so every other append arm stays green and a widening of this set would mean the screen had started refusing files it should serve.",
+      "mutates": "drop the PRE-OPEN link-count check (a pre-existing hard link aliasing an outside file is appended to)",
+      "why": "Grades `A65-append-hardlink-refused` and `A58-append-leaf-no-follow`. Dropping this check restores exactly the behaviour A58 asserted as a documented SUCCESS until 2026-09-02 — an append landing on a file whose other name is outside the grant — so the row reproduces the defect the flip was made to close, against the same `h_out.md` fixture that used to be written through. ⚠ IT IS A SEPARATE ROW FROM `M97` BECAUSE THE TWO CHECKS CLOSE DIFFERENT WINDOWS: this one catches a link that was already there at the probe, and deleting it leaves the post-open reading green, which is what makes each row a claim about its own check rather than about the pair."
+    },
+    {
+      "id": "M97-append-drop-postopen-nlink",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A65-append-hardlink-refused"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. ONE ARM, and that is the strongest form this field takes: `A65-append-hardlink-refused` is the only arm in either package that reaches this line, because every other append arm drives a single-named leaf whose count is 1 at both readings. A widening here would mean some other arm had started creating a second name; a narrowing to the empty set would mean A65's post-open leg had stopped racing and the row would be reporting KILLED off nothing.",
+      "mutates": "drop the POST-OPEN link-count check (a hard link created between the probe and the open is appended through)",
+      "why": "Grades `A65-append-hardlink-refused`'s second leg, the only arm that reaches this line. The pre-open reading inspects a NAME, so a `link()` issued between it and the open makes the object multiply-named with nothing having observed it; this check reads the count off the descriptor the write will actually use. ⚠ THE ANCHOR IS THE `nlink` COMPARISON, NOT THE `writeRefuse` IT GUARDS: the two refusals are textually identical apart from their retention argument, so anchoring on the refusal would make both rows ambiguous and the matrix's own uniqueness preflight would refuse them. ⚠ ONLY `A65` CAN KILL THIS: every other append arm drives a single-named leaf, so the count is 1 at both readings and this line is never reached."
+    },
+    {
+      "id": "M90-no-grant-hardlink-warning",
+      "file": "main",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["S14-no-grant-claims", "E14-surface-claims"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically, on the real machine, AFTER this row was retargeted. The pair is what says both arms reach the refusal message through THIS claim: `S14-no-grant-claims` pins the outside-reaching hard link as one of the four things its contract row registers it to assert, and `E14-surface-claims` carries the same claim as HARDLINK_REACHES_OUTSIDE across five surfaces, so deleting the sentence is a dropped claim and a between-surface disagreement at once. A KILLED alone could have been E14 catching it while S14 had stopped asserting anything, which is the attribution this set buys.",
+      "mutates": "delete the outside-reaching hard-link warning from the no-grant refusal message",
+      "why": "Grades `S14-no-grant-claims` against a claim that arm's OWN CONTRACT ROW registers — which is the correction this row exists to carry. ⚠ WHAT IT WAS BEFORE IS THE FINDING: it dropped `which is not checked` from the WYRD_OBSERVE clause, which does redden S14 (the test body happens to pin that phrase) but is none of the four claims S14 is registered to assert here — \"both refusals, the outside-reaching hard link, and the scoped read-only\". It is `E14`'s cross-surface OBSERVE_DESTINATION_UNCHECKED property, which S14 incidentally also pins. A row that reddens an arm through a claim the arm was not registered for grades incidental surface area rather than the contract, and the register then reads as covered when the contracted claim is still ungraded. ⚠ THE HARD-LINK WARNING IS THE ONE OF THE FOUR WITH THE MOST TO LOSE: deleted, the last surface a user reads BEFORE handing over a folder no longer says a link already sitting in that folder reaches a file anywhere on the disk. Verified by reading the mutated string rather than assuming it — the only surviving mention of anything outside the grant is the reparse-point limit, which explicitly says containment HOLDS, and the TOCTOU swap, which needs write access. ⚠ BOTH HALVES OF THE SENTENCE GO, because the invisible-to-inspection half alone would leave a reader told a link is hidden without being told what it reaches."
+    },
+    {
+      "id": "M91-read-description-utf8-refusal",
+      "file": "server",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["E13-read-description", "E14-surface-claims"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically, on the real machine, AFTER this row was retargeted. `E13-read-description` is the arm the row is written for — it pins the `NOT_TEXT` refusal on the string the model actually receives — and `E14-surface-claims` is a genuine second detector, carrying the same refusal as UTF8_REFUSED across six surfaces, so its removal from `tool:read` is a between-surface disagreement as well as a dropped claim. Declared for the attribution: a KILLED off E14 alone would not have said E13 still reaches this surface.",
+      "mutates": "delete the invalid-UTF-8 refusal from the `read` tool description entirely",
+      "why": "Grades `E13-read-description`, the arm on the string the MODEL is told the tool does. ⚠ WHAT IT WAS BEFORE IS THE FINDING, and it is the reason the row was rewritten: it dropped only the bytes-not-extension QUALIFIER, and under that mutant the description STILL said the refusal existed (\"A requested slice that is not valid UTF-8 is refused with `NOT_TEXT`\"), still said reads are byte-oriented into the file's UTF-8 encoding, and still said there is no extension filter — so a consumer could derive the rule from what remained. E13 and E14 reddened because their regexes wanted the deleted WORDING. That grades the pin, not the property: a row whose kill survives the CLAIM surviving is measuring the test rather than the product, which is the exact defect this whole matrix exists to refuse one level down. ⚠ THE WHOLE REFUSAL SENTENCE NOW GOES, and the mutated string was READ to confirm nothing else implies it: the surviving UTF-8 mentions are all pagination contract — `offset`/`limit` are byte counts into the UTF-8 encoding, a slice ends on a whole codepoint, following `next_offset` reconstructs the text byte for byte — each describing how a SUCCESSFUL read is cut, none saying a read can be refused for its bytes. The `NOT_A_FILE` directory refusal survives deliberately: that is a different claim with its own carrier, and removing it too would grade a coarser thing than E13 asserts. ⚠ WHAT THE CONSUMER LOSES: the model is left believing any in-scope path returns content, so a refused read reads as a successful empty one — the falsehood `NOT_TEXT` exists to prevent."
+    },
+    {
+      "id": "M92-instructions-observe-content",
+      "file": "server",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["E14-surface-claims", "E5-disclosure"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically — and `E5-disclosure` WAS NOT PREDICTED. The row was written expecting `E14-surface-claims` alone, on the reading that `initialize.instructions` is E14's own surface among the three arms this slice grades; it is not E14's own surface in the suite, because `E5-disclosure` is a LOCKED PRE-MOVE arm that reads the same string and independently pins the never-file-contents clause. That is reported rather than absorbed: the row's `plan` in `scripts/mutate.mjs` was corrected to name both, and E5 is declared here because it is a genuine second detector — it asserts the claim directly, not a side effect of an extra syscall the way `META-no-outside-names` is for `M71`. ⚠ WHAT IT COSTS IS WORTH STATING: the row no longer demonstrates that E14 can be reached alone at this surface, and nothing in this slice does. An E14-only lever would have to be a claim carried by `initialize.instructions` and by no other arm, which was not found.",
+      "mutates": "drop the never-file-contents claim from the initialize.instructions disclosure",
+      "why": "Grades `E14-surface-claims` at `initialize.instructions`. `S14` reads the refusal message and `E13` the tool description, so among the three arms this slice grades the instructions are E14's alone — but not alone in the suite: `E5-disclosure` reads the same string and reddens with it, which the measurement found and the row records rather than narrowing around. The claim chosen is one PRIVACY.md and the README also carry, so the disagreement E14 sees is real rather than a surface being allowed to say less."
+    },
+    {
+      "id": "M93-undocumented-refusal-reason",
+      "file": "server",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["E15-refusal-vocabulary"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. The clean case: the mutation reddens exactly the arm it was written to grade and nothing else — and the emptiness of the rest of the set is itself the finding this row reports, because it is the direct evidence that `E14-surface-claims` cannot see a refusal class the program can return. That is the gap E15 was written for, and no other row in this matrix demonstrates it.",
+      "mutates": "return a refusal reason no disclosure surface accounts for",
+      "why": "Grades `E15-refusal-vocabulary`, whose whole shape is one side DERIVED FROM THE PROGRAM and the other from the prose. This row adds a refusal code to the derived side that the accounting table has never seen, which is the direction that actually happens — a new refusal class arriving undocumented. ⚠ IT DOES NOT REDDEN `E14`: E14 compares prose to prose and a reason code in `dist/server.js` is not one of its surfaces, which is precisely the gap E15 was written to cover."
+    },
+    {
+      "id": "M94-manifest-transport-invalid",
+      "file": "serverjson",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["MF1-manifest-schema"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. The clean case, and the narrowness is the point of choosing the transport: `MF2-manifest-cross-reference` reads name, version and identifier and never the transport, so its absence from this set is what proves the SCHEMA validation ran rather than the cross-reference catching a broken manifest by another route.",
+      "mutates": "declare a transport type the registry schema admits no alternative for",
+      "why": "Grades `MF1-manifest-schema`. ⚠ THE FILE IS NOT BUILT OUTPUT, AND THAT IS WHY THIS ARM WAS UNGRADED: the Reader's matrix could only reach `dist/`, so an arm on `server.json` — a PRODUCT file, the one the MCP Registry reads, simply not produced by `tsc` — had no row available to it. `scripts/mutate.mjs` gained a `serverjson` key and `FILE_OWNER` gained its owner; every other mechanism, including the byte-for-byte restore, was already file-key generic. ⚠ THE TRANSPORT IS CHOSEN BECAUSE `MF2` NEVER READS IT: MF2 cross-references name, version and identifier, so a mutation to any of those would grade both arms and say nothing about whether the schema validation ran at all. `anyOf` is also the constraint family MF1's own in-arm bite check exercises."
+    },
+    {
+      "id": "M98-preflight-symlink-denial-misclassified",
+      "file": "preflight",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-03",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["FP1-preflight"],
+      "mutates": "misclassify every symlink-creation failure as a privilege denial",
+      "why": "Grades the fence preflight's distinction between a denied symlink privilege and an unrelated symlink failure."
+    },
+    {
+      "id": "M99-preflight-nothing-was-run-dropped",
+      "file": "preflight",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-03",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["FP2-junction-preflight"],
+      "mutates": "drop NOTHING WAS RUN from the junction-preflight refusal",
+      "why": "Grades the junction preflight's explicit statement that the suite did not run."
+    },
+    {
+      "id": "M100-readme-pointer-into-source",
+      "file": "readme",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-03",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["PC1-pointers-resolve"],
+      "mutates": "point the README limits account into unshipped source",
+      "why": "Grades the published README pointer against a source-file route that npm consumers do not receive."
+    },
+    {
+      "id": "M101-readme-completeness-overclaim",
+      "file": "readme",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-03",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["PC2-retired-wordings"],
+      "mutates": "claim the README lists every known limit",
+      "why": "Grades the retired completeness claim on the published README."
+    },
+    {
+      "id": "M102-readme-limits-condensed",
+      "file": "readme",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-03",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["PC3-limits-section-live"],
+      "mutates": "condense the README limits section to its first three bullet paragraphs",
+      "why": "Grades that the authoritative limits section remains substantive rather than a three-item summary."
+    },
+    {
+      "id": "M95-manifest-mcpname-disagrees",
+      "file": "pkgjson",
+      "currentPackage": "wyrd",
+      "destination": "wyrd",
+      "moved": false,
+      "addedOn": "2026-09-02",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["MF2-manifest-cross-reference"],
+      "//expectedRed": "MEASURED 2026-09-02, twice, identically. The clean case, and its narrowness is the mirror of `M94`'s: `MF1-manifest-schema` validates `server.json` against the vendored schema and never opens `package.json`, so a well-formed manifest naming a DIFFERENT package passes MF1 exactly as it would in a real release. That is the class this arm exists for and this set is what shows MF2 alone catches it.",
+      "mutates": "break the mcpName the registry reads out of the published tarball",
+      "why": "Grades `MF2-manifest-cross-reference` at its row with teeth. The MCP Registry proves npm ownership by reading `mcpName` out of the PUBLISHED tarball and requiring it to equal the manifest's `name`, so a disagreement refuses the submission AFTER the publish has happened — the failure MF2 exists for, and until this row nothing could show MF2 catches it. ⚠ `mcpName` RATHER THAN `name` OR `version` DELIBERATELY: `scripts/run-tests.mjs` gates on this manifest's `name`, `version`, `dependencies` and `engines` BEFORE the suite runs, so a row mutating one of those would redden the harness gate instead of an arm and report a kill that measured nothing about MF2. `mcpName` is read by no gate and by exactly this arm."
+    },
+    {
+      "id": "M103-create-parent-alias-accepted",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-08",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A40-create","A66-parent-alias-refused"],
+      "//expectedRed": "MEASURED 2026-09-08, twice, identically, on the real machine. Exactly two arms, and the pair is the attribution this row was written for: `A66-parent-alias-refused` owns the new behaviour on both write paths, and `A40-create` holds the reproduced create-path fixture (`j_in`) that used to be written THROUGH. A KILLED alone could have been `A66` catching it while `A40`'s inverted leg had stopped asserting anything — which is exactly the state an inverted arm can reach. ⚠ `A57` IS ABSENT AND MUST STAY ABSENT: it drives the append path, whose copy of the comparison this row does not touch. A widening to include it would mean the two copies had been collapsed into one, which is the refactor `M74`'s own note says to notice.",
+      "mutates": "accept an aliased parent on the create path (the comparison runs, its verdict is ignored)",
+      "why": "Grades option C's part 1 at the create path. ⚠ THE VERDICT IS IGNORED RATHER THAN THE CALL DELETED, and that is the shape a maintainer actually produces — relaxing a predicate they judge over-strict, not removing a line. Under the mutant `createFileInGrant` restores exactly the measured 2026-09-04 escape: `writePage({path:'Notes/planted.md'})` through an in-grant junction returns `ok: true` with the file landing in `Arc/`. ⚠ TWO ROWS FOR ONE COMPARISON BECAUSE THERE ARE TWO COPIES OF IT: `appendLineInGrant` does not call `resolveNew` and carries its own, which `M104` grades. The anchor is the argument spelling `parent.actual`, distinct from the append copy's `appendParent.actual` — the source keeps the two locals textually distinct for exactly this reason, after a same-spelled copy once made `M47`'s anchor ambiguous and the uniqueness preflight refused the whole run."
+    },
+    {
+      "id": "M104-append-parent-alias-accepted",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-08",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A57-append-parent-containment","A66-parent-alias-refused"],
+      "//expectedRed": "MEASURED 2026-09-08, twice, identically, on the real machine. The mirror of `M103`'s set, and the mirroring is the evidence that the two copies are genuinely separate: this row reddens `A57` and NOT `A40`, `M103` reddens `A40` and NOT `A57`, and `A66` is in both because its own arm drives both write paths. If either row ever reddened the other's arm the two comparisons would have become one, and a single row would then be grading a guard it does not touch.",
+      "mutates": "accept an aliased parent on the append path (the comparison runs, its verdict is ignored)",
+      "why": "Grades option C's part 2, the mirror of the comparison in `appendLineInGrant`. It is a separate row from `M103` for the same mechanical reason `M74` is separate from `M47`: this path duplicates the parent resolution because `resolveNew` refuses EXISTS on any existing leaf, so a row on the create path's copy is not evidence about this one. Under the mutant the measured `.wyrd -> Arc` route reopens — an ordinary `Mage/answer.md` stamp writes `lineage.jsonl` INTO `Arc/`, needing no page-path trickery at all, since `LINEAGE_PATH` is the fixed `.wyrd/lineage.jsonl`."
+    },
+    {
+      "id": "M105-parent-alias-compared-exactly",
+      "file": "fsgate",
+      "currentPackage": "wyrd-fence",
+      "destination": "wyrd-fence",
+      "moved": true,
+      "addedOn": "2026-09-08",
+      "expectedDisposition": "KILLED",
+      "expectedRed": ["A40-create","A66-parent-alias-refused"],
+      "//expectedRed": "MEASURED 2026-09-08, twice, identically, on THIS machine — win32, on a case-FOLDING volume, and the regime is part of the measurement rather than a footnote to it. The two arms are red for their case-fold legs alone: `A40-create`'s folded-parent leg and `A66-parent-alias-refused`'s two folded legs, each of which asks a real directory by a differently-cased spelling and requires the write to SUCCEED. Every alias leg in both arms stays green under the mutant, because `Notes` and `Arc` differ exactly as well as folded — which is precisely what makes this row a claim about the FOLD and not about the guard. ⚠ ON A CASE-SENSITIVE VOLUME THIS SET WOULD BE EMPTY: the folded spellings name nothing, both arms hold their legs back and say so where the run is read, and the accepted cost is live there instead — a genuine `mage -> Mage` alias folds equal and is ALLOWED. That is stated so a red set measured elsewhere reads as a regime difference rather than as a regression.",
+      "mutates": "compare the spelled and resolved parent EXACTLY, dropping the case fold",
+      "why": "⚠⚠ GRADES THE FOLD RATHER THAN THE GUARD, AND THE ASYMMETRY IS THE WHOLE ROW. `M103`/`M104` delete the guard at a site; this one leaves both sites calling it and only makes the comparison exact, which is the change a maintainer makes by reasoning that case-folding is sloppy. The alias legs still refuse under the mutant — `Notes` and `Arc` differ exactly too — so what goes red is exclusively the FALSE-POSITIVE legs: a differently-cased spelling of a real directory, which Windows resolves to the canonical casing, and which an exact comparison therefore refuses. That is the same false-positive class `rootStillCanonical` records at `fsgate.ts`, where exact comparison was revision 2 of 3 and had to be replaced. ⚠ ITS RED SET IS EMPTY ON A CASE-SENSITIVE VOLUME, where the folded spellings name nothing and the legs are held back — so this row's declared set is a measurement on THIS machine (win32, case-folding) and carries that regime with it."
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "name": "wyrd-mcp",
+  "version": "0.1.4",
+  "mcpName": "com.wyrdmcp/wyrd",
+  "license": "MIT",
+  "type": "module",
+  "description": "wyrd — an MCP server that exposes one granted folder to any AI client, read-only, behind a path-containment fence with documented limits.",
+  "bin": {
+    "wyrd-mcp": "dist/index.js"
+  },
+  "//exports": "⚠⚠ EMPTY ON PURPOSE, AND IT IS A DECLARATION RATHER THAN AN OMISSION. This package is a BINARY. Until 2026-08-31 it declared `bin` and no `exports`, which does not mean 'nothing is importable' — it means EVERYTHING under `files` is: `dist/main.js`, `dist/server.js`, `dist/index.js` and `dist/fsgate.js` were all deep-importable by any consumer, and this project's own rule (stated in the fence source and in E12's failure message) is that shipping `dist` makes it public. An empty map closes the whole class instead of one member, so the next refactor does not reopen the same fork. ⚠ `bin` is UNAFFECTED: npm links the binary by filesystem path and Node executes it by path, and `exports` gates only bare-specifier resolution. ⚠ The fence is not hidden by this — it moved to `wyrd-fence`, where it is a first-class declared entry point with a versioned type surface. That is the opposite of a compatibility facade and must not be softened back into one.",
+  "exports": {},
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "markdown",
+    "notes",
+    "read-only",
+    "obsidian",
+    "vault"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MortalPastry/wyrd-mcp.git"
+  },
+  "homepage": "https://github.com/MortalPastry/wyrd-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/MortalPastry/wyrd-mcp/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "PRIVACY.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "prebuild": "node scripts/clean.mjs",
+    "build": "tsc -b",
+    "start": "node dist/index.js",
+    "test": "npm run build && node scripts/run-tests.mjs",
+    "test:portable": "npm run build && node scripts/run-tests.mjs --portable",
+    "test:publish-gate": "node scripts/run-publish-gate-tests.mjs",
+    "test:release-gate": "node scripts/run-release-gate-tests.mjs",
+    "release:check": "node scripts/release.mjs --check",
+    "release:publish": "node scripts/release-publish.mjs",
+    "drive": "npm run build && node scripts/drive.mjs",
+    "mutate": "npm run build && node scripts/mutate.mjs"
+  },
+  "//dependencies": "⚠ `wyrd-fence` IS AN EXACT REGISTRY VERSION, NEVER `workspace:*` OR `file:`. npm links the matching local workspace package automatically, so the exact version is what a stranger's install resolves AND what this machine builds against — one spec, both regimes. ⚠ AND THE PUBLISH ORDER IS FORCED: `wyrd-fence@<this version>` must exist on the registry BEFORE this package is published, or every stranger's install fails at resolution while every gate here stays green. `scripts/run-tests.mjs` asserts the three declared versions agree with the fence's own, and `scripts/publish-prerequisites.mjs` — reached from `scripts/release-publish.mjs` — is the gate that asserts the registry actually has it before this package goes out. That gate said 'not yet, it belongs to the publish slice' until 2026-09-01; the publish slice landed it.",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "wyrd-fence": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "7.0.2"
+  }
+}
