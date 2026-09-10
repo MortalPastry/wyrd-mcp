@@ -1,0 +1,863 @@
+[
+  {
+    "id": "M1",
+    "file": "fsgate",
+    "mutation": "delete the absolute-request rejection",
+    "planClaims": "A2",
+    "status": "KILLED",
+    "red": [
+      "A2",
+      "A4"
+    ]
+  },
+  {
+    "id": "M2",
+    "file": "fsgate",
+    "mutation": "delete the drive-relative regex",
+    "planClaims": "A3",
+    "status": "KILLED",
+    "red": [
+      "A3"
+    ]
+  },
+  {
+    "id": "M3",
+    "file": "fsgate",
+    "mutation": "delete the null-byte rejection",
+    "planClaims": "A5",
+    "status": "KILLED",
+    "red": [
+      "A5"
+    ]
+  },
+  {
+    "id": "M4",
+    "file": "fsgate",
+    "mutation": "path.join -> path.resolve in stage (a)",
+    "planClaims": "A3",
+    "status": "SURVIVED",
+    "red": []
+  },
+  {
+    "id": "M4+M2",
+    "file": "fsgate",
+    "mutation": "path.resolve WITH the drive-relative guard also deleted",
+    "planClaims": "(added)",
+    "status": "KILLED",
+    "red": [
+      "A3"
+    ]
+  },
+  {
+    "id": "M5",
+    "file": "fsgate",
+    "mutation": "delete CLAMPED detection",
+    "planClaims": "A10 (reason assertion only)",
+    "status": "KILLED",
+    "red": [
+      "A10"
+    ]
+  },
+  {
+    "id": "M6",
+    "file": "fsgate",
+    "mutation": "delete the `..` + sep prefix clause",
+    "planClaims": "A1",
+    "status": "KILLED",
+    "red": [
+      "A1",
+      "A9",
+      "A11",
+      "A12",
+      "A13",
+      "A14-M",
+      "A16-out",
+      "A18",
+      "A19",
+      "A20",
+      "A32-hidden-intermediate",
+      "A30-no-arbitration",
+      "A36-defaults",
+      "A37-request-separators",
+      "A38-both-contained",
+      "META-no-outside-names",
+      "A47-name-rules-host",
+      "A50-refusal-before-open-retains-nothing",
+      "A42-hash",
+      "`read` serves an in-grant file and refuses an escape, end to end"
+    ]
+  },
+  {
+    "id": "M7",
+    "file": "fsgate",
+    "mutation": "delete the exact-`..` clause",
+    "planClaims": "A6",
+    "status": "KILLED",
+    "red": [
+      "A6",
+      "META-no-outside-names"
+    ]
+  },
+  {
+    "id": "M8",
+    "file": "fsgate",
+    "mutation": "delete !path.isAbsolute(rel) from contains()",
+    "planClaims": "A4",
+    "status": "KILLED",
+    "red": [
+      "A29-unc",
+      "A30-no-arbitration",
+      "A36-defaults"
+    ]
+  },
+  {
+    "id": "M9",
+    "file": "fsgate",
+    "mutation": "delete IS_ROOT",
+    "planClaims": "A7 / A8",
+    "status": "KILLED",
+    "red": [
+      "A7",
+      "A8",
+      "META-no-outside-names"
+    ]
+  },
+  {
+    "id": "M10",
+    "file": "fsgate",
+    "mutation": "move I/O before the lexical refusal",
+    "planClaims": "A1-A6 spy assertion",
+    "status": "KILLED",
+    "red": [
+      "META-no-outside-names",
+      "A39-not-filenames",
+      "A42-hash"
+    ]
+  },
+  {
+    "id": "M11a",
+    "file": "fsgate",
+    "mutation": "judge the traversal reading by the SUBSTITUTED reading's containment",
+    "planClaims": "A14-M / A14-T",
+    "status": "KILLED",
+    "red": [
+      "A14-T",
+      "A36-defaults",
+      "META-no-outside-names"
+    ]
+  },
+  {
+    "id": "M11b",
+    "file": "fsgate",
+    "mutation": "judge the substituted reading by the TRAVERSAL reading's containment",
+    "planClaims": "A14-M / A23-dsym",
+    "status": "KILLED",
+    "red": [
+      "A23-dsym",
+      "A36-defaults",
+      "META-no-outside-names"
+    ]
+  },
+  {
+    "id": "M39",
+    "file": "fsgate",
+    "mutation": "always take the SUBSTITUTED reading (mutates the CHOICE)",
+    "planClaims": "(added — the uncovered cell)",
+    "status": "KILLED",
+    "red": [
+      "META-no-outside-names"
+    ]
+  },
+  {
+    "id": "M40",
+    "file": "fsgate",
+    "mutation": "always take the TRAVERSAL reading (mutates the CHOICE)",
+    "planClaims": "(added — the uncovered cell)",
+    "status": "KILLED",
+    "red": [
+      "META-no-outside-names"
+    ]
+  },
+  {
+    "id": "M41",
+    "file": "fsgate",
+    "mutation": "return a guessed branch's refusal without arbitrating (the HIGH-1 defect)",
+    "planClaims": "(added — veto finding)",
+    "status": "KILLED",
+    "red": [
+      "A38-both-contained"
+    ]
+  },
+  {
+    "id": "M42",
+    "file": "fsgate",
+    "mutation": "never record that a guess was made",
+    "planClaims": "(added — veto finding)",
+    "status": "KILLED",
+    "red": [
+      "A38-both-contained"
+    ]
+  },
+  {
+    "id": "M43",
+    "file": "fsgate",
+    "mutation": "drop the trailing-separator fold from volumeIdentity (the UNC defect)",
+    "planClaims": "(added — veto finding)",
+    "status": "KILLED",
+    "red": [
+      "startup"
+    ]
+  },
+  {
+    "id": "M12",
+    "file": "fsgate",
+    "mutation": "skip the realpath arbitration (trust the walk)",
+    "planClaims": "A14-M",
+    "status": "KILLED",
+    "red": [
+      "A14-M",
+      "A36-defaults",
+      "A38-both-contained",
+      "META-primitives"
+    ]
+  },
+  {
+    "id": "M13",
+    "file": "fsgate",
+    "mutation": "walk one level only (no chain recursion at all)",
+    "planClaims": "A12",
+    "status": "KILLED",
+    "red": [
+      "A15",
+      "A22",
+      "A32-hidden-intermediate",
+      "A30-no-arbitration"
+    ]
+  },
+  {
+    "id": "M29",
+    "file": "fsgate",
+    "mutation": "lstat a multi-component link target OPAQUELY (regress fix 2)",
+    "planClaims": "(added)",
+    "status": "KILLED",
+    "red": [
+      "A22",
+      "A32-hidden-intermediate",
+      "A30-no-arbitration"
+    ]
+  },
+  {
+    "id": "M32",
+    "file": "fsgate",
+    "mutation": "compare root STRINGS instead of volume identities (the shipped defect)",
+    "planClaims": "(added — FOUND BY USING IT)",
+    "status": "KILLED",
+    "red": [
+      "startup"
+    ]
+  },
+  {
+    "id": "M33",
+    "file": "fsgate",
+    "mutation": "delete the volume-mangling check",
+    "planClaims": "(added)",
+    "status": "KILLED",
+    "red": [
+      "startup"
+    ]
+  },
+  {
+    "id": "M34",
+    "file": "fsgate",
+    "mutation": "invert the volume-mangling check",
+    "planClaims": "(added)",
+    "status": "KILLED",
+    "red": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6",
+      "A7",
+      "A8",
+      "A9",
+      "A10",
+      "A11",
+      "A12",
+      "A13",
+      "A14-M",
+      "A14-T",
+      "A15",
+      "A16-in",
+      "A16-out",
+      "A17",
+      "A18",
+      "A19",
+      "A20",
+      "A21",
+      "A21-rel",
+      "A22",
+      "A22-hops",
+      "A23-dsym",
+      "A24-hardlink-limit",
+      "A25-case",
+      "A32-hidden-intermediate",
+      "A26-pagination",
+      "A27-utf8",
+      "A33-guards",
+      "A34-listing",
+      "A35-root-moved",
+      "A28-symlinked-root",
+      "A29-unc",
+      "A30-no-arbitration",
+      "A31-errno",
+      "A36-defaults",
+      "A37-request-separators",
+      "A38-both-contained",
+      "META-primitives",
+      "META-this-unbound",
+      "META-no-outside-names",
+      "META-guard-armed",
+      "SHAPE-no-mutator",
+      "A39-not-filenames",
+      "A47-name-rules-host",
+      "A40-create",
+      "A41-exists-refuses",
+      "A45-root-identity",
+      "A43-probe-errors",
+      "A44-short-write",
+      "A47-write-throws-retains",
+      "A48-short-write-retains",
+      "A49-close-fails-after-write",
+      "A50-refusal-before-open-retains-nothing",
+      "A51-nonexistent-errno-retains-indeterminate",
+      "A53-post-probe-exists-retains-nothing",
+      "A52-success-closes-once",
+      "A42-hash",
+      "the server starts on stdio and completes an initialize handshake",
+      "the server declares exactly one tool, `read`, with a real description",
+      "`read` declares readOnlyHint over the wire",
+      "`read` serves an in-grant file and refuses an escape, end to end",
+      "initialize.instructions discloses the canonical grant and names nothing outside it",
+      "a file that is not valid UTF-8 is refused NOT_TEXT, never returned altered",
+      "a grant carrying a control character or absurd length is refused at the door",
+      "Mage layers are named only when present, and a plain folder gets no vault paragraph",
+      "startup"
+    ]
+  },
+  {
+    "id": "M30",
+    "file": "fsgate",
+    "mutation": "delete the root-identity re-check (all three sites)",
+    "planClaims": "(added)",
+    "status": "KILLED",
+    "red": [
+      "A35-root-moved",
+      "A45-root-identity"
+    ]
+  },
+  {
+    "id": "M31",
+    "file": "fsgate",
+    "mutation": "invoke a primitive as a property of the table (leaks `this`)",
+    "planClaims": "(added — EXECUTED defect)",
+    "status": "KILLED",
+    "red": [
+      "META-this-unbound"
+    ]
+  },
+  {
+    "id": "M14",
+    "file": "fsgate",
+    "mutation": "refuse every reparse point",
+    "planClaims": "A13 pass / A12 pass",
+    "status": "KILLED",
+    "red": [
+      "A11",
+      "A12",
+      "A13",
+      "A14-M",
+      "A14-T",
+      "A15",
+      "A16-in",
+      "A18",
+      "A20",
+      "A21",
+      "A21-rel",
+      "A22",
+      "A22-hops",
+      "A23-dsym",
+      "A29-unc",
+      "A36-defaults",
+      "A38-both-contained",
+      "META-primitives",
+      "META-no-outside-names",
+      "META-guard-armed",
+      "A40-create"
+    ]
+  },
+  {
+    "id": "M15a",
+    "file": "fsgate",
+    "mutation": "visited set keyed on the ORIGINAL request (absolute branch)",
+    "planClaims": "A15 pass arm",
+    "status": "KILLED",
+    "red": [
+      "A15",
+      "META-no-outside-names"
+    ]
+  },
+  {
+    "id": "M15b",
+    "file": "fsgate",
+    "mutation": "visited set keyed on the ORIGINAL request (relative branch)",
+    "planClaims": "(added — was a hole)",
+    "status": "KILLED",
+    "red": [
+      "A21-rel",
+      "A22-hops",
+      "META-no-outside-names"
+    ]
+  },
+  {
+    "id": "M16",
+    "file": "fsgate",
+    "mutation": "delete the visited set, keep only the hop limit",
+    "planClaims": "A15 refusal arm",
+    "status": "KILLED",
+    "red": [
+      "A15",
+      "A21-rel"
+    ]
+  },
+  {
+    "id": "M17",
+    "file": "fsgate",
+    "mutation": "delete the TERMINAL-component reparse check",
+    "planClaims": "A11",
+    "status": "KILLED",
+    "red": [
+      "A21-rel",
+      "A22-hops",
+      "A29-unc",
+      "A30-no-arbitration",
+      "A36-defaults",
+      "META-primitives"
+    ]
+  },
+  {
+    "id": "M18",
+    "file": "fsgate",
+    "mutation": "delete the INTERMEDIATE-component reparse check",
+    "planClaims": "A14",
+    "status": "KILLED",
+    "red": [
+      "A15",
+      "A16-out",
+      "A22",
+      "A23-dsym",
+      "A32-hidden-intermediate",
+      "A30-no-arbitration",
+      "A36-defaults",
+      "A38-both-contained",
+      "META-no-outside-names"
+    ]
+  },
+  {
+    "id": "M19",
+    "file": "fsgate",
+    "mutation": "conflate MISSING with ESCAPES",
+    "planClaims": "A16 / A17 reason assertions",
+    "status": "KILLED",
+    "red": [
+      "A16-in",
+      "A17",
+      "A31-errno",
+      "A40-create"
+    ]
+  },
+  {
+    "id": "M20-ENOTDIR",
+    "file": "fsgate",
+    "mutation": "delete the ENOTDIR errno mapping",
+    "planClaims": "injected-error arms",
+    "status": "KILLED",
+    "red": [
+      "A31-errno",
+      "A43-probe-errors"
+    ]
+  },
+  {
+    "id": "M20-EISDIR",
+    "file": "fsgate",
+    "mutation": "delete the EISDIR errno mapping",
+    "planClaims": "injected-error arms",
+    "status": "KILLED",
+    "red": [
+      "A31-errno",
+      "A43-probe-errors"
+    ]
+  },
+  {
+    "id": "M20-EACCES",
+    "file": "fsgate",
+    "mutation": "delete the EACCES errno mapping",
+    "planClaims": "injected-error arms",
+    "status": "KILLED",
+    "red": [
+      "A34-listing",
+      "A31-errno",
+      "A43-probe-errors"
+    ]
+  },
+  {
+    "id": "M20-EPERM",
+    "file": "fsgate",
+    "mutation": "delete the EPERM errno mapping",
+    "planClaims": "injected-error arms",
+    "status": "KILLED",
+    "red": [
+      "A34-listing",
+      "A31-errno",
+      "A43-probe-errors"
+    ]
+  },
+  {
+    "id": "M20-ELOOP",
+    "file": "fsgate",
+    "mutation": "delete the ELOOP errno mapping",
+    "planClaims": "injected-error arms",
+    "status": "KILLED",
+    "red": [
+      "A31-errno",
+      "A43-probe-errors"
+    ]
+  },
+  {
+    "id": "M20-ENAMETOOLONG",
+    "file": "fsgate",
+    "mutation": "delete the ENAMETOOLONG errno mapping",
+    "planClaims": "injected-error arms",
+    "status": "KILLED",
+    "red": [
+      "A31-errno",
+      "A43-probe-errors"
+    ]
+  },
+  {
+    "id": "M20-ERR_INVALID_ARG_VALUE",
+    "file": "fsgate",
+    "mutation": "delete the ERR_INVALID_ARG_VALUE errno mapping",
+    "planClaims": "injected-error arms",
+    "status": "KILLED",
+    "red": [
+      "A31-errno"
+    ]
+  },
+  {
+    "id": "M21",
+    "file": "fsgate",
+    "mutation": "realpathSync.native -> bare realpathSync",
+    "planClaims": "startup spy",
+    "status": "KILLED",
+    "red": [
+      "A36-defaults",
+      "startup"
+    ]
+  },
+  {
+    "id": "M22",
+    "file": "fsgate",
+    "mutation": "canonicalize more than once",
+    "planClaims": "exact realpathNative count = 1",
+    "status": "KILLED",
+    "red": [
+      "META-primitives",
+      "A45-root-identity"
+    ]
+  },
+  {
+    "id": "M23",
+    "file": "fsgate",
+    "mutation": "delete BOTH missing-root refusals",
+    "planClaims": "startup grant-missing arm",
+    "status": "KILLED",
+    "red": [
+      "test\\fsgate.test.js",
+      "test\\handshake.test.js",
+      "test\\startup.test.js"
+    ]
+  },
+  {
+    "id": "M24",
+    "file": "fsgate",
+    "mutation": "delete BOTH not-a-directory refusals",
+    "planClaims": "startup grant-is-a-file arm",
+    "status": "KILLED",
+    "red": [
+      "startup"
+    ]
+  },
+  {
+    "id": "M25",
+    "file": "main",
+    "mutation": "delete CLI-over-env precedence",
+    "planClaims": "startup CLI-overrides-env arm",
+    "status": "KILLED",
+    "red": [
+      "startup"
+    ]
+  },
+  {
+    "id": "M26",
+    "file": "fsgate",
+    "mutation": "add a setter for the canonical root",
+    "planClaims": "API-shape arm",
+    "status": "KILLED",
+    "red": [
+      "SHAPE-no-mutator"
+    ]
+  },
+  {
+    "id": "M27",
+    "file": "index",
+    "mutation": "instrument AFTER importing the app modules",
+    "planClaims": "import-time-touch arm",
+    "status": "KILLED",
+    "red": [
+      "observer"
+    ]
+  },
+  {
+    "id": "M28",
+    "file": "fsgate",
+    "mutation": "export a raw primitive",
+    "planClaims": "export-inventory arm",
+    "status": "KILLED",
+    "red": [
+      "the fence module exports no raw primitive"
+    ]
+  },
+  {
+    "id": "M44",
+    "file": "server",
+    "mutation": "consider only the FIRST case-insensitive layer match",
+    "planClaims": "(added 2026-08-29)",
+    "status": "KILLED",
+    "red": [
+      "a same-named FILE listed before a real layer directory does not shadow it"
+    ]
+  },
+  {
+    "id": "M45",
+    "file": "fsgate",
+    "mutation": "drop the alternate-data-stream (colon) screen",
+    "planClaims": "A39-not-filenames",
+    "status": "KILLED",
+    "red": [
+      "A39-not-filenames",
+      "A47-name-rules-host"
+    ]
+  },
+  {
+    "id": "M46",
+    "file": "fsgate",
+    "mutation": "drop the reserved-device-name screen",
+    "planClaims": "A39-not-filenames",
+    "status": "KILLED",
+    "red": [
+      "A39-not-filenames",
+      "A47-name-rules-host"
+    ]
+  },
+  {
+    "id": "M47",
+    "file": "fsgate",
+    "mutation": "resolve the create path's PARENT lexically, bypassing the fence",
+    "planClaims": "A40-create",
+    "status": "KILLED",
+    "red": [
+      "A40-create"
+    ]
+  },
+  {
+    "id": "M48",
+    "file": "fsgate",
+    "mutation": "open the create path NON-exclusively (wx -> w)",
+    "planClaims": "SURVIVES — no deterministic arm, NOT equivalent; see the note above",
+    "status": "SURVIVED",
+    "red": []
+  },
+  {
+    "id": "M49",
+    "file": "fsgate",
+    "mutation": "delete the leaf existence probe, leaving only wx",
+    "planClaims": "A43-probe-errors (portable kill) + A40/A41 dangling-link (Windows-only)",
+    "status": "KILLED",
+    "red": [
+      "A40-create",
+      "A41-exists-refuses",
+      "A43-probe-errors",
+      "A50-refusal-before-open-retains-nothing",
+      "A53-post-probe-exists-retains-nothing"
+    ]
+  },
+  {
+    "id": "M50",
+    "file": "fsgate",
+    "mutation": "restore the single-call write (no loop) — the original short-write defect",
+    "planClaims": "A41-exists-refuses (uninjected byte-compare)",
+    "status": "KILLED",
+    "red": [
+      "A41-exists-refuses"
+    ]
+  },
+  {
+    "id": "M51",
+    "file": "fsgate",
+    "mutation": "restore the sawReparse gate on the realpath arbitration",
+    "planClaims": "META-primitives",
+    "status": "KILLED",
+    "red": [
+      "META-primitives"
+    ]
+  },
+  {
+    "id": "M52",
+    "file": "fsgate",
+    "mutation": "let EVERY leaf-probe error proceed, not only ENOENT",
+    "planClaims": "A43-probe-errors",
+    "status": "KILLED",
+    "red": [
+      "A43-probe-errors"
+    ]
+  },
+  {
+    "id": "M54",
+    "file": "fsgate",
+    "mutation": "restore case-folding on the root recheck",
+    "planClaims": "A45-root-identity",
+    "status": "KILLED",
+    "red": [
+      "A45-root-identity"
+    ]
+  },
+  {
+    "id": "M55",
+    "file": "fsgate",
+    "mutation": "drop the stem trailing-space trim (NUL .txt survives)",
+    "planClaims": "A39-not-filenames",
+    "status": "KILLED",
+    "red": [
+      "A39-not-filenames"
+    ]
+  },
+  {
+    "id": "M56",
+    "file": "fsgate",
+    "mutation": "drop the COM0/LPT0 portability entries",
+    "planClaims": "A39-not-filenames",
+    "status": "KILLED",
+    "red": [
+      "A39-not-filenames"
+    ]
+  },
+  {
+    "id": "M53",
+    "file": "fsgate",
+    "mutation": "report a short write as a success with a reduced count",
+    "planClaims": "A44-short-write",
+    "status": "KILLED",
+    "red": [
+      "A44-short-write",
+      "A48-short-write-retains"
+    ]
+  },
+  {
+    "id": "M58",
+    "file": "fsgate",
+    "mutation": "invert the host derivation (win32 gets POSIX rules)",
+    "planClaims": "A39-not-filenames + A47-name-rules-host",
+    "status": "KILLED",
+    "red": [
+      "A39-not-filenames",
+      "A47-name-rules-host"
+    ]
+  },
+  {
+    "id": "M59",
+    "file": "fsgate",
+    "mutation": "relax the CREATE-path stream screen to the host derivation (reopens the ADS create escape) — SURVIVES on win32, see note",
+    "planClaims": "NO KILLING ARM ON WIN32 — observable only off-win32; NOT equivalent",
+    "status": "SURVIVED",
+    "red": []
+  },
+  {
+    "id": "M60",
+    "file": "fsgate",
+    "mutation": "drop the stream screen on BOTH paths",
+    "planClaims": "A39-not-filenames",
+    "status": "KILLED",
+    "red": [
+      "A39-not-filenames",
+      "A47-name-rules-host"
+    ]
+  },
+  {
+    "id": "M65",
+    "file": "fsgate",
+    "mutation": "drop the `retained` field from every write refusal",
+    "planClaims": "A47-write-throws-retains / A48-short-write-retains",
+    "status": "KILLED",
+    "red": [
+      "A47-write-throws-retains",
+      "A48-short-write-retains",
+      "A49-close-fails-after-write",
+      "A50-refusal-before-open-retains-nothing",
+      "A51-nonexistent-errno-retains-indeterminate",
+      "A53-post-probe-exists-retains-nothing"
+    ]
+  },
+  {
+    "id": "M66",
+    "file": "fsgate",
+    "mutation": "populate `retained` unconditionally, pre-open refusals included",
+    "planClaims": "A50-refusal-before-open-retains-nothing",
+    "status": "KILLED",
+    "red": [
+      "A50-refusal-before-open-retains-nothing",
+      "A53-post-probe-exists-retains-nothing"
+    ]
+  },
+  {
+    "id": "M67",
+    "file": "fsgate",
+    "mutation": "restore the swallowed close error (revert fork 3b)",
+    "planClaims": "A49-close-fails-after-write",
+    "status": "KILLED",
+    "red": [
+      "A49-close-fails-after-write"
+    ]
+  },
+  {
+    "id": "M68",
+    "file": "fsgate",
+    "mutation": "commit the success BEFORE observing the close outcome",
+    "planClaims": "A49-close-fails-after-write",
+    "status": "KILLED",
+    "red": [
+      "A49-close-fails-after-write"
+    ]
+  },
+  {
+    "id": "M69",
+    "file": "fsgate",
+    "mutation": "set the close flag AFTER the call, reintroducing the double close",
+    "planClaims": "A49-close-fails-after-write (the `=== 1` counter, and nothing else)",
+    "status": "KILLED",
+    "red": [
+      "A49-close-fails-after-write"
+    ]
+  }
+]

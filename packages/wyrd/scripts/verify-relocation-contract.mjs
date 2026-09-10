@@ -52,11 +52,9 @@ export const CONTRACT_PATH = path.join(here, '..', 'test', 'relocation-contract.
  * the same record `test/relocation-contract.json` is: the contract says what each row is CONTRACTED
  * to do, this says what each row was MEASURED doing on the day of the move.
  *
- * The only thing in this repo that named it was `scripts/release.mjs`'s intentionally-unshipped
- * inventory, which classifies it and never opens it — so it could be edited to say anything, in any
- * direction, and every gate in both packages would stay green. That is the same class as the
- * contract's `asserts` and `mutates` fields on the day before they got a reader, and the same class
- * as the `plan` references: a permanent record that reads like a control and is read by nothing.
+ * This executable read was the edge the export gate missed: the verifier shipped while the baseline
+ * did not, so a public `npm test` refused before any arm ran. Since 2026-09-09 the baseline ships,
+ * and the release gate derives this path from the call below and joins it to the ship set.
  *
  * ⚠ IT IS CHECKED HERE RATHER THAN IN AN EXPORT OF ITS OWN, for the reason the `plan` check gives:
  * a separate function is a function a caller can forget to call, and a control nobody calls is the
