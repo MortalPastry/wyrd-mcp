@@ -714,7 +714,15 @@ const ROWS = [
 
     { id: 'M106-baseline-byte-pin-dropped', file: 'attributes', what: 'enable Git text conversion for generated baselines', plan: 'E16-baseline-byte-pin',
         from: '*.baseline -text',
-        to: '*.baseline text' }
+        to: '*.baseline text' },
+
+    { id: 'M107-append-window-account-thinned', file: 'readme', what: 'remove the exact last-check-to-write timing from the authoritative append-window account', plan: 'PC4-append-window-single-home',
+        from: "After the fence's last check, the real-path containment check that follows the descriptor's",
+        to: "After the fence has opened the descriptor, its remaining checks run," },
+
+    { id: 'M108-probe-kind-collapsed', file: 'fsgate', what: 'report every successful existence probe as a file', plan: 'A67-probe-directory / A70-probe-junction',
+        from: 'return Object.freeze({ ok: true, kind: entryKind(stats) });',
+        to: "return Object.freeze({ ok: true, kind: 'file' });" }
 ];
 
 // ⚠ ROW IDS MUST BE UNIQUE, AND NOTHING CHECKED UNTIL 2026-08-29, WHEN A DUPLICATE WAS ADDED AND

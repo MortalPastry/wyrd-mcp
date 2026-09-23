@@ -166,10 +166,80 @@ test('MF2-manifest-cross-reference — the $schema it declares is the one vendor
      * something that does not exist at all.
      */
     const built = fs.readFileSync(path.join(repoRoot, 'dist', 'main.js'), 'utf8');
+    const declaredPackageArgumentNames = (npmPackage.packageArguments ?? [])
+        .map(a => a.name)
+        .filter(name => typeof name === 'string');
     const declaredNames = [
-        ...(npmPackage.packageArguments ?? []).map(a => a.name),
+        ...declaredPackageArgumentNames,
         ...(npmPackage.environmentVariables ?? []).map(v => v.name)
     ].filter(name => typeof name === 'string');
+
+    /**
+     * ⚠⚠ THE POLICY: THIS MANIFEST ADVERTISES STDIO AND NOTHING ELSE, AND THE CHECK IS ON THE WHOLE
+     * DOCUMENT RATHER THAN ON ONE FIELD.
+     *
+     * A registry manifest tells a STRANGER how to connect. `--http` starts a self-hosted loopback
+     * listener nobody else can reach, so it is not a registry transport and must not appear here as
+     * a connection instruction. The Reader gaining HTTP (2026-09-14) is exactly when this could
+     * start drifting, which is why it is asserted rather than assumed.
+     *
+     * ⚠ THE FIRST VERSION OF THIS CHECK WAS TOO NARROW, AND A COLD READ MEASURED THREE WAYS AROUND
+     * IT AGAINST THE VENDORED SCHEMA. Each is schema-valid, so `MF1` passes on all three:
+     *
+     *   1. `remotes[]` is a property of `ServerDetail` and holds `RemoteTransport` entries — HTTP and
+     *      SSE endpoints advertised DIRECTLY, never touching `packages[]` at all.
+     *   2. `Argument` is `anyOf[PositionalArgument, NamedArgument]`, and `PositionalArgument` has NO
+     *      `name` — it carries `value`/`valueHint`. A positional `--http` was invisible to a filter
+     *      reading `name`.
+     *   3. `packages[]` is an array. The old check read only the FIRST `registryType === 'npm'`
+     *      entry, so a second entry could advertise any transport it liked.
+     *
+     * So the assertion below walks every package, every argument shape, and `remotes`. **It pins the
+     * POLICY, not one encoding of it** — which is the difference between a check that holds and a
+     * check that happened to catch the one case its author thought of.
+     *
+     * ⚠ The `stdio` expectation is deliberately hard-coded rather than derived. This is a policy
+     * invariant, and a genuine remote transport SHOULD fail here until the manifest policy and this
+     * test are changed together, on purpose. That is the protection, not an obstruction.
+     */
+    const HTTP_SELECTOR = '--http';
+    const advertisedTransportRoutes = [];
+
+    for (const [index, entry] of (manifest.packages ?? []).entries()) {
+        const where = `packages[${index}]`;
+        if (entry.transport?.type !== 'stdio') {
+            advertisedTransportRoutes.push(`${where}.transport.type=${JSON.stringify(entry.transport?.type)}`);
+        }
+        // A stdio transport object carrying a URL is misleading metadata even where a conforming
+        // client ignores it: the vendored StdioTransport sets no `additionalProperties: false`.
+        if (entry.transport?.url !== undefined) {
+            advertisedTransportRoutes.push(`${where}.transport.url=${JSON.stringify(entry.transport.url)}`);
+        }
+        for (const [argIndex, argument] of (entry.packageArguments ?? []).entries()) {
+            // Named arguments carry `name`; positional ones carry `value`/`valueHint` and no name.
+            const carried = [argument.name, argument.value, argument.valueHint];
+            if (carried.some(field => typeof field === 'string' && field.includes(HTTP_SELECTOR))) {
+                advertisedTransportRoutes.push(
+                    `${where}.packageArguments[${argIndex}] carries ${HTTP_SELECTOR}`
+                );
+            }
+        }
+    }
+
+    for (const [index, remote] of (manifest.remotes ?? []).entries()) {
+        advertisedTransportRoutes.push(`remotes[${index}].type=${JSON.stringify(remote.type)}`);
+    }
+
+    assert.deepEqual(
+        advertisedTransportRoutes,
+        [],
+        'server.json advertises a transport route that is not plain stdio: '
+        + `${JSON.stringify(advertisedTransportRoutes)} — this manifest tells a STRANGER how to connect, `
+        + `and ${HTTP_SELECTOR} starts only a self-hosted loopback server they cannot reach. Every `
+        + 'packages[] entry must declare transport type "stdio" with no url, no argument of any shape '
+        + `may carry ${HTTP_SELECTOR}, and remotes[] must be absent or empty. If a genuinely remote `
+        + 'transport is being added, change the manifest policy and this assertion together.'
+    );
 
     assert.ok(declaredNames.length > 0, 'the manifest declares no way to pass a grant at all');
     for (const name of declaredNames) {
@@ -179,4 +249,18 @@ test('MF2-manifest-cross-reference — the $schema it declares is the one vendor
             + 'clients to configure this server with something the program does not read'
         );
     }
+});
+
+test('MF3-version-single-source — generated runtime version equals package.json', async () => {
+    arm('MF3-version-single-source');
+
+    const manifest = readJson('package.json');
+    const generated = await import('../dist/version.js');
+    assert.equal(generated.SERVER_VERSION, manifest.version);
+
+    const serverSource = fs.readFileSync(path.join(repoRoot, 'src', 'server.ts'), 'utf8');
+    assert.match(serverSource, /from ['"]\.\/version\.js['"]/);
+    assert.doesNotMatch(serverSource, /SERVER_VERSION\s*=\s*['"]/);
+    assert.equal(manifest.scripts?.build, 'tsc -b && node scripts/generate-version.mjs');
+    assert.equal(manifest.scripts?.prepack, 'npm run build');
 });

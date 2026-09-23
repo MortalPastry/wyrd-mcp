@@ -549,55 +549,33 @@ test('A34-listing — entry kinds and sizes, and errors from readdir map to thei
 });
 
 /**
- * ⚠⚠ THE SWAP MUST BE OBSERVABLE BEFORE THE ARM PROBES, AND THIS IS NOT A SLEEP.
+ * ⚠⚠ A35 STAGES THE ROOT RE-CHECK'S OBSERVATION; IT DOES NOT WAIT FOR AN OS CACHE.
  *
- * A35 asserts an EXACT reason, and the reason it asserts is decided by `rootStillCanonical`'s
- * two observations — `realpathNative(root)`, and the identity of whatever that resolves to. If
- * either of those still reports the pre-swap state when the probing read runs, the re-check
- * falls through to the ordinary walk, which refuses for its own reason (or, worse, does not) and
- * the arm goes red without any coverage having been lost. That is a defect in the ARM: it was
- * asserting on a state it had asked for but never confirmed had arrived.
+ * The rename and junction below are real, and `reveal` first proves through an uninjected
+ * `fs.realpathSync.native` call that the OS resolves the granted root to the replacement. Only
+ * after that precondition holds does `realpathNative(canonicalRoot)` stage the answer for the gate.
+ * Every other primitive remains a production filesystem call.
  *
- * So this waits for the state the arm is about to assert on, using the same two observations the
- * fence makes, and it FAILS LOUDLY rather than continuing if the swap never becomes visible. It
- * asserts nothing about the gate: the strict `reason === 'ROOT_MOVED'` check below is untouched,
- * and a product regression — case-folding the comparison, deleting the identity check, deleting
- * the re-check entirely — still lands there exactly as before, because this helper settles on the
- * OS's view and never on the gate's answer.
- *
- * ⚠ It also means the arm now covers the POST-SETTLE behaviour only. The window between the swap
- * and its visibility is the same documented, uncovered TOCTOU as the window between the check and
- * the open — it was never covered here; it was only being sampled by accident.
+ * This does not settle on the gate's answer: the observation is revealed before either product
+ * call, and the exact `ROOT_MOVED` assertions below remain the oracle.
  */
-async function awaitRootSwapObservable(canonicalRoot, identity) {
-    const normalized = path.normalize(canonicalRoot);
-    const deadline = Date.now() + 5000;
-    let unsettled = 'never observed';
-    for (;;) {
-        try {
-            const current = path.normalize(fs.realpathSync.native(canonicalRoot));
-            if (current !== normalized) {
-                let moved = null;
-                try {
-                    moved = fs.lstatSync(current);
-                } catch {
-                    return current; // unreadable replacement — the fence refuses on this too
-                }
-                if (moved.ino === 0 || identity.ino === 0 ||
-                    moved.dev !== identity.dev || moved.ino !== identity.ino) {
-                    return current;
-                }
-                unsettled = `${normalized} resolves to ${current}, which still reports the granted ` +
-                    `directory's identity (dev ${moved.dev}, ino ${moved.ino})`;
-            } else {
-                unsettled = `${normalized} still resolves to itself`;
-            }
-        } catch {
-            return '<unresolvable>'; // realpath throwing is itself the swapped state
+function stagedRootSwapObservation(canonicalRoot, replacementRoot) {
+    const normalizedRoot = path.normalize(canonicalRoot);
+    const normalizedReplacement = path.normalize(replacementRoot);
+    let swapped = false;
+    return {
+        realpathNative(target) {
+            if (swapped && path.normalize(target) === normalizedRoot) return replacementRoot;
+            return fs.realpathSync.native(target);
+        },
+        reveal: () => {
+            const observed = path.normalize(fs.realpathSync.native(canonicalRoot));
+            assert.equal(observed, normalizedReplacement,
+                `the real root swap must be observable before staging: observed ${observed}; ` +
+                `expected ${normalizedReplacement}`);
+            swapped = true;
         }
-        assert.ok(Date.now() < deadline, `the root swap never became observable: ${unsettled}`);
-        await new Promise(resolve => setTimeout(resolve, 5));
-    }
+    };
 }
 
 test('A35-root-moved — swapping the granted folder after startup is CAUGHT, not closed', async () => {
@@ -611,17 +589,21 @@ test('A35-root-moved — swapping the granted folder after startup is CAUGHT, no
         fs.writeFileSync(path.join(vault, 'note.md'), 'REAL-VAULT');
         fs.writeFileSync(path.join(evil, 'note.md'), 'SWAPPED-CONTENT');
 
-        const made = createFsGate({ rawGrant: vault });
+        const rootObservation = stagedRootSwapObservation(
+            fs.realpathSync.native(vault),
+            fs.realpathSync.native(evil)
+        );
+        const made = createFsGate({
+            rawGrant: vault,
+            primitives: { ...spyPrimitives([]), realpathNative: rootObservation.realpathNative }
+        });
         assert.ok(!isRefusal(made));
-        // The gate's own view of the root, and its identity — the two things it re-checks.
-        const canonicalRoot = made.disclosedRoot();
-        const identity = fs.lstatSync(canonicalRoot);
         assert.equal((await made.readFileInGrant('note.md', 0, 100)).bytes.toString('utf8'), 'REAL-VAULT');
 
         // Move the real folder aside and put a junction to elsewhere in its place.
         fs.renameSync(vault, path.join(base, 'vault-real'));
         fs.symlinkSync(evil, vault, 'junction');
-        await awaitRootSwapObservable(canonicalRoot, { dev: identity.dev, ino: identity.ino });
+        rootObservation.reveal();
 
         const after = await made.readFileInGrant('note.md', 0, 100);
         assert.ok(isRefusal(after), 'the swapped root must not serve content');
@@ -889,6 +871,103 @@ test('A38-both-contained — when BOTH readings are in-grant and DIFFER, the gat
     // IS outside must still refuse.
     const r = await refusal('bc4\\Lsym\\L2');
     assert.equal(r.reason, 'ESCAPES');
+});
+
+test('A67-probe-directory — a present directory returns kind only', async () => {
+    arm('A67-probe-directory');
+    const result = await gate.probeInGrant('subdir');
+    assert.deepEqual(result, { ok: true, kind: 'directory' });
+    assert.equal(Object.isFrozen(result), true);
+    assert.ok(!('name' in result) && !('rel' in result) && !('resolvedPath' in result));
+
+    const sink = [];
+    const measuredGate = createFsGate({ rawGrant: FX.grant, primitives: spyPrimitives(sink) });
+    assert.ok(!isRefusal(measuredGate));
+    sink.length = 0;
+    await measuredGate.probeInGrant('subdir');
+    assert.deepEqual(
+        sink.map(call => call.name),
+        ['realpathNative', 'lstat', 'lstat', 'realpathNative', 'lstat'],
+        'a direct successful probe is five constant-cost calls and never readdir'
+    );
+
+    /**
+     * Cost criterion 17.
+     *
+     * What implementation would still pass this? One that introduced a new, uninstrumented
+     * filesystem-enumeration primitive or called the platform API directly instead of the fence's
+     * primitive table. `spyPrimitives` covers every path-resolution primitive this probe uses
+     * today, but it is not an operating-system syscall tracer. This arm therefore proves
+     * call-sequence independence at that existing seam, for this fixed one-segment request; it does
+     * not claim constant wall time, a fixed count for deeper paths/link chains, or that a future
+     * primitive is covered.
+     */
+    const costRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-entry-cost-'));
+    try {
+        for (const layer of ['Arc', 'Mage', 'Forum']) fs.mkdirSync(path.join(costRoot, layer));
+        const costSink = [];
+        const costGate = createFsGate({ rawGrant: costRoot, primitives: spyPrimitives(costSink) });
+        assert.ok(!isRefusal(costGate));
+
+        costSink.length = 0;
+        for (const layer of ['Arc', 'Mage', 'Forum']) {
+            assert.deepEqual(await costGate.probeInGrant(layer), { ok: true, kind: 'directory' });
+        }
+        assert.deepEqual(
+            costSink.map(call => call.name),
+            Array.from({ length: 3 }, () => [
+                'realpathNative', 'lstat', 'lstat', 'realpathNative', 'lstat'
+            ]).flat(),
+            'three present startup layers are 15 calls at this one-segment depth'
+        );
+
+        costSink.length = 0;
+        assert.deepEqual(await costGate.probeInGrant('Mage'), { ok: true, kind: 'directory' });
+        const sparseCalls = costSink.map(call => ({ ...call }));
+        assert.equal(sparseCalls.length, 5);
+
+        for (let index = 0; index < 10_000; index += 1) {
+            fs.writeFileSync(path.join(costRoot, `entry-${String(index).padStart(5, '0')}.md`), '');
+        }
+        assert.equal(fs.readdirSync(costRoot).length, 10_003,
+            'precondition: exactly 10,000 files were added beside the three layers');
+
+        costSink.length = 0;
+        assert.deepEqual(await costGate.probeInGrant('Mage'), { ok: true, kind: 'directory' });
+        const crowdedCalls = costSink.map(call => ({ ...call }));
+        assert.deepEqual(crowdedCalls, sparseCalls,
+            'adding 10,000 vault files must not change one fixed probe call sequence');
+    } finally {
+        fs.rmSync(costRoot, { recursive: true, force: true });
+    }
+});
+
+test('A68-probe-file — a present file returns kind only', async () => {
+    arm('A68-probe-file');
+    const result = await gate.probeInGrant('notes');
+    assert.deepEqual(result, { ok: true, kind: 'file' });
+});
+
+test('A69-probe-missing — an absent name uses MISSING', async () => {
+    arm('A69-probe-missing');
+    const result = await gate.probeInGrant('absent-layer');
+    assert.ok(isRefusal(result));
+    assert.equal(result.reason, 'MISSING');
+    assert.equal(result.resolvedPath, '');
+});
+
+test('A70-probe-junction — an in-grant junctioned directory is present', async () => {
+    arm('A70-probe-junction');
+    const result = await gate.probeInGrant('j_in');
+    assert.deepEqual(result, { ok: true, kind: 'directory' });
+});
+
+test('A71-probe-escape — an escaping request uses the shared refusal', async () => {
+    arm('A71-probe-escape');
+    const result = await gate.probeInGrant('../outside/secret.md');
+    assert.ok(isRefusal(result));
+    assert.equal(result.reason, 'ESCAPES');
+    assert.equal(result.resolvedPath, '');
 });
 
 /* ---------------- meta-arms ---------------- */
@@ -1169,6 +1248,7 @@ test('SHAPE-no-mutator — the gate is frozen, null-prototype, and exposes no se
         'hashInGrant',
         'listDirInGrant',
         'listGrantRoot',
+        'probeInGrant',
         'readFileInGrant'
     ]);
     for (const key of Object.keys(gate)) {
@@ -1254,6 +1334,7 @@ test('A39-not-filenames — stream syntax and device names refuse in stage (a), 
         for (const result of [
             await gate.readFileInGrant(request, 0, 4096),
             await gate.listDirInGrant(request),
+            await gate.probeInGrant(request),
             await gate.hashInGrant(request)
         ]) {
             assert.ok(isRefusal(result), `${request} must refuse on the read path, got content`);
@@ -1286,7 +1367,7 @@ test('A39-not-filenames — stream syntax and device names refuse in stage (a), 
     // stage (a) runs, so the sink is never empty. That call names the root and tells a caller
     // nothing about the path it asked for. What must never happen is a primitive touching anything
     // derived from the REQUEST — that is what would turn a lexical refusal into an oracle.
-    // ⚠ ALL FOUR ENTRIES, not just read and create. The first version ran two, so a regression that
+    // ⚠ ALL FIVE PATH-NAMING ENTRIES, not just read and create. The first version ran two, so a regression that
     // probed the filesystem before the lexical refusal in `listDirInGrant` or `hashInGrant` alone
     // would have kept its refusal reason and passed — the arm's name says "every entry".
     // ⚠ ONLY THE ENTRIES A SCREEN ACTUALLY GUARDS ON THIS HOST. The oracle claim is about LEXICAL
@@ -1298,6 +1379,7 @@ test('A39-not-filenames — stream syntax and device names refuse in stage (a), 
         if (win32) {
             await gate.readFileInGrant(request, 0, 4096);
             await gate.listDirInGrant(request);
+            await gate.probeInGrant(request);
             await gate.hashInGrant(request);
         }
         if (reason === 'STREAM_SYNTAX' || win32) {
@@ -1718,6 +1800,10 @@ test('A55-same-path-replacement — a DIFFERENT directory at the IDENTICAL canon
         const listing = await made.listGrantRoot();
         assert.ok(isRefusal(listing), 'the listing surface must refuse a replaced root');
         assert.equal(listing.reason, 'ROOT_MOVED');
+
+        const probed = await made.probeInGrant('note.md');
+        assert.ok(isRefusal(probed), 'the probe surface must refuse a replaced root');
+        assert.equal(probed.reason, 'ROOT_MOVED');
 
         const hashed = await made.hashInGrant('note.md');
         assert.ok(isRefusal(hashed), 'provenance must not be taken over a replacement');

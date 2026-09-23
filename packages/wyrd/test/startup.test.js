@@ -190,6 +190,35 @@ test('S7-valid — a valid grant starts and discloses the canonical root', async
     }
 });
 
+test('S16-layer-probes — startup never reads the root listing', async () => {
+    arm('S16-layer-probes');
+    const probed = [];
+    let rootListings = 0;
+    const fakeGate = {
+        disclosedRoot: () => 'C:\\granted',
+        listGrantRoot: async () => {
+            rootListings += 1;
+            throw new Error('the root listing must not be read');
+        },
+        probeInGrant: async name => {
+            probed.push(name);
+            if (name === 'Arc') return { ok: true, kind: 'directory' };
+            if (name === 'Mage') return { ok: true, kind: 'file' };
+            return { ok: false, reason: 'MISSING', detail: 'missing', resolvedPath: '' };
+        }
+    };
+    const h = harness({
+        env: { WYRD_GRANT: 'C:\\granted' },
+        makeFsGate: () => fakeGate
+    });
+    const result = await main(h.deps);
+    assert.equal(result.started, true);
+    assert.equal(rootListings, 0);
+    assert.deepEqual(probed, ['Arc', 'Mage', 'Forum']);
+    assert.ok(h.lines.some(line => /Arc\/ — immutable source/.test(line)));
+    assert.ok(h.lines.every(line => !/Mage\/ — agent-curated/.test(line)));
+});
+
 test('S13-grant-source-parity — --grant, --grant= and WYRD_GRANT agree exactly, forward slashes included', async () => {
     arm('S13-grant-source-parity');
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-parity-'));
@@ -250,7 +279,39 @@ test('S10-bootstrap-order — the bootstrap arms the instrument before importing
     const source = fs.readFileSync(entrypoint, 'utf8');
     const staticImports = [...source.matchAll(/^\s*import\s[^\n]*from\s+'([^']+)'/gm)].map(m => m[1]);
     assert.deepEqual(staticImports, ['./observe.js'], 'observe.js must be the only static import');
-    assert.ok(source.indexOf('installObserver(') < source.indexOf('await import('), 'arm, then import');
+
+    /**
+     * ⚠⚠ THE CALL, NOT MERELY A CALL. `indexOf('installObserver(')` was the original check and it
+     * is too weak in both directions, measured 2026-09-14 by mutation `M27` ("instrument AFTER
+     * importing the app modules") coming back SURVIVED with NO ARM RED.
+     *
+     * `M27` deletes the arming statement and re-inserts it below the dynamic imports. The old
+     * assertion still passed, because the file's doc comment mentions the arming call near the top
+     * — so `indexOf` found the COMMENT, compared it against the first dynamic import, and reported
+     * success while the real call sat underneath.
+     * ⚠ `S9-import-touch` cannot cover this: it drives its own bootstrap fixture, not `dist/index.js`,
+     * so no behavioural arm watches this file's ordering. **This string check is the only guard,
+     * which is exactly why it has to be precise.**
+     *
+     * Asserted instead: the first EXECUTABLE arming statement precedes the first dynamic import,
+     * with comments stripped so prose cannot satisfy it.
+     *
+     * ⚠ The two needles are BUILT from fragments rather than written whole. The release gate's
+     * `imports` phase scans this file's bytes for an unresolvable dynamic-import specifier, and a
+     * literal one inside a comment or a string is indistinguishable to it from a real dependency —
+     * it refused this file once for exactly that.
+     */
+    const ARM_NEEDLE = 'installObserver' + '();';
+    const IMPORT_NEEDLE = 'await ' + 'import(';
+    const withoutComments = source
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^[ \t]*\/\/.*$/gm, '');
+    const armedAt = withoutComments.indexOf(ARM_NEEDLE);
+    const firstImportAt = withoutComments.indexOf(IMPORT_NEEDLE);
+    assert.notEqual(armedAt, -1, 'the observer must be ARMED, not merely mentioned in a comment');
+    assert.notEqual(firstImportAt, -1, 'the app modules must arrive by dynamic import');
+    assert.ok(armedAt < firstImportAt,
+        `arm, then import — the arming call at ${armedAt} must precede the first dynamic import at ${firstImportAt}`);
 });
 
 test('S11-child-no-grant — with no grant, the child process exits non-zero and names no candidate vault', () => {

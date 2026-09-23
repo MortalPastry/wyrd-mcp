@@ -125,6 +125,11 @@ export const FENCE_ARMS = {
     'A64-append-close': 'success and failure each close exactly once, and a close failure cannot become a success',
     'A65-append-hardlink-refused': 'a leaf whose link count exceeds one refuses NOT_A_FILE at the pre-open reading with nothing opened, the same leaf appends once single-named, and a link created between the probe and the open is caught by the post-open reading before appendOnce',
     'A66-parent-alias-refused': 'an in-grant junction parent refuses PARENT_ALIAS with retained: null on BOTH write paths and leaves the aliased directory unchanged, the comparison fires ahead of the leaf probe so an existing leaf cannot hide the alias, a DEEPER aliased ancestor refuses the same way, EVERY refusing leg — create, append, occupied leaf, the deeper pair and the symlink pair — is checked CASE-FOLDED to name the caller\'s own spelling and never the alias TARGET, a directory-SYMLINK alias refuses identically where the privilege allows the fixture, and a case-only spelling of a real directory still writes',
+    'A67-probe-directory': 'probeInGrant reports a present directory by kind, returns no path, and performs no readdir',
+    'A68-probe-file': 'probeInGrant reports a present file by kind and returns no path',
+    'A69-probe-missing': 'probeInGrant reports an absent name with the existing MISSING refusal',
+    'A70-probe-junction': 'probeInGrant follows an in-grant junction and reports its directory target as present',
+    'A71-probe-escape': 'probeInGrant routes an escaping request through the shared resolver and returns ESCAPES',
     'META-primitives': 'per-primitive: each injected implementation is called at its site',
     'META-this-unbound': 'an injected callback receives `this === undefined`',
     'META-no-outside-names': 'no arm, refusal OR pass, names a path outside the root',
@@ -239,7 +244,8 @@ export const SUITE_ARMS = {
 export const PUBLISHED_CLAIM_ARMS = {
     'PC1-pointers-resolve': 'every published pointer resolves to a heading and a file a stranger actually receives',
     'PC2-retired-wordings': 'a retired wording does not come back on any published fence artifact',
-    'PC3-limits-section-live': 'the limits section is substantive and the source header still points at it rather than restating it'
+    'PC3-limits-section-live': 'the limits section is substantive and the source header still points at it rather than restating it',
+    'PC4-append-window-single-home': 'the README retains the exact append race account while appendLineInGrant points to it and does not duplicate its distinctive timing language'
 };
 
 export const ALL_ARMS = { ...FENCE_ARMS, ...GRANT_ARMS, ...SURFACE_ARMS, ...SUITE_ARMS, ...PUBLISHED_CLAIM_ARMS };

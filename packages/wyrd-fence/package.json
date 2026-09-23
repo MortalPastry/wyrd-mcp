@@ -1,6 +1,7 @@
 {
   "name": "wyrd-fence",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "private": false,
   "license": "MIT",
   "type": "module",
   "description": "wyrd-fence: path containment for one granted folder, read and create. A pre-existing hard link inside it still reaches outside. See the README section 'Security boundary and limits'.",

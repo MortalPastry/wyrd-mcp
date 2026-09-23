@@ -16,9 +16,9 @@
  * says nothing about the 71-arm battery. `npm test` is that gate. Read the per-call `isError` lines
  * rather than trusting the absence of a stack trace.
  *
- * ⚠ IT IS STILL NOT A THIRD-PARTY CLIENT. This uses the official SDK's client, so it proves the
- * protocol exchange and the product surface — not that Claude Code, Cursor, ChatGPT or Codex parse
- * it the same way. That gap stays open in NEXT.md until a real client has connected.
+ * ⚠ IT IS STILL NOT A THIRD-PARTY CLIENT. This uses the repository's independent wire client, so
+ * it proves the protocol exchange and the product surface — not that Claude Code, Cursor, ChatGPT
+ * or Codex parse it the same way. That gap stays open in NEXT.md until a real client has connected.
  *
  * SEQUENCING RAIL: there is NO default grant. A new mechanism proves itself against a disposable
  * test folder before it points at a real Mage, and the folder is named on every run:
@@ -31,8 +31,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { RawMcpClient } from '../test/raw-stdio.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SERVER = path.join(repo, 'dist', 'index.js');
@@ -56,23 +55,23 @@ if (!GRANT) {
 console.log(`server : ${SERVER}`);
 console.log(`grant  : ${GRANT}`);
 
-const transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [SERVER, '--grant', GRANT],
-    stderr: 'pipe'
+const client = new RawMcpClient({
+    entrypoint: SERVER,
+    entrypointLabel: 'dist/index.js',
+    args: ['--grant', GRANT],
+    clientInfo: { name: 'wyrd-drive', version: '0.0.0' }
 });
-const client = new Client({ name: 'wyrd-drive', version: '0.0.0' }, { capabilities: {} });
 
 const timer = setTimeout(() => {
     console.error('\n⛔ TIMEOUT — the server did not complete the exchange in 20s.');
     process.exit(1);
 }, 20_000);
 
-await client.connect(transport);
 let serverStderr = '';
-transport.stderr?.on('data', chunk => {
+client.stderr?.on('data', chunk => {
     serverStderr += chunk;
 });
+await client.connect();
 
 console.log('\n=== 1. INITIALIZE ===');
 console.log('serverInfo   :', JSON.stringify(client.getServerVersion()));

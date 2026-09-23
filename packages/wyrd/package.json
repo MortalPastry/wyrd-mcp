@@ -1,6 +1,7 @@
 {
   "name": "wyrd-mcp",
-  "version": "0.1.4",
+  "version": "0.2.0",
+  "private": false,
   "mcpName": "com.wyrdmcp/wyrd",
   "license": "MIT",
   "type": "module",
@@ -39,17 +40,19 @@
   "scripts": {
     "clean": "node scripts/clean.mjs",
     "prebuild": "node scripts/clean.mjs",
-    "build": "tsc -b",
+    "build": "tsc -b && node scripts/generate-version.mjs",
+    "prepack": "npm run build",
     "start": "node dist/index.js",
     "test": "npm run build && node scripts/run-tests.mjs",
     "test:portable": "npm run build && node scripts/run-tests.mjs --portable",
     "drive": "npm run build && node scripts/drive.mjs",
-    "mutate": "npm run build && node scripts/mutate.mjs"
+    "mutate": "node scripts/mutate.mjs"
   },
   "//dependencies": "⚠ `wyrd-fence` IS AN EXACT REGISTRY VERSION, NEVER `workspace:*` OR `file:`. npm links the matching local workspace package automatically, so the exact version is what a stranger's install resolves AND what this machine builds against — one spec, both regimes. ⚠ AND THE PUBLISH ORDER IS FORCED: `wyrd-fence@<this version>` must exist on the registry BEFORE this package is published, or every stranger's install fails at resolution while every gate here stays green. `scripts/run-tests.mjs` asserts the three declared versions agree with the fence's own, and `scripts/publish-prerequisites.mjs` — reached from `scripts/release-publish.mjs` — is the gate that asserts the registry actually has it before this package goes out. That gate said 'not yet, it belongs to the publish slice' until 2026-09-01; the publish slice landed it.",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
-    "wyrd-fence": "0.1.0"
+    "@modelcontextprotocol/server": "2.0.0",
+    "node-forge": "1.4.0",
+    "wyrd-fence": "0.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

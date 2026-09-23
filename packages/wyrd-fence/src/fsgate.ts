@@ -277,6 +277,16 @@ export interface Entry {
 }
 
 /**
+ * The result of asking the gate about one existing name. It deliberately carries no path: the
+ * caller supplied the name, and the gate keeps the resolved spelling private while performing the
+ * filesystem operation itself.
+ */
+export interface Probe {
+    readonly ok: true;
+    readonly kind: Entry['kind'];
+}
+
+/**
  * The outcome of a gate-mediated write. **It carries no absolute path**, deliberately: `rel` is
  * grant-relative and safe to disclose, and there is nothing here a caller could re-open.
  */
@@ -348,6 +358,7 @@ export interface FsGate {
     readFileInGrant(request: string, offset: number, limit: number): Promise<Slice | FenceRefusal>;
     listDirInGrant(request: string): Promise<Entry[] | FenceRefusal>;
     listGrantRoot(): Promise<Entry[] | FenceRefusal>;
+    probeInGrant(request: string): Promise<Probe | FenceRefusal>;
     disclosedRoot(): string;
 
     /* ---------------------------------------------------------------- *
@@ -434,32 +445,9 @@ export interface FsGate {
      * It is NOT a promise that a partial line can never exist. A reader of the resulting file must
      * be able to survive a trailing fragment.
      *
-     * ⚠⚠ A HARD-LINK ALIAS AT THE LEAF REFUSES, AND THIS IS WHERE THE APPEND PATH DIVERGES FROM
-     * THE READ PATH RATHER THAN INHERITING ITS LIMIT. The read path lives with the alias because
-     * it only READS through it; an append WRITES through it, and a write to a file whose other
-     * name is outside the grant is an outside write. WHERE the other name is cannot be
-     * established — an in-grant name reports an in-grant path through every canonicalization API
-     * there is — so what is refused is MULTIPLICITY: a leaf whose link count exceeds one, read
-     * from the pre-open `lstat` and again from the post-open `fstat` so a link created between
-     * them is caught too. That refuses in-grant siblings along with outside aliases, which is the
-     * deliberate conservative side. The residual it leaves: a filesystem that does not report a
-     * link count cannot be screened this way, and the identity checks below still detect only a
-     * REPLACEMENT of the object under the name, never that the object was always shared.
-     *
-     * ⚠ A SECOND RESIDUAL SITS BETWEEN THE TWO READINGS THEMSELVES, AND IT IS NOT CLOSABLE IN PURE
-     * NODE: the fence's last reading before the write is the real-path containment check that
-     * follows the descriptor's `fstat`, so a leaf or parent rename issued before that check is
-     * refused. What survives is any RE-NAMING of the open object issued after that final check and
-     * before `appendOnce` runs at (9), plus one earlier case — a hard link created after the
-     * descriptor's link-count reading, which the real-path check cannot see because a link adds a
-     * name without moving the opened one. Node exposes no share
-     * mode and no way to forbid any of these against an open descriptor, so this is the append
-     * path's own version of the `'ax'` dangling-reparse window already stated above for the create
-     * branch — named and bounded, never claimed closed. The invariant that survives: the inode was
-     * single-named and inside the grant at open, so the write always lands in the GRANTED object,
-     * never in a pre-existing outside file. What the window buys an attacker with write access to
-     * the grant is that the appended bytes end up under a name of their choosing, not that some
-     * other file gets written.
+     * ⚠ A multi-named leaf refuses, but residual link and rename races can still leave appended
+     * bytes under a name chosen by another writer. The exact timing, consequences, and platform
+     * limit have one authoritative account: README.md, "Security boundary and limits".
      *
      * ⚠ THE CREATE BRANCH INHERITS `createFileInGrant`'s DOCUMENTED `CREATE_NEW` WINDOW, UNCHANGED
      * AND NOT WIDENED. `ax` is the same `CreateFileW(CREATE_NEW)` the create path uses, so a
@@ -1311,10 +1299,12 @@ function trimToCodepointBoundary(buffer: Buffer, length: number): number {
     return length;
 }
 
-function entryKind(dirent: fs.Dirent): Entry['kind'] {
-    if (dirent.isSymbolicLink()) return 'link';
-    if (dirent.isDirectory()) return 'directory';
-    if (dirent.isFile()) return 'file';
+type KindSource = Pick<fs.Dirent, 'isSymbolicLink' | 'isDirectory' | 'isFile'>;
+
+function entryKind(entry: KindSource): Entry['kind'] {
+    if (entry.isSymbolicLink()) return 'link';
+    if (entry.isDirectory()) return 'directory';
+    if (entry.isFile()) return 'file';
     return 'other';
 }
 
@@ -1624,8 +1614,8 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
         } catch {
             return refuse('ROOT_MOVED', 'the granted folder is no longer reachable');
         }
-        // ⚠⚠ SPELLING FIRST, THEN OBJECT IDENTITY — AND BOTH HALVES EXIST BECAUSE EACH ALONE WAS
-        // WRONG IN A DIFFERENT DIRECTION. Three revisions, all measured by review.
+        // ⚠⚠ OBJECT IDENTITY ON EVERY CALL; SPELLING EXPLAINS HOW THE CHECK GOT HERE. The live
+        // predicate does not gate identity on spelling. Three revisions, all measured by review:
         //
         //   1. `toLowerCase()` on both sides, every platform. On a case-SENSITIVE filesystem
         //      `/x/Vault` and `/x/vault` are different directories and this made them compare
@@ -1637,27 +1627,20 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
         //      `realpathNative` returns the new spelling. Every subsequent request then refuses
         //      `ROOT_MOVED` until restart. A FALSE POSITIVE, and a hard one to diagnose.
         //
-        // Neither spelling rule can be right, because the question is not how the directory is
-        // SPELLED — it is whether it is the same directory. So a changed spelling is not the
-        // answer, it is the trigger to ask.
+        //   3. Object identity, because the question is not how the directory is SPELLED — it is
+        //      whether it is the same directory. This revision first used changed spelling as the
+        //      trigger to ask. That still had a hole: DESTROY the granted directory and create a
+        //      different one under the same name, and the identity question was never asked. Every
+        //      surface then served the replacement: read, list, hash, create and append. Reproduced
+        //      first attempt against the shipped build; `A55-same-path-replacement` and `M71` were
+        //      written to PIN the gap, so closing it turns them red ON PURPOSE and that redness is
+        //      the review event, not a regression.
         //
-        // ⚠ AND THE IDENTITY CHECK IS NOT UNCONDITIONALLY AVAILABLE, WHICH IS WHY IT IS SECOND AND
-        // NOT FIRST. `dev`/`ino` are zero or unstable on some filesystems and network shares. When
-        // either side cannot supply them the code FAILS CLOSED to the refusal — a spurious
-        // `ROOT_MOVED` is a usability failure, and serving through a swapped root is not.
-        // ⚠⚠ THE IDENTITY CHECK IS UNCONDITIONAL, AND IT WAS NOT ALWAYS (ruled 2026-09-03).
-        // It used to sit inside `if (current !== root)`, on the reasoning above that a
-        // changed spelling is "the trigger to ask". That reasoning has a hole: DESTROY the granted
-        // directory and create a different one under the same name, and the spelling does not
-        // change — so the trigger never fires and the identity question is never asked. Every
-        // surface then serves the replacement: read, list, hash, create and append. Reproduced
-        // first attempt against the shipped build; `A55-same-path-replacement` and `M71` were
-        // written to PIN the gap, so closing it turns them red ON PURPOSE and that redness is the
-        // review event, not a regression.
-        //
-        // A changed spelling is therefore no longer the trigger for anything — the object identity
-        // is proven on every call, and the spelling comparison survives only to decide whether a
-        // re-spelling is worth tolerating (it is: same object, different name).
+        // Since 2026-09-03 the identity check is unconditional: `current` is only the path handed
+        // to `lstat`, and the `dev`/`ino` comparison below runs on every call. Those values are zero
+        // or unstable on some filesystems and network shares; when either side cannot supply them
+        // the code FAILS CLOSED. A spurious `ROOT_MOVED` is a usability failure, and serving
+        // through a swapped root is not.
         //
         // ⚠ COST, MEASURED 2026-09-03 rather than asserted: one `lstat` of the granted folder,
         // 3.7 us — 1.5% of a single 5 KB file read, and 10% of the `realpathNative` this function
@@ -1753,6 +1736,22 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
         const moved = rootStillCanonical();
         if (moved) return moved;
         return readEntries(prim, root);
+    }
+
+    async function probeInGrant(request: string): Promise<Probe | FenceRefusal> {
+        const moved = rootStillCanonical();
+        if (moved) return moved;
+
+        // The resolved target stays inside this operation. Returning it would turn the containment
+        // check into a path-handoff seam and leave the caller to race a second filesystem access.
+        const resolved = resolveInGrant(root, prim, request, readScreens);
+        if (isRefusal(resolved)) return resolved;
+        try {
+            const stats = prim.lstat(resolved.actual);
+            return Object.freeze({ ok: true as const, kind: entryKind(stats) });
+        } catch (error) {
+            return mapFsError(error, resolved.rel);
+        }
     }
 
     function disclosedRoot(): string {
@@ -2338,6 +2337,7 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
         readFileInGrant: { value: Object.freeze(readFileInGrant), enumerable: true },
         listDirInGrant: { value: Object.freeze(listDirInGrant), enumerable: true },
         listGrantRoot: { value: Object.freeze(listGrantRoot), enumerable: true },
+        probeInGrant: { value: Object.freeze(probeInGrant), enumerable: true },
         disclosedRoot: { value: Object.freeze(disclosedRoot), enumerable: true },
         createFileInGrant: { value: Object.freeze(createFileInGrant), enumerable: true },
         appendLineInGrant: { value: Object.freeze(appendLineInGrant), enumerable: true },

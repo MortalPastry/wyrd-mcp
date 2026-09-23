@@ -113,6 +113,102 @@ codex exec -c 'mcp_servers.wyrd.command="wyrd-mcp"' \
 
 Other clients take a `command` and `args` in their own MCP configuration; the shape is the same.
 
+### HTTP and its Reader token
+
+HTTP is opt-in and refuses to listen unless exactly one Reader-token source is configured. **It
+listens on `127.0.0.1` unless you explicitly say otherwise** — see *Listening on a network
+interface* below. Generate a fresh token with:
+
+```
+wyrd-mcp token
+```
+
+That command prints one random 256-bit base64url token to stdout and writes nothing. Supply the
+token through `WYRD_READ_TOKEN`, or put only that token (with an optional final LF or CRLF) in a
+regular file and pass its absolute path:
+
+```
+WYRD_READ_TOKEN=<Reader-token> wyrd-mcp --grant /absolute/path/to/notes --http 127.0.0.1:8787
+wyrd-mcp --grant /absolute/path/to/notes --http 127.0.0.1:8787 --read-token-file /absolute/path/to/token
+```
+
+Every request must send `Authorization: Bearer <Reader-token>` to `POST /mcp`. Query strings on
+`/mcp` are refused; never put a token in a URL.
+
+On POSIX systems the token file must have no group or world permissions (`chmod 600` is the usual
+setting). On Windows, its expected DACL grants access only to the account running Wyrd and any
+administrators required by local policy, with access for other users and groups removed. **Wyrd has
+not verified that Windows DACL**: Node exposes no trustworthy portable DACL check, so Wyrd checks
+that the path can be read as a regular file and validates its contents, but the operator must check
+the DACL.
+
+### Listening on a network interface
+
+**By default wyrd listens on `127.0.0.1` only, and no other machine can reach it.** To let another
+device on your network connect, name a concrete interface address **and** add `--http-public`:
+
+```
+WYRD_READ_TOKEN=<Reader-token> wyrd-mcp --grant /absolute/path/to/notes --http 192.168.1.20:8787 --http-public
+```
+
+**Two separate acts are required on purpose.** A non-loopback address without `--http-public` is
+refused (*"a non-loopback HTTP address requires `--http-public`"*), so exposure cannot happen through
+a one-character edit to a config file.
+
+**What is refused, and why:** `0.0.0.0` and `::` (a wildcard names every interface, including VPN,
+container and virtual ones — name the one you mean); hostnames (they are not interface addresses);
+scoped IPv6 such as `fe80::1%12`; multicast, broadcast and IPv4-mapped IPv6. `--http-public` on a
+loopback address is refused as redundant, and the flag takes no value.
+
+⚠ **Read the startup disclosure. It is the honest version of this section for your machine.** It
+names the interface, and it states plainly what wyrd does **not** know: wyrd does not check what can
+route to that address, and firewalls, VPN routes, container port publication and virtual-machine
+forwarding can all deliver traffic to it from outside the network you are picturing. **The address
+is checked once, at startup** — if the machine later joins a VPN or changes networks, wyrd will not
+re-check it and will not warn you again.
+
+⚠⚠ **Without TLS the Reader token travels in the clear and can be replayed by anyone who captures
+it.** That is stated in the startup disclosure too. Treat a plain-HTTP network listener as suitable
+only for a network you control and trust.
+
+### HTTPS and a self-signed certificate
+
+Generate a certificate and private key in the current directory:
+
+```
+wyrd-mcp cert --host reader.example.test
+```
+
+The host may be a hostname, IPv4 address or raw IPv6 address. IDNA hostnames are converted to their
+ASCII form and printed back. The certificate also covers `127.0.0.1` and `localhost`. Wildcards,
+URLs, ports, bracketed or scoped IPv6, wildcard, multicast, broadcast and IPv4-mapped addresses are
+refused. Wyrd does no DNS lookup and does not claim the host belongs to this machine.
+
+The result is a self-signed RSA-2048/SHA-256 certificate, valid for 397 days with a five-minute
+clock-skew allowance. It is a CA with path length zero and has server-authentication EKU only; the
+same certificate is deliberately both the trust anchor and the server certificate.
+
+The command creates `wyrd-cert.pem` and `wyrd-key.pem`, refusing to overwrite either existing name,
+including a link. It prints the certificate's fingerprint, SANs and validity dates as read from the
+created certificate, followed by Windows, macOS, iOS/iPadOS and Android trust steps. **Those trust
+steps change device trust; read them and verify the printed fingerprint on every device.**
+
+On POSIX, the key is created with no group or world permission bits and checked after creation. On
+Windows, it inherits the current directory's NTFS permissions; verify that ACL before using it. Two
+filenames cannot be committed atomically on every supported filesystem. If the second create fails,
+wyrd removes only an output it can verify this invocation created and names any rollback failure.
+
+Supply both files to the listener:
+
+```
+WYRD_READ_TOKEN=<Reader-token> wyrd-mcp --grant /absolute/path/to/notes --http 192.168.1.20:8787 --http-public --tls-cert /absolute/path/to/wyrd-cert.pem --tls-key /absolute/path/to/wyrd-key.pem
+```
+
+`--tls-cert` and `--tls-key` are both-or-neither. Wyrd parses the certificate, verifies that the key
+matches, and refuses expired or not-yet-valid material before binding. Under TLS the endpoint and
+default Origin use `https://`, startup prints the certificate fingerprint and expiry, and the
+plain-HTTP clear-text-token warning is absent. Plain HTTP remains available with neither TLS flag.
+
 ## Changing the grant, revoking it, and what is kept
 
 **To change it**, stop the server, edit the configuration, start it again. The granted folder is
@@ -129,14 +225,17 @@ link is not a way to narrow a grant: the fence sees the real folder, whole.
 it alone may not be enough: a client that still has wyrd configured can start it again.
 
 **Wyrd keeps nothing it read.** There is no cache, no index and no database; each request opens
-the file on demand and hands back the bytes. The one thing that can persist on your disk is the
-optional observation log below. What your AI client retains of the content it received is that
-client's business, governed by its policy rather than by wyrd.
+the file on demand and hands back the bytes. Outside the explicit `cert` command, **the one thing
+that can persist on your disk is the optional observation log** below; the generator separately
+leaves the certificate pair you asked it to create. What your AI client retains of the content it
+received is that client's business, governed by its policy rather than by wyrd.
 
 ## What leaves your machine
 
-**Nothing that wyrd sends.** It is a local stdio server: it reads files and hands them to the
-client that launched it. It opens no network connection of its own and phones nothing home.
+**Nothing that wyrd sends on its own.** In stdio mode it opens no network connection of its own: it
+reads files and hands them to the client that launched it. In HTTP or HTTPS mode it listens for
+connections that clients initiate. In every mode it phones nothing home and initiates no outbound
+connection.
 
 ⚠ **What your AI client does with the content is between you and that client.** Wyrd cannot see or
 control that, and no server on this side of the protocol can.

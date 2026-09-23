@@ -15,8 +15,22 @@ There is one opt-in exception, `WYRD_OBSERVE`, described under *What wyrd writes
 
 ## What wyrd transmits
 
-**Nothing that wyrd sends.** It is a local program that speaks the Model Context Protocol over
-standard input and output to the client that launched it. It opens no network connection of its own.
+**Nothing that wyrd sends.** wyrd never initiates a connection to anywhere. It does not phone home,
+report usage, check for updates, or contact any server of ours — there is no server of ours.
+
+**In stdio mode, it opens no network connection of its own.** It speaks the Model Context Protocol
+over standard input and output to the client that launched it, and that is the whole of it.
+
+⚠ **You can ask it to listen, and then it does open a socket.** If you start wyrd with `--http`, it
+listens for MCP requests on that port. Two things are true about that and both matter:
+
+- **It listens; it still never dials out.** An HTTP or HTTPS listener answers clients that come to
+  it. It does not create outbound connections. Supplying both `--tls-cert` and `--tls-key` enables
+  TLS; supplying neither keeps the existing plain-HTTP mode.
+- **By default it listens only on `127.0.0.1`**, which other machines cannot reach. Binding to an
+  address other than loopback takes a second, explicit `--http-public` flag, and when you do that
+  wyrd prints a disclosure at startup saying what it does and does not know about who can reach it.
+  **Read that disclosure.** It is the honest version of this section for your specific machine.
 
 That is a statement about wyrd's own sockets. It is not a statement about where your files end up,
 and the two are not the same thing.
@@ -64,12 +78,23 @@ that file lives, and ordinary folder inspection will not show it as a link.**
 
 ## What wyrd writes
 
-**No tool writes, moves, renames or deletes.** The server registers exactly one tool, `read`, and the
-test suite asserts that the tool list is exactly `read`.
+**No tool writes, moves, renames or deletes. The server registers exactly one tool, `read`,** and
+the test suite asserts that the tool list is exactly `read`.
 
-The process itself can write in exactly one case. If you set `WYRD_OBSERVE` to a file path, wyrd
-records the filesystem calls it makes and attempts to write them to that file when the process
-exits. It is off unless you set that variable, and:
+Across all modes, the process can write in two explicit cases. The first is the separate generator
+command:
+
+- `wyrd-mcp cert --host <name>` creates `wyrd-cert.pem` and `wyrd-key.pem` in the current
+  directory. It refuses before generation if either name already exists and uses exclusive file
+  creation to refuse a race rather than overwrite it. The certificate is public. The private key
+  is secret: on POSIX wyrd creates it with no group or world permission bits and verifies those
+  bits after creation; on Windows it inherits the directory's ACL, which you must verify.
+
+While serving requests, **the process itself can write in exactly one case.** If you set
+`WYRD_OBSERVE` to a file path, wyrd records the filesystem calls it makes and attempts to write them
+to that file when the process exits. It is off unless you set that variable.
+
+For `WYRD_OBSERVE`:
 
 - A record holds the name of the filesystem primitive that was called and its **first argument**.
   For most calls that argument is a **pathname**. For a call made against an already-open file it
@@ -95,13 +120,14 @@ changing it means stopping the server, editing the configuration and starting it
 means stopping the server *and* removing wyrd from your client's MCP configuration, because a client
 that still has wyrd configured can start it again.
 
-The optional observation log is the one thing wyrd can leave behind. What your AI client retains of
-the content it received is that client's business, as above.
+The optional observation log and a certificate pair you explicitly generate are the files wyrd can
+leave behind. What your AI client retains of the content it received is that client's business, as
+above.
 
 ## Children, and who this is for
 
-wyrd is a developer tool with no user accounts and no age gate. It has no server and sends nothing
-anywhere, so we hold no data about children or about anyone else.
+wyrd is a developer tool with no user accounts and no age gate. It operates no hosted service and
+initiates no outbound connection, so we hold no data about children or about anyone else.
 
 ## Changes
 
@@ -118,4 +144,4 @@ report, and you should expect a human rather than a process.
 
 ---
 
-*Last updated 2026-09-01.*
+*Last updated 2026-09-14.*

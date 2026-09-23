@@ -21,6 +21,10 @@ export interface Entry {
     readonly kind: 'file' | 'directory' | 'link' | 'other';
     readonly size: number | null;
 }
+export interface Probe {
+    readonly ok: true;
+    readonly kind: Entry['kind'];
+}
 export interface Created {
     readonly ok: true;
     readonly rel: string;
@@ -49,6 +53,7 @@ export interface FsGate {
     readFileInGrant(request: string, offset: number, limit: number): Promise<Slice | FenceRefusal>;
     listDirInGrant(request: string): Promise<Entry[] | FenceRefusal>;
     listGrantRoot(): Promise<Entry[] | FenceRefusal>;
+    probeInGrant(request: string): Promise<Probe | FenceRefusal>;
     disclosedRoot(): string;
     createFileInGrant(request: string, bytes: Buffer): Promise<Created | WriteRefusal>;
     appendLineInGrant(request: string, line: Buffer): Promise<Appended | WriteRefusal>;

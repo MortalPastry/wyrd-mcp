@@ -102,9 +102,30 @@ const FILE_OWNER = Object.freeze({
     // The workspace-root attribute row currently protects the fence's reviewed declaration
     // baseline, so the fence matrix owns the mutation that proves that pin is active.
     attributes: FENCE,
+    auth: READER,
+    http: READER,
     main: READER,
     index: READER,
     server: READER,
+    /**
+     * ⚠ TWO READER-OWNED TLS TARGETS. `cert` reaches the built certificate implementation behind
+     * H25–H28, while `tlsconfig` reaches the built validation and metadata implementation behind
+     * H28–H30. Naming their owners explicitly keeps a future row from routing either Reader file by
+     * contract assertion alone; both keys refer to disposable `dist` output rebuilt from `src/`.
+     *
+     * ⚠⚠ THESE TWO WERE ADDED WITH NO ROW USING THEM, AND THAT EXPOSED A REAL GAP IN THE CHECK
+     * ABOVE — measured 2026-09-15 by a build lane told to prove the coupling and finding there was
+     * none. The comment above says "AN UNKNOWN KEY REFUSES", and it used to be true only of a
+     * CONTRACT ROW naming a key this map did not know. A `FILES` entry that no row named escaped
+     * that row-driven check, leaving its ownership undecided until somebody first used it. The
+     * source sweep below now reads the Reader harness's registration directly and refuses that gap
+     * when the target is registered, whether or not a row uses it yet.
+     * ⚠ THE BRIEF THAT ASSERTED THE COUPLING WAS THE PARENT'S, AND THE LANE REFUTED IT WITH SOURCE
+     * — which is the brief's own "expect false premises" line doing its job against the party that
+     * wrote it.
+     */
+    cert: READER,
+    tlsconfig: READER,
     /**
      * ⚠ TWO KEYS THAT ARE NOT BUILT OUTPUT, ADDED 2026-09-02 WITH `M94`/`M95`. The note above says
      * "anything patching this package's `dist`", and these two are the case that sentence did not
@@ -120,6 +141,122 @@ const FILE_OWNER = Object.freeze({
     serverjson: READER,
     pkgjson: READER
 });
+
+const READER_MUTATE_PATH = path.join(here, 'mutate.mjs');
+
+/**
+ * Read the Reader harness's `FILES` keys without importing it. Importing `mutate.mjs` executes the
+ * harness because its rows and command dispatch live at module scope; this scanner instead accepts
+ * only the plain, identifier-keyed object literal used for `FILES`. Comments are skipped, so a
+ * commented-out target is not a target. If that declaration changes shape, the scan refuses rather
+ * than silently returning an incomplete key set.
+ */
+function readerMutationFileKeys() {
+    let source;
+    try {
+        source = fs.readFileSync(READER_MUTATE_PATH, 'utf8');
+    } catch (error) {
+        return { keys: null, problem: `${READER_MUTATE_PATH} could not be read — ${error.message}` };
+    }
+
+    const declarations = [...source.matchAll(/^\s*const\s+FILES\s*=\s*\{/gm)];
+    if (declarations.length !== 1) {
+        return {
+            keys: null,
+            problem: `${READER_MUTATE_PATH} must contain exactly one plain \`const FILES = { ... }\` declaration so mutation-target ownership can be checked; found ${declarations.length}`
+        };
+    }
+
+    let at = declarations[0].index + declarations[0][0].lastIndexOf('{') + 1;
+    const keys = [];
+    const seen = new Set();
+    const closers = [];
+
+    const fail = detail => ({
+        keys: null,
+        problem: `${READER_MUTATE_PATH} has a FILES declaration this checker cannot read (${detail}) — keep it a plain identifier-keyed object literal so no mutation target can escape an ownership decision`
+    });
+    const skipTrivia = () => {
+        while (at < source.length) {
+            if (/\s/.test(source[at])) {
+                at += 1;
+            } else if (source.startsWith('//', at)) {
+                const end = source.indexOf('\n', at + 2);
+                at = end === -1 ? source.length : end + 1;
+            } else if (source.startsWith('/*', at)) {
+                const end = source.indexOf('*/', at + 2);
+                if (end === -1) return false;
+                at = end + 2;
+            } else {
+                break;
+            }
+        }
+        return true;
+    };
+    const skipQuoted = quote => {
+        at += 1;
+        while (at < source.length) {
+            if (source[at] === '\\') {
+                at += 2;
+            } else if (source[at] === quote) {
+                at += 1;
+                return true;
+            } else {
+                at += 1;
+            }
+        }
+        return false;
+    };
+
+    let wantsKey = true;
+    while (at < source.length) {
+        if (!skipTrivia()) return fail('an unterminated block comment');
+        if (wantsKey) {
+            if (source[at] === '}') return { keys, problem: null };
+            const key = /^[A-Za-z_$][A-Za-z0-9_$]*/.exec(source.slice(at))?.[0];
+            if (!key) return fail(`expected an identifier key near offset ${at}`);
+            at += key.length;
+            if (!skipTrivia()) return fail('an unterminated block comment');
+            if (source[at] !== ':') return fail(`key ${JSON.stringify(key)} is not followed by a colon`);
+            if (seen.has(key)) return fail(`key ${JSON.stringify(key)} is declared more than once`);
+            seen.add(key);
+            keys.push(key);
+            at += 1;
+            wantsKey = false;
+            continue;
+        }
+
+        if (source[at] === "'" || source[at] === '"') {
+            if (!skipQuoted(source[at])) return fail('an unterminated string literal');
+            continue;
+        }
+        if (source[at] === '`' || (source[at] === '/' && !source.startsWith('//', at) && !source.startsWith('/*', at))) {
+            return fail(`unsupported expression syntax near offset ${at}`);
+        }
+        if ('([{'.includes(source[at])) {
+            closers.push({ '(': ')', '[': ']', '{': '}' }[source[at]]);
+            at += 1;
+            continue;
+        }
+        if (')]}'.includes(source[at])) {
+            if (closers.length) {
+                const expected = closers.pop();
+                if (source[at] !== expected) return fail(`expected ${JSON.stringify(expected)} near offset ${at}`);
+                at += 1;
+                continue;
+            }
+            if (source[at] === '}') return { keys, problem: null };
+            return fail(`unexpected ${JSON.stringify(source[at])} near offset ${at}`);
+        }
+        if (source[at] === ',' && closers.length === 0) {
+            at += 1;
+            wantsKey = true;
+            continue;
+        }
+        at += 1;
+    }
+    return fail('the object literal is unterminated');
+}
 
 /**
  * ⚠⚠ AN ARM NAME WRITTEN INTO PROSE, AND WHETHER IT STILL NAMES ANYTHING.
@@ -389,6 +526,17 @@ export function loadContract() {
         return { contract: null, problems: [`${CONTRACT_PATH} could not be read as JSON — ${error.message}`] };
     }
 
+    const fileRegistration = readerMutationFileKeys();
+    if (fileRegistration.problem) {
+        problems.push(fileRegistration.problem);
+    } else {
+        for (const key of fileRegistration.keys) {
+            if (!Object.hasOwn(FILE_OWNER, key)) {
+                problems.push(`the Reader mutation harness's FILES key ${JSON.stringify(key)} has no FILE_OWNER entry — this is a new mutation target whose ownership has to be decided when it is registered, not deferred until a row uses it`);
+            }
+        }
+    }
+
     const arms = Array.isArray(contract.arms) ? contract.arms : null;
     const mutations = Array.isArray(contract.mutations) ? contract.mutations : null;
     /**
@@ -514,8 +662,55 @@ export function loadContract() {
          * then walked past by both the adequacy check and the stale-row note. Silently ungraded is
          * the one state a row added to buy grading must not be able to reach.
          */
-        if (entry?.expectedDisposition !== 'KILLED' && entry?.expectedDisposition !== 'SURVIVED') {
-            problems.push(`${where} declares expectedDisposition ${JSON.stringify(entry?.expectedDisposition)} — a row is graded as KILLED or SURVIVED and nothing else, and a row carrying neither is one the results check walks past in silence`);
+        /**
+         * ⚠⚠ FOUR VALUES NOW, NOT TWO — ruled 2026-09-15, option A, on the fork that the
+         * harness DOCUMENTED two dispositions it could not emit. `mutate.mjs`'s own header said
+         * "a row whose status is EQUIVALENT or NO-KILLING-ARM is the honest output", and neither
+         * string existed anywhere in the runner or in this file. A maintainer who reached that
+         * verdict had `SURVIVED` plus prose and nothing else — which is the papering-over the
+         * comment warned against.
+         *
+         * ⚠ THE RUNNER'S VOCABULARY IS UNCHANGED, AND THAT IS THE DESIGN. Both new values are
+         * contract-side CLAIMS ABOUT WHY a mutant survives; the harness still observes `SURVIVED`,
+         * because that is what it can see. `EQUIVALENT` says the mutation cannot change observable
+         * behaviour, so no arm could ever catch it. `NO-KILLING-ARM` says the behaviour DOES change
+         * and no arm in this suite asserts the property — a real coverage gap, honestly recorded.
+         * The distinction is invisible to the instrument and load-bearing to a reader: one is a
+         * closed question, the other is work nobody has done.
+         *
+         * ⚠ BOTH GRADE LIKE `SURVIVED` AND BOTH REFUSE ON A KILL, for the same reason a contracted
+         * `SURVIVED` that gets killed only NOTES: an arm getting stronger is not a failure. But a
+         * row claiming EQUIVALENT that turns out killable was WRONG about the product, and that is
+         * worth more than a note — see `verifyMutationResults`.
+         */
+        /**
+         * ⚠⚠ THE TWO NEW VALUES ARE REACHABLE ONLY BY POST-MOVE ROWS, AND THAT IS A BOUNDARY, NOT
+         * AN OVERSIGHT. The 69 LOCKED rows are compared against `mutation-baseline.json`, whose
+         * `status` field holds what each row MEASURED on the day of capture — and that file records
+         * `KILLED` or `SURVIVED` and nothing else, because those are the only things a run can
+         * observe. Re-labelling a locked row `EQUIVALENT` would make it disagree with its own
+         * measurement and refuse.
+         *
+         * ⚠ `M4` IS THE LIVE EXAMPLE AND IT MUST STAY `SURVIVED`. The fence plan documents it as an
+         * equivalent mutant in prose (`designs/2026-08-27-s2-fence-plan.md`, §5a table), which is
+         * exactly what these new values were added to record — but it is locked, its baseline says
+         * `SURVIVED`, and its `why` already carries the equivalence argument. **Leave it.** The new
+         * vocabulary is for rows added since the move, where no pre-move measurement exists to
+         * contradict.
+         */
+        const DISPOSITIONS = ['KILLED', 'SURVIVED', 'EQUIVALENT', 'NO-KILLING-ARM'];
+        if (!DISPOSITIONS.includes(entry?.expectedDisposition)) {
+            problems.push(`${where} declares expectedDisposition ${JSON.stringify(entry?.expectedDisposition)} — a row is graded as ${DISPOSITIONS.join(', ')} and nothing else, and a row carrying none of them is one the results check walks past in silence`);
+        }
+        /**
+         * ⚠ AN HONEST NON-KILL MUST SAY WHY, OR IT IS THE SAME SILENCE IN A BETTER-LOOKING WORD.
+         * `EQUIVALENT` and `NO-KILLING-ARM` exist to record a REASONED conclusion, so the reasoning
+         * is required: without this, the two new values become a cheaper way to write `SURVIVED`
+         * and the fork that added them is lost within a month.
+         */
+        if ((entry?.expectedDisposition === 'EQUIVALENT' || entry?.expectedDisposition === 'NO-KILLING-ARM')
+            && (typeof entry?.why !== 'string' || entry.why.trim().length < 40)) {
+            problems.push(`${where} declares expectedDisposition ${JSON.stringify(entry?.expectedDisposition)} without a substantive \`why\` — that verdict is a reasoned claim about the product or the suite, and a row asserting it without stating the reasoning records a conclusion nobody can check`);
         }
         /**
          * ⚠⚠ THE EXACT RED SET, OPT-IN PER ROW — AND ABSENT MEANS UNGATED, NOT EMPTY.
@@ -1029,7 +1224,10 @@ export function verifyMutationResults(contract, pkg, results, { full, restored }
         const result = byId.get(row.id);
         if (!result) continue;
         let graded = true;
-        if (result.status === 'ANCHOR-NOT-FOUND') {
+        if (['TIMEOUT', 'SIGNAL', 'NONZERO_NO_ARM'].includes(result.status)) {
+            problems.push(`mutation "${row.id}" ended in instrument error ${result.status} — this is neither a kill nor a survivor verdict`);
+            graded = false;
+        } else if (result.status === 'ANCHOR-NOT-FOUND') {
             problems.push(`mutation "${row.id}" never applied — its anchor is gone, so it measured nothing. Repair the row's \`from\`, never delete the row.`);
             graded = false;
         } else if (row.expectedDisposition === 'KILLED' && result.status !== 'KILLED') {
@@ -1037,6 +1235,21 @@ export function verifyMutationResults(contract, pkg, results, { full, restored }
             graded = false;
         } else if (row.expectedDisposition === 'SURVIVED' && result.status === 'KILLED') {
             notes.push(`"${row.id}" is contracted SURVIVED and was KILLED. That is an arm getting stronger, not a failure — but the contract row is now stale and wants a deliberate edit.`);
+        /**
+         * ⚠⚠ THE TWO HONEST NON-KILLS REFUSE ON A KILL RATHER THAN NOTING IT, AND THE ASYMMETRY
+         * WITH `SURVIVED` ABOVE IS THE WHOLE POINT. A contracted `SURVIVED` that gets killed is an
+         * arm that grew — good news, stale row, a note. But `EQUIVALENT` and `NO-KILLING-ARM` are
+         * not observations, they are ARGUMENTS: one claims the mutation cannot change observable
+         * behaviour, the other that no arm asserts the property. A kill FALSIFIES the argument.
+         * Noting that quietly would leave a disproven claim sitting in the contract reading as a
+         * decided question, which is exactly the state these two values were added to prevent.
+         */
+        } else if (row.expectedDisposition === 'EQUIVALENT' && result.status === 'KILLED') {
+            problems.push(`mutation "${row.id}" is contracted EQUIVALENT — "the mutation cannot change observable behaviour, so no arm can catch it" — and an arm just caught it. The claim is FALSIFIED, not stale: something does observe this change. Re-read the row's reasoning before editing it — ${row.why}`);
+            graded = false;
+        } else if (row.expectedDisposition === 'NO-KILLING-ARM' && result.status === 'KILLED') {
+            problems.push(`mutation "${row.id}" is contracted NO-KILLING-ARM — "the behaviour changes and no arm in this suite asserts the property" — and an arm just caught it. Either an arm was added or the claim was wrong; both make this row's verdict false as written — ${row.why}`);
+            graded = false;
         }
 
         if (!Array.isArray(row.expectedRed) || !graded) continue;

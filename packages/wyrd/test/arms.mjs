@@ -41,7 +41,8 @@ export const STARTUP_ARMS = {
     'S11-child-no-grant': 'the child exits non-zero and names no candidate vault',
     'S13-grant-source-parity': '--grant X, --grant=X and WYRD_GRANT=X agree exactly',
     'S14-no-grant-claims': 'the no-grant refusal states both refusals, the outside-reaching hard link, and the scoped read-only',
-    'S15-client-config-entrypoint': 'the example client config resolves to the real built entrypoint and its grant is still a placeholder'
+    'S15-client-config-entrypoint': 'the example client config resolves to the real built entrypoint and its grant is still a placeholder',
+    'S16-layer-probes': 'startup probes exactly Arc, Mage and Forum and never reads the grant-root listing'
 };
 
 /**
@@ -77,16 +78,57 @@ export const E2E_ARMS = {
     'E1-handshake': 'initialize handshake over stdio',
     'E2-one-tool': 'exactly one tool, `read`, with a real description',
     'E3-read-and-refuse': 'serves in-grant, refuses an escape, end to end',
-    'E5-disclosure': 'initialize.instructions discloses the CANONICAL grant, and names no outside path',
+    'E5-disclosure': 'initialize.instructions discloses the CANONICAL grant, names no outside path, and qualifies the no-network claim as stdio-only',
     'E6-preflight': 'the suite preflight refuses on denied symlink privilege, and separates the probe stages',
     'E7-layers': 'Mage layers are named only when present, and a plain folder gets no vault paragraph',
-    'E7-shadow': 'a same-named FILE listed before a real layer directory does not shadow it',
+    'E7-shadow': 'a present file is not a layer, a reparse-point layer is, and probe failures remain distinct from absence',
     'E8-not-text': 'a file that is not valid UTF-8 is refused NOT_TEXT, never returned altered',
     'E10-junction-preflight': 'the tier-1 preflight refuses when a junction cannot be created',
     'E11-read-only-hint': '`read` declares readOnlyHint, so the guarantee is machine-readable',
     'E13-read-description': 'the `read` description states both refusals and the outside-reaching hard link, as the model receives it',
     'E14-surface-claims': 'every DERIVED disclosure surface carries one declared claim set, every claim either carried or explicitly exempt per surface, and no retired wording anywhere',
-    'E15-refusal-vocabulary': 'every refusal the program can return — the fence\'s enumerated unions plus the Reader\'s own — is stated on a surface or exempted with a written reason'
+    'E15-refusal-vocabulary': 'every refusal the program can return — the fence\'s enumerated unions plus the Reader\'s own — is stated on a surface or exempted with a written reason',
+    'E16-claim-evidence': 'every disclosure claim declares one of three evidence grades and a substantive limit, claim ids are unique, and the exact set of unverified ids is pinned and printed in full on green. ⚠ Declaration and denominator only; it does not establish truth, that any grade is correct, or that any evidence ran',
+    'E17-v1-raw-baseline': 'an SDK-free raw JSON-RPC corpus pins no-grant exit and stderr, grant precedence, pre-initialize and duplicate-initialize behavior, non-empty client capabilities and list cursor, the v1 -32603 invalid-name characterization baseline, selected static stdout bytes, the exact tool declaration, normal, paged, non-text and error reads, per-stream line ordering and unchanged fixture bytes',
+    'E18-recapture-refused': 'the recapture guard refuses to overwrite an existing v1 golden and permits a first capture where none exists, and the real corpus file is byte-identical after a refused attempt; it pins THIS entry point only and does not prove no other code can write that file',
+    'E19-transport-network-accounting': 'every transport derived by path from the Reader\'s built ServerTransport declaration is represented exactly once in a two-way accounting table and has network behaviour stated on a loaded surface or substantively exempted. ⚠ Set accounting only; it does not establish that a stated sentence is true'
+};
+
+/** Streamable HTTP arms — `test/http.test.js`. */
+export const HTTP_ARMS = {
+    'H1-transport-selection': 'no flag selects stdio, --http selects HTTP, loopback spellings are accepted, and a non-loopback address without --http-public is refused before listen while both transports receive a configured-server factory. ⚠ SAMPLED, not exhaustive: H22 owns the complete new refusal table',
+    'H2-factory-local-roundtrip': 'an injected Server factory completes a real Streamable HTTP server/discover POST over an OS-assigned localhost port, returning the injected identity and the negotiated revision, and the factory runs once for that one request — NOT that a fresh server is built per exchange, which no arm yet proves',
+    'H3-route-method': 'the Reader owns /mcp routing: one other path is 404 and GET /mcp is 405 with Allow POST before auth or server construction. ⚠ TWO PROBES, not a POST-only proof: no other method and no other path is exercised',
+    'H4-invalid-origin-order': 'an Origin differing by scheme and one differing by port are each 403 before the auth seam or configured-server factory runs. ⚠ Two mismatches, not a proof of exact equality in general, and a zero counter is evidence about the APPLICATION callback only — it cannot show Node never parsed the header',
+    'H5-allowed-origin-order': 'EVERY derived allow-list entry is not rejected on Origin and reaches the auth seam, once per request. ⚠ Occurrence, not ordering: no arm records an ordered auth-then-handler trace',
+    'H6-absent-origin-order': 'an absent Origin is not rejected on that basis and reaches the auth seam once. ⚠ Occurrence, not ordering, as with H5',
+    'H7-stateless-per-exchange': 'two exchanges against one listener build two distinct Server instances and neither response issues nor requires a session header, discharging criterion 2\'s no-protocol-session-state clause that H2\'s single factory call cannot',
+    'H8-partial-body-shutdown': 'a 10-of-200-byte raw POST is destroyed during admission, close settles within 750 ms, and a late attempt to send the rest never reaches the configured-server factory',
+    'H9-auth-race-shutdown': 'a full raw POST held at readAuthInfo cannot reach the configured-server factory or tool after shutdown begins, even when auth is then released',
+    'H10-graceful-execution-shutdown': 'a real tool handler already executing when close begins is drained, and the raw client receives its complete successful response before shutdown settles; a second close() during the drain returns the IDENTICAL promise, which is the only proof the ordered close is memoized',
+    'H11-disconnect-propagation': 'destroying the raw client socket while a tool is held aborts that exchange\'s exact Fetch Request signal, and the abort event fires once',
+    'H12-concurrent-signal-shutdown': 'a child with a partial raw client receives SIGINT then SIGTERM, shares one shutdown path without a duplicate-close error, and exits orderly without process.exit()',
+    'H13-security-ordering': 'a slow invalid-Origin raw POST is refused before auth or factory, while an authorized partial POST reaches auth before body collection but not the configured-server factory until its body completes',
+    'H14-request-body-cap': 'a chunked raw request exceeding MAX_HTTP_REQUEST_BYTES answers 413 and never reaches the configured-server factory',
+    'H15-auth-401-no-tool': 'real listener, real verifier and real tool counter: missing, malformed and wrong bearer values receive one identical 401 before body collection or tool execution, while the valid token reaches the tool',
+    'H16-verifier-injection-real-socket': 'main() with a stub verifier factory and the real startHttp: only the sentinel token gets 200, and unavailable maps to 503 without transport changes',
+    'H17-no-query-token-or-leak': 'POST /mcp?access_token=<sentinel> without a header is refused before the verifier, and the sentinel appears in no exercised disclosure or diagnostic sink',
+    'H18-no-token-refuses-before-listen': 'across both loopback and consented network bind modes, absent, ambiguous, malformed, unreadable and insecure POSIX token sources refuse before startHttp is ever called; token generation prints fresh canonical output and writes nothing',
+    'H19-response-stream': 'a real maximum-window read starts reaching the localhost client before a controlled Response stream reaches EOF, while every whole-body Response materializer is a throwing sentinel. ⚠ STRUCTURAL AND BOUNDED: a tee that forwards while retaining a copy would still pass, so this does not prove comparative HTTP/stdio heap parity or a resident-copy count',
+    'H20-localhost-read-budget': 'a real 1 MiB ASCII file, requested with an explicit 262,144-byte limit, is returned byte-exactly over localhost in four measured fence calls under 400 ms. ⚠ FIXED CASE: not the 32,768-byte default, multi-byte content, other sizes, remote hosts or sustained throughput',
+    'H21-origin-serialization': 'real assigned-interface network and [::1] binds on default port 80 omit :80 from URL-serialized Origins; the network bind derives exactly one Origin, while --http 0 derives both IPv4 loopback Origins. ⚠ SAMPLED: equivalent IPv6 spellings and hostname Origins remain outside this arm',
+    'H22-consent-and-guards': 'the full network refusal table including malformed/out-of-range ports and 127.0.0.2 plus --http-public; main never calls startHttp without consent; direct host/kind mismatches refuse before handler construction; a forced kernel-reported address mismatch refuses after closing handler and listener. ⚠ Cannot prove device, firewall, or route reachability',
+    'H23-network-disclosure-honesty': 'a fixed-port real network start prints every does-not-know, checked-once, clear-text and hard-link line exactly, while a fixed-port loopback start prints the complete loopback form and omits every network-only line. ⚠ Pins Wyrd\'s stated ignorance, not facts about the machine',
+    'H24-network-plain-http-auth': 'a fixed-port real assigned-interface listener starts over http, accepts the configured bearer token, and returns 401 for missing and wrong tokens. ⚠ Does not capture packets, prove reachability from another device, or rule out token leaks on unexercised paths',
+    'H25-cert-host-grammar': 'the exact cert --host command shape accepts IDNA-canonical hostnames, IPv4 and raw IPv6 while a table refuses wildcards, URLs, ports, brackets, scopes, wildcard/multicast/broadcast/mapped addresses and malformed IP-looking values. ⚠ Sampled grammar; no DNS or interface-membership claim',
+    'H26-cert-exclusive-write': 'both fixed destinations are lstat-checked before generation, an existing file or dangling symlink leaves the other untouched, two barrier-synchronized writers produce one winner through exclusive creation, POSIX key mode has no group/world bits, and a raced key causes identity-checked rollback of only the created cert. ⚠ No two-entry transactional-atomicity claim',
+    'H27-cert-content-and-freshness': 'two real CLI runs produce matching RSA-2048/SHA-256 pairs with CA path length 0, server-auth-only EKU, exact typed SANs, 397-day skewed validity, certificate-matching printed facts and four platform instruction headings; serial and public key differ. ⚠ Two differences do not prove unpredictability, and instruction correctness remains prose',
+    'H28-generated-cert-trust-control': 'criterion 15: a real TLS listener completes an authorized handshake when the generated cert is supplied as CA, while the same listener without that CA rejects DEPTH_ZERO_SELF_SIGNED_CERT. ⚠ H27 owns freshness; this arm does not prove HTTP/MCP or platform instruction correctness',
+    'H29-tls-startup-validation': 'both-or-neither TLS argument forms plus malformed certificate/key, match and time checks; mismatched material through main refuses before startHttp, and injected times prove not-yet-valid and expired refusal. ⚠ Does not validate chain structure, EKU/SAN suitability, multi-PEM selection or encrypted-key handling',
+    'H30-tls-disclosure': 'a real fixed-port network HTTPS start derives https metadata, Origins, fingerprint and expiry from its validated certificate, retains the does-not-know block, omits both clear-text-warning phrases, and warns for a sampled under-30-day expiry. ⚠ Pins output and correlation for this start, not routing facts or certificate reloads',
+    'H31-tls-handshake-shutdown': 'a raw TCP client stalled before TLS handshake completion is tracked and destroyed so ordered close settles within 750 ms. ⚠ A shorter platform handshake timeout could also pass, and admitted encrypted-request draining is not exercised here',
+    'H32-network-instructions-truth': 'the production main HTTP path on loopback, using the default Reader factory, returns authenticated server/discover instructions that say the server is listening, deny outbound connections, retain the client-forwarding locality caveat, and omit the retired transport-neutral no-network sentence',
+    'H33-certificate-der-minimal-integers': 'directed serial-boundary entropy produces a certificate whose non-zero positive serial and every DER INTEGER use the shortest signed representation. ⚠ INTEGER canonicality only; new entropy-derived DER fields need directed boundary inputs of their own'
 };
 
 /**
@@ -105,10 +147,11 @@ export const E2E_ARMS = {
  */
 export const MANIFEST_ARMS = {
     'MF1-manifest-schema': 'the vendored MCP registry schema still spans the bounded validator, and server.json conforms to it',
-    'MF2-manifest-cross-reference': 'server.json\'s declared $schema is the vendored copy\'s $id, and its name, version and npm identifier agree with package.json and with the built program'
+    'MF2-manifest-cross-reference': 'server.json\'s declared $schema is the vendored copy\'s $id, its name, version and npm identifier agree with package.json and the built program, and it advertises stdio and nothing else — EVERY packages[] entry declares transport stdio with no url, no argument of either shape (named or positional) carries --http, and remotes[] is absent or empty',
+    'MF3-version-single-source': 'the generated runtime version equals package.json, server.ts imports it, and the source owns no second version literal'
 };
 
-export const ALL_ARMS = { ...STARTUP_ARMS, ...E2E_ARMS, ...MANIFEST_ARMS };
+export const ALL_ARMS = { ...STARTUP_ARMS, ...E2E_ARMS, ...HTTP_ARMS, ...MANIFEST_ARMS };
 
 /**
  * TIER 2 — the arms that cannot run without the Windows symlink privilege.
@@ -128,7 +171,8 @@ export const ALL_ARMS = { ...STARTUP_ARMS, ...E2E_ARMS, ...MANIFEST_ARMS };
  * quietly starts needing the privilege fails the portable run rather than joining it.
  */
 export const SYMLINK_PRIVILEGE_ARMS = new Set([
-    'E5-disclosure'         // the canonical-root arm reaches the grant through a dir symlink
+    'E5-disclosure',        // the canonical-root arm reaches the grant through a dir symlink
+    'H26-cert-exclusive-write' // the lstat arm distinguishes a dangling file symlink from absence
 ]);
 
 /** TIER 1 — everything else. Derived, never hand-listed, so the two can never drift apart. */

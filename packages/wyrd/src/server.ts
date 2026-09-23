@@ -1,10 +1,13 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { Server, type Tool } from '@modelcontextprotocol/server';
 
-import { isRefusal, type FsGate } from 'wyrd-fence';
+import { isRefusal, type FenceRefusal, type FsGate, type Probe } from 'wyrd-fence';
+import { SERVER_VERSION } from './version.js';
+
+export { SERVER_VERSION } from './version.js';
 
 export const SERVER_NAME = 'wyrd';
-export const SERVER_VERSION = '0.0.0';
+
+export type ServerTransport = 'stdio' | 'http';
 
 /** The default read window, in BYTES. D5a: every offset and size on this surface is a byte count. */
 export const DEFAULT_WINDOW_BYTES = 32_768;
@@ -12,6 +15,7 @@ export const MAX_WINDOW_BYTES = 262_144;
 
 export interface CreateServerOptions {
     readonly fsgate: FsGate;
+    readonly transport: ServerTransport;
     /**
      * Mage layer directories actually FOUND at the grant root, in canonical order. Detected by
      * `main()` before construction — never assumed. Empty for an ordinary folder, which is the
@@ -42,7 +46,7 @@ const LAYER_NOTES: Record<string, string> = {
 export const KNOWN_LAYERS = Object.keys(LAYER_NOTES);
 
 /**
- * Which known layers are present, given a listing of the grant root.
+ * Which known layers are present, using one fence-mediated probe for each known name.
  *
  * ⚠⚠ A LAYER REACHED THROUGH A REPARSE POINT IS STILL THE LAYER, AND MISSING IT IS THE WORST
  * DIRECTION TO BE WRONG IN. `entryKind` tests `isSymbolicLink()` BEFORE `isDirectory()`, so a
@@ -52,47 +56,29 @@ export const KNOWN_LAYERS = Object.keys(LAYER_NOTES);
  * whose real-world layout is most likely to defeat naive detection. The fence serves it either way;
  * only the warning went missing.
  *
- * `probeDir` resolves the ambiguity through the fence itself rather than by re-implementing link
- * resolution here: if the name lists as a directory within the grant, it is one.
- *
- * ⚠ The returned name is the ON-DISK spelling, not the canonical one. Matching is case-insensitive
- * because Windows is; printing `Arc/` for a directory actually named `arc` would hand the model a
- * path that does not exist on a case-sensitive volume.
+ * The probe resolves the ambiguity through the fence itself rather than by re-implementing link
+ * resolution here. It returns kind only: no resolved pathname crosses the gate boundary.
  */
+export interface LayerDetection {
+    readonly layers: readonly string[];
+    readonly listingFailed: boolean;
+}
+
 export async function detectLayers(
-    entries: readonly { name: string; kind: string }[],
-    probeDir?: (name: string) => Promise<boolean>
-): Promise<string[]> {
+    probe: (name: string) => Promise<Probe | FenceRefusal>
+): Promise<LayerDetection> {
     const found: string[] = [];
     for (const layer of KNOWN_LAYERS) {
-        // ⚠ A CASE-INSENSITIVE COMPARE CAN MATCH MORE THAN ONE ENTRY, so this collects every
-        // candidate rather than taking the first. On a case-sensitive filesystem a folder may hold
-        // both `arc` and `Arc`; the old `.find()` took whichever the listing happened to yield
-        // first, and if that was the FILE, the real directory beside it was never detected — the
-        // disclosure then failed to name a layer that was actually there. Order of a directory
-        // listing is not a guarantee, so the fix is to choose deliberately instead of positionally.
-        const candidates = entries.filter(entry => entry.name.toLowerCase() === layer.toLowerCase());
-        if (candidates.length === 0) continue;
-
-        // A real directory wins outright — it cannot be shadowed by a same-named file.
-        const directory = candidates.find(entry => entry.kind === 'directory');
-        if (directory !== undefined) {
-            found.push(directory.name);
-            continue;
+        const result = await probe(layer);
+        if (isRefusal(result)) {
+            if (result.reason === 'MISSING') continue;
+            return Object.freeze({ layers: [], listingFailed: true });
         }
-
-        // No directory, so fall back to any link that resolves to one. Probing is the only way to
-        // tell, and it costs a listing per candidate — bounded by how many entries share the name.
-        if (probeDir === undefined) continue;
-        for (const candidate of candidates) {
-            if (candidate.kind !== 'link') continue;
-            if (await probeDir(candidate.name)) {
-                found.push(candidate.name);
-                break;
-            }
-        }
+        // `resolveInGrant` normally turns a junctioned directory into `directory`; retaining
+        // `link` here is conservative for reparse kinds the runtime does not fully classify.
+        if (result.kind === 'directory' || result.kind === 'link') found.push(layer);
     }
-    return found;
+    return Object.freeze({ layers: Object.freeze(found), listingFailed: false });
 }
 
 /**
@@ -190,6 +176,22 @@ const READ_INPUT_SCHEMA = {
     additionalProperties: false
 } as const;
 
+/*
+ * ⚠ v2's `Tool.inputSchema` wants MUTABLE arrays, and `as const` above makes every array here
+ * `readonly` — so passing the constant straight in is
+ * `TS2322: readonly ["path"] is not assignable to string[]`.
+ *
+ * FOUND BY BUILDING against v2. No read-only review lane could have seen it: none of them could
+ * install, so none of them could compile. Three lanes read this migration plan and approved it.
+ *
+ * The widening sits at the USE SITE rather than dropping `as const`, deliberately. The literal
+ * types are load-bearing documentation of the schema this server publishes, and widening the
+ * declaration to suit one consumer's signature would trade real precision for a type-checker's
+ * convenience. The structural shape is identical — only the readonly modifiers differ — so this is
+ * a variance cast, not a claim about the value.
+ */
+const READ_INPUT_SCHEMA_FOR_TOOL = READ_INPUT_SCHEMA as unknown as Tool['inputSchema'];
+
 function refusalText(reason: string, detail: string): string {
     return `wyrd refused this read.\nreason: ${reason}\n${detail}`;
 }
@@ -203,11 +205,12 @@ function refusalText(reason: string, detail: string): string {
 /**
  * The disclosure a driving model receives at connect time.
  *
- * ⚠⚠ THIS IS THE `initialize.instructions` FIELD, AND IT IS THE ONLY DISCLOSURE CHANNEL THE MODEL
- * EVER SEES. Measured 2026-08-28 by driving the built server with a real client: the startup line
- * on stderr (`wyrd: serving <path> (read-only)`) reaches a terminal, not a model — a client is free
- * to discard it, and most do. Before this existed, `instructions` was `null` and a model was told
- * nothing about what it had been granted.
+ * ⚠⚠ THIS IS THE MODEL-FACING INSTRUCTIONS FIELD: stdio delivers it through
+ * `initialize.instructions`, and HTTP delivers it through `server/discover`'s
+ * `result.instructions`. Measured 2026-08-28 by driving the built stdio server with a real client:
+ * the startup line on stderr (`wyrd: serving <path> (read-only)`) reaches a terminal, not a model —
+ * a client is free to discard it, and most do. Before this existed, `instructions` was `null` and
+ * a model was told nothing about what it had been granted.
  *
  * The privacy rule this server is built to: *disclosure AND an enforced scope fence* — say exactly
  * what happens regardless, and fence what it can reach. The fence half was built and proven first.
@@ -232,17 +235,19 @@ function refusalText(reason: string, detail: string): string {
  *     ATTEMPT an observation log at exit (`observe.ts`), possibly outside the grant. An
  *     unqualified "nothing is written" is false whenever that variable is set — and an unqualified
  *     "it writes" is false too, because the write is tried at exit and its failure is swallowed.
- *   · "opens no network connection of its own" — NOT "nothing leaves this machine", and NOT
- *     "your content goes to a model provider" either. A stdio server cannot promise the first:
- *     a client talking to a hosted model forwards what it reads, which is the ordinary case. It
- *     cannot assert the second: a client driving a local model, or one that does not forward a
- *     particular result, sends nothing anywhere. What the claim can carry is that the decision
- *     belongs to the client and not to wyrd, which is what README.md and PRIVACY.md both say.
- *     Saying otherwise tells a user their notes stay local when they do not, and that is the one
- *     sentence here that could actually hurt somebody.
+ *   · The network claim is transport-qualified. In stdio mode the server opens no network
+ *     connection of its own; in HTTP mode it is listening for connections but makes no outbound
+ *     connection of its own. Neither claim means "nothing leaves this machine", nor does either
+ *     mean "your content goes to a model provider". A client talking to a hosted model forwards
+ *     what it reads, which is the ordinary case; a client driving a local model, or one that does
+ *     not forward a particular result, sends nothing anywhere. The decision belongs to the client
+ *     and not to wyrd, which is what README.md and PRIVACY.md both say. Saying otherwise tells a
+ *     user their notes stay local when they do not, and that is the one sentence here that could
+ *     actually hurt somebody.
  */
 export function disclosure(
     root: string,
+    transport: ServerTransport,
     layers: readonly string[] = [],
     listingFailed = false
 ): string {
@@ -276,6 +281,13 @@ export function disclosure(
                   'Grant a subfolder instead to expose only that subfolder.'
               ];
 
+    const network = transport === 'stdio'
+        ? ['  · In stdio mode, this server opens no network connection of its own. That is NOT a promise your']
+        : [
+              '  · In HTTP mode, this server is listening for connections and does not make outbound',
+              '    connections of its own. That is NOT a promise your'
+          ];
+
     return [
         `wyrd is serving exactly one folder: ${root}`,
         'Its only tool is `read`, so the tool surface is read-only.',
@@ -290,7 +302,7 @@ export function disclosure(
         '    pathnames it touches, never file contents, to exactly the path that variable names,',
         '    which is not checked and may be a network share or a synchronised folder. The write',
         '    is attempted, not guaranteed — if it fails it fails silently.',
-        '  · This server opens no network connection of its own. That is NOT a promise your',
+        ...network,
         '    content stays local: what the client driving this conversation does with what it',
         '    reads is between you and that client, under its terms and not wyrd\'s. A client',
         '    talking to a hosted model will send your content there; one running a model locally,',
@@ -336,7 +348,7 @@ export function disclosure(
 }
 
 export function createServer(options: CreateServerOptions): Server {
-    const { fsgate, layers = [], listingFailed = false } = options;
+    const { fsgate, transport, layers = [], listingFailed = false } = options;
     const server = new Server(
         { name: SERVER_NAME, version: SERVER_VERSION },
         {
@@ -346,17 +358,17 @@ export function createServer(options: CreateServerOptions): Server {
             // folder" — so stderr warned that nothing could be listed while the model was told
             // nothing at all. Two lenses caught it independently. The whole point of the third
             // state is that "no layers" and "could not look" are different facts.
-            instructions: disclosure(fsgate.disclosedRoot(), layers, listingFailed)
+            instructions: disclosure(fsgate.disclosedRoot(), transport, layers, listingFailed)
         }
     );
 
-    server.setRequestHandler(ListToolsRequestSchema, () => ({
+    server.setRequestHandler('tools/list', () => ({
         tools: [
             {
                 name: 'read',
                 title: 'Read a file from the granted folder',
                 description: READ_DESCRIPTION,
-                inputSchema: READ_INPUT_SCHEMA,
+                inputSchema: READ_INPUT_SCHEMA_FOR_TOOL,
                 // ⚠ The read-only guarantee lived ONLY in prose until now — in the description and
                 // in `initialize.instructions` — and a directory's automated review reads the
                 // ANNOTATION, not the paragraph. `readOnlyHint` is the machine-readable form of a
@@ -372,7 +384,7 @@ export function createServer(options: CreateServerOptions): Server {
         ]
     }));
 
-    server.setRequestHandler(CallToolRequestSchema, async request => {
+    server.setRequestHandler('tools/call', async request => {
         if (request.params.name !== 'read') {
             return {
                 isError: true,

@@ -1,0 +1,60 @@
+{
+  "name": "wyrd-scribe",
+  "version": "0.1.0",
+  "private": false,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "wyrd-scribe — a tier-A MCP server for create-only provenance-stamped page writes.",
+  "exports": {},
+  "bin": {
+    "wyrd-scribe": "dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "markdown",
+    "provenance",
+    "lineage",
+    "create-only"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MortalPastry/wyrd-mcp.git",
+    "directory": "packages/wyrd-scribe"
+  },
+  "homepage": "https://github.com/MortalPastry/wyrd-mcp/tree/main/packages/wyrd-scribe#readme",
+  "bugs": {
+    "url": "https://github.com/MortalPastry/wyrd-mcp/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "//mutants": "⚠ USE `npm run mutate`. Do NOT hand-roll a mutation run that shells out to `npm test` — `test` runs `npm run build` first, which recompiles dist/ from src/ and ERASES a dist-patched mutant before the suite sees it, so every mutant SURVIVES and reads as a weak guard rather than as a dead instrument. Measured 2026-08-31. `scripts/mutate.mjs` is that rule as a mechanism: it builds once, drives the runner directly, asserts each anchor matches exactly once, and restores by hash.",
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "mutate": "node scripts/mutate.mjs",
+    "prebuild": "node scripts/clean.mjs",
+    "build": "tsc -b && node scripts/generate-version.mjs",
+    "start": "node dist/index.js",
+    "prepack": "npm run build",
+    "pretest": "npm --prefix ../wyrd run build",
+    "test": "npm run build && node scripts/run-tests.mjs",
+    "pretest:portable": "npm --prefix ../wyrd run build",
+    "test:portable": "npm run build && node scripts/run-tests.mjs --portable"
+  },
+  "//dependencies": "⚠ `wyrd-mcp` WAS HERE AND IS DELIBERATELY GONE, 2026-08-31. It was never imported by a line of code — it was declared so that the write path could reach `createFsGate` through the Reader, which is exactly the coupling the fence extraction removes. Two things make restoring it wrong rather than merely redundant: the fence is now `wyrd-fence`, and the Reader declares an empty `exports` map, so `import ... from 'wyrd-mcp'` no longer resolves to anything at all. A private, unpublished package must also not pin a PUBLISHED version of a sibling it does not use. ⚠ THE FENCE IS IMPORTED, NEVER REIMPLEMENTED (spec D8) — that rule is unchanged; only the package that satisfies it has.",
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "ajv": "^8.17.1",
+    "wyrd-fence": "0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "7.0.2"
+  }
+}

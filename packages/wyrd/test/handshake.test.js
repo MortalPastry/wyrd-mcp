@@ -6,16 +6,15 @@ import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-
 import { NO_GRANT_MESSAGE } from '../dist/main.js';
 import * as server from '../dist/server.js';
 import { preflightJunctionSupport, preflightSymlinkPrivilege } from '../scripts/preflight.mjs';
 import { declare as arm, tier2 } from './manifest.mjs';
+import { RawMcpClient } from './raw-stdio.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const entrypoint = path.join(repoRoot, 'dist', 'index.js');
+const packageManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
 
 /**
  * ⚠⚠ THIS FILE NO LONGER IMPORTS THE FENCE AT ALL, AND THAT IS THE POINT OF THE 2026-09-01 MOVE.
@@ -36,7 +35,6 @@ const entrypoint = path.join(repoRoot, 'dist', 'index.js');
  * and the relocation contract would not catch it, because a NEW id is not one it locked.
  */
 
-const CONNECT_TIMEOUT_MS = 5_000;
 const TEST_TIMEOUT_MS = 20_000;
 
 function makeVault() {
@@ -49,15 +47,14 @@ function makeVault() {
 }
 
 async function withClient(grant, assertions) {
-    const client = new Client({ name: 'wyrd-test-client', version: '0.0.0' });
-    const transport = new StdioClientTransport({
-        command: process.execPath,
-        args: [entrypoint],
+    const client = new RawMcpClient({
+        entrypoint,
+        entrypointLabel: 'dist/index.js',
         env: { ...process.env, WYRD_GRANT: grant },
-        stderr: 'pipe'
+        clientInfo: { name: 'wyrd-test-client', version: '0.0.0' }
     });
     try {
-        await client.connect(transport, { timeout: CONNECT_TIMEOUT_MS });
+        await client.connect();
         await assertions(client);
     } finally {
         await client.close();
@@ -69,7 +66,10 @@ test('E1-handshake — the server starts on stdio and completes an initialize ha
     const vault = makeVault();
     try {
         await withClient(vault.grant, client => {
-            assert.deepEqual(client.getServerVersion(), { name: 'wyrd', version: '0.0.0' });
+            assert.deepEqual(
+                client.getServerVersion(),
+                { name: 'wyrd', version: packageManifest.version }
+            );
             assert.deepEqual(client.getServerCapabilities(), { tools: {} });
         });
     } finally {
@@ -246,7 +246,15 @@ test('E5-disclosure — initialize.instructions discloses the canonical grant an
             // than the phrase alone.
             assert.match(instructions, /only tool is `read`, so the tool surface is read-only/i);
             assert.match(instructions, /No tool here writes/i);
-            assert.match(instructions, /opens no network connection of its own/i);
+            assert.match(
+                instructions,
+                /In stdio mode, this server opens no network connection of its own/i
+            );
+            assert.doesNotMatch(
+                instructions,
+                /(?:^|\n)\s*· This server opens no network connection of its own\./i,
+                'the retired transport-neutral network claim must never come back'
+            );
             assert.match(instructions, /names the rule that fired/i);
 
             // ⚠ THE CONTAINMENT CLAIM IS ABOUT THE CHECK, NOT ABOUT THE RESULT. "Only files inside
@@ -473,32 +481,16 @@ test('E10-junction-preflight — the tier-1 preflight refuses when a junction ca
     assert.ok(!/cannot create a junction/.test(noTmp), 'a temp-dir failure must not be blamed on junctions');
 });
 
-test('E7-shadow — a same-named FILE listed before a real layer directory does not shadow it', async () => {
+test('E7-shadow — probe kinds and failures preserve the conservative layer warning', async () => {
     arm('E7-shadow');
-    // ⚠ WHY THIS DRIVES `detectLayers` DIRECTLY RATHER THAN BUILDING A FOLDER. The defect needs a
-    // directory holding BOTH `arc` and `Arc`, which Windows cannot create — so a fixture-based arm
-    // would silently not exercise the bug on the machine this suite actually runs on. The function
-    // takes its listing as an argument, so feeding it the collision is the honest test and it runs
-    // on every platform. The ORDER matters: the file comes first, which is what the old `.find()`
-    // picked.
-    const shadowed = await server.detectLayers([
-        { name: 'arc', kind: 'file' },
-        { name: 'Arc', kind: 'directory' }
-    ]);
-    assert.deepEqual(shadowed, ['Arc'], 'a real directory must win over a same-named file listed before it');
+    const kinds = { Arc: 'file', Mage: 'directory', Forum: 'link' };
+    const detected = await server.detectLayers(async name => ({ ok: true, kind: kinds[name] }));
+    assert.deepEqual(detected, { layers: ['Mage', 'Forum'], listingFailed: false });
 
-    // The negative half: a file ALONE still must not be reported as a layer. Preserving E7's
-    // guarantee matters — the fix must not turn "prefer a directory" into "accept anything".
-    const fileOnly = await server.detectLayers([{ name: 'Mage', kind: 'file' }]);
-    assert.deepEqual(fileOnly, [], 'a file with a layer name is not a layer');
-
-    // A link is only a layer if it probes as a directory, and a shadowing file must not stop the
-    // probe from being reached.
-    const viaLink = await server.detectLayers(
-        [{ name: 'forum', kind: 'file' }, { name: 'Forum', kind: 'link' }],
-        async name => name === 'Forum'
-    );
-    assert.deepEqual(viaLink, ['Forum'], 'a link that resolves to a directory counts, past a shadowing file');
+    const denied = await server.detectLayers(async name => name === 'Arc'
+        ? { ok: false, reason: 'DENIED', detail: 'denied', resolvedPath: '' }
+        : { ok: true, kind: 'directory' });
+    assert.deepEqual(denied, { layers: [], listingFailed: true });
 });
 
 test('E6-preflight — the suite preflight refuses on denied symlink privilege, and separates the probe stages', () => {
@@ -657,6 +649,10 @@ const CLAIMS = [
     {
         id: 'DIRECTORY_REFUSED',
         says: 'a directory is refused rather than served',
+        evidence: {
+            grade: 'derived',
+            limit: 'Deriving the refusal path does not prove every directory shape is refused on every supported filesystem.'
+        },
         carried: {
             'README.md': [/A directory is refused \(`NOT_A_FILE`\)/i],
             'PRIVACY.md': [/a directory is refused, and so are bytes/i],
@@ -672,6 +668,10 @@ const CLAIMS = [
     {
         id: 'UTF8_REFUSED',
         says: 'bytes that are not valid UTF-8 are refused, never returned altered',
+        evidence: {
+            grade: 'derived',
+            limit: 'Deriving the refusal path does not prove every invalid byte sequence is refused on every supported runtime.'
+        },
         carried: {
             'README.md': [/Bytes that are not valid UTF-8 are refused \(`NOT_TEXT`\) rather than returned altered/i],
             'PRIVACY.md': [/bytes that are not valid UTF-8/i],
@@ -687,6 +687,11 @@ const CLAIMS = [
     {
         id: 'RULE_IS_BYTES_NOT_EXTENSION',
         says: 'the UTF-8 refusal is a property of the requested bytes, not of the file extension',
+        evidence: {
+            grade: 'observed',
+            arms: ['E8-not-text'],
+            limit: 'The exercised cases distinguish bytes from extensions only for sampled files, not every encoding or filename.'
+        },
         carried: {
             'README.md': [/the bytes of the requested slice, never the file extension/i],
             'tool:read':[/property of the BYTES, not the file extension/i]
@@ -702,6 +707,11 @@ const CLAIMS = [
     {
         id: 'HARDLINK_REACHES_OUTSIDE',
         says: 'a hard link already inside the grant makes its target readable wherever on the disk that target lives',
+        evidence: {
+            grade: 'observed',
+            arms: ['A24-hardlink-limit'],
+            limit: 'The exercised hard-link case is one filesystem arrangement on one platform, not every disk, mount, or permission regime.'
+        },
         carried: {
             'README.md': [/hard link inside the granted folder makes the file it points at readable, wherever on the disk that file lives/i],
             'PRIVACY.md': [/hard link that already exists inside the granted folder makes the file it points at readable, wherever that file lives/i],
@@ -717,6 +727,10 @@ const CLAIMS = [
     {
         id: 'HARDLINK_INVISIBLE_TO_INSPECTION',
         says: 'ordinary folder inspection will not show a hard link as a link',
+        evidence: {
+            grade: 'unverified',
+            limit: 'No package mechanism observes file-manager presentation, which varies by file manager, platform, and configuration.'
+        },
         carried: {
             'README.md': [/Ordinary folder inspection will not show it as a link/i],
             'PRIVACY.md': [/ordinary folder inspection will not show it as a link/i],
@@ -731,7 +745,16 @@ const CLAIMS = [
     },
     {
         id: 'READ_ONLY_IS_TOOL_SCOPED',
-        says: 'read-only is a property of the TOOL surface; the process itself writes in exactly one case',
+        // ⚠ "outside the `cert` command" IS LOAD-BEARING AND WAS MISSING UNTIL 2026-09-15. The claim
+        // said the process writes in exactly one case; `wyrd cert` writes a certificate and a key
+        // (`src/index.ts:35`, `src/cert.ts:249`), so the table was false while `README.md:227`
+        // carried the qualifier correctly — the shipped prose was more honest than the row
+        // describing it. Found by a review lens reading the code rather than the table.
+        says: 'read-only is a property of the TOOL surface; outside the explicit `cert` command the process itself writes in exactly one case',
+        evidence: {
+            grade: 'derived',
+            limit: 'Program-to-surface comparison does not prove the process has no other write path, dependency effect, or side effect.'
+        },
         carried: {
             'README.md': [
                 /The only tool it registers is `read`\. There is no tool that writes, moves, renames or deletes/i,
@@ -762,6 +785,10 @@ const CLAIMS = [
     {
         id: 'OBSERVE_DESTINATION_UNCHECKED',
         says: 'the observation log is written to exactly the path supplied, and that path is not checked',
+        evidence: {
+            grade: 'derived',
+            limit: 'Reading the write call shows no check between the supplied path and the write; it does not prove no check exists elsewhere, on every destination type or platform.'
+        },
         carried: {
             'README.md': [/exactly the path you supply, and that path is not checked/i],
             'PRIVACY.md': [/exactly the path you supply, and that path is not checked/i],
@@ -777,6 +804,10 @@ const CLAIMS = [
     {
         id: 'OBSERVE_WRITE_IS_ATTEMPTED',
         says: 'the log write is ATTEMPTED at exit and its failure is silent, so a missing log is not evidence',
+        evidence: {
+            grade: 'derived',
+            limit: 'Reading the exit hook and its catch block does not prove the write is attempted under every termination mode, nor that failure is silent on every host.'
+        },
         carried: {
             'README.md': [/The write is attempted at exit and a failure is silent/i],
             'PRIVACY.md': [/The write is attempted at exit and a failure is silent/i],
@@ -792,6 +823,10 @@ const CLAIMS = [
     {
         id: 'OBSERVE_RECORDS_PATHS_NOT_CONTENT',
         says: 'the observation log records pathnames, never file contents',
+        evidence: {
+            grade: 'unverified',
+            limit: 'A 2026-09-02 measurement found no file contents in its sampled records, but that dated measurement is recorded only in a comment and is not re-run.'
+        },
         carried: {
             'README.md': [/It records pathnames, not file contents/i],
             /**
@@ -819,6 +854,10 @@ const CLAIMS = [
     {
         id: 'ANY_PATH_REQUESTABLE',
         says: 'any path inside the granted folder can be requested, hidden entries included, apart from a handful of name spellings refused as input',
+        evidence: {
+            grade: 'derived',
+            limit: 'Program-derived name and refusal rules do not prove every otherwise eligible path is requestable on every filesystem.'
+        },
         /**
          * ⚠⚠ THE SECOND PATTERN IS NOT DECORATION AND IT IS NOT SEPARABLE FROM THE FIRST.
          *
@@ -869,6 +908,10 @@ const CLAIMS = [
     {
         id: 'NO_EXTENSION_FILTER',
         says: 'there is no extension filter and no ignore-file support',
+        evidence: {
+            grade: 'derived',
+            limit: 'Program derivation does not prove that no indirect platform, runtime, or dependency filter can affect a request.'
+        },
         carried: {
             'README.md': [/There is no extension filter and no ignore-file support/i],
             'PRIVACY.md': [/There is no extension filter and no ignore-file support/i],
@@ -884,6 +927,10 @@ const CLAIMS = [
     {
         id: 'READABLE_NARROWER_THAN_REACHABLE',
         says: 'the two refusals limit what is READABLE, not what is REACHABLE; the folder is the whole of the restriction',
+        evidence: {
+            grade: 'unverified',
+            limit: 'No finite set of refusals and reachable samples can establish that the granted folder is the WHOLE of the restriction; this row records that this is a universal negative.'
+        },
         carried: {
             'README.md': [/Both of those limit what is readable, not what is reachable/i],
             'PRIVACY.md': [/That limits what is readable, not what is reachable, so the folder is still the whole of the restriction/i],
@@ -899,6 +946,10 @@ const CLAIMS = [
     {
         id: 'NOTHING_KEPT',
         says: 'wyrd keeps nothing it read — no cache, no index, no database',
+        evidence: {
+            grade: 'unverified',
+            limit: 'No mechanism here can establish a process-wide universal negative about caches, indexes, databases, or other retention.'
+        },
         carried: {
             'README.md': [/Wyrd keeps nothing it read\. There is no cache, no index and no database/i],
             'PRIVACY.md': [/Nothing it read\. There is no cache, no index and no database/i],
@@ -914,6 +965,10 @@ const CLAIMS = [
     {
         id: 'LIMITS_NOT_EXHAUSTIVE',
         says: 'the list of known limits is what is known, not a proof that nothing else exists',
+        evidence: {
+            grade: 'unverified',
+            limit: 'No finite check here can establish that a list contains every unknown limit; this row records that epistemic boundary.'
+        },
         carried: {
             'README.md': [/This list is what is known, not a proof that nothing else exists/i],
             'NO_GRANT_MESSAGE': [/This list is what is known, not a proof that nothing else exists/i],
@@ -936,6 +991,10 @@ const CLAIMS = [
         // or denied — that shape refuses inside `walk`, before the arbitration.
         id: 'REPARSE_TAGS_UNCLASSIFIED',
         says: 'some filesystem reparse points cannot be classified by this runtime; a path resolving through one is still checked against the granted folder, and what remains open is that a refusal can distinguish missing from unreadable for a file outside it',
+        evidence: {
+            grade: 'derived',
+            limit: 'Derived from the arbitration control flow and its recorded reasoning; no arm exercises an unclassifiable tag, because none can be created on this runtime.'
+        },
         carried: {
             'README.md': [/filesystem reparse points cannot be classified by this runtime/i, /still checked against the granted folder/i],
             'NO_GRANT_MESSAGE': [/Some filesystem reparse points cannot be classified by this runtime/i, /still checked against the folder/i],
@@ -951,6 +1010,15 @@ const CLAIMS = [
     {
         id: 'TOCTOU_SWAP',
         says: 'a path component swapped between validation and opening may be read instead of the one checked',
+        evidence: {
+            // ⚠ `derived`, NOT `observed`, corrected 2026-09-15. `A35-root-moved` stages a swap and
+            // asserts the refusal `ROOT_MOVED` — it proves the ROOT re-check fires, never that a
+            // swapped COMPONENT is opened instead of the one checked, which is what this claim
+            // says. The race window is read off the validate-then-open sequence in the fence's read
+            // path. A staged swap that the fence CATCHES is not evidence for a swap it MISSES.
+            grade: 'derived',
+            limit: 'Read off the validate-then-open sequence in the fence read path; no arm opens a swapped component, and the window is not quantified on any platform.'
+        },
         carried: {
             'README.md': [/A path component swapped between validation and opening may be read instead of the one that was checked/i],
             'NO_GRANT_MESSAGE': [/A path component swapped between validation and opening may be read instead of the one checked/i],
@@ -965,11 +1033,15 @@ const CLAIMS = [
     },
     {
         id: 'CLIENT_FORWARDING_NOT_WYRDS',
-        says: 'wyrd opens no network connection of its own, and that is NOT a promise the content stays local',
+        says: 'in stdio mode wyrd opens no network connection of its own, and that is NOT a promise the content stays local',
+        evidence: {
+            grade: 'derived',
+            limit: 'Derivation covers the selected stdio path, not dependency internals, client forwarding, or every runtime configuration.'
+        },
         carried: {
-            'README.md': [/It opens no network connection of its own/i, /What your AI client does with the content is between you and that client/i],
-            'PRIVACY.md': [/It opens no network connection of its own/i, /What happens next is between you and that client/i],
-            'initialize.instructions': [/This server opens no network connection of its own\. That is NOT a promise your content stays local/i]
+            'README.md': [/In stdio mode it opens no network connection of its own/i, /What your AI client does with the content is between you and that client/i],
+            'PRIVACY.md': [/In stdio mode, it opens no network connection of its own/i, /What happens next is between you and that client/i],
+            'initialize.instructions': [/In stdio mode, this server opens no network connection of its own\. That is NOT a promise your content stays local/i]
         },
         silent: {
             'package.json': NPM_BLURB,
@@ -1478,5 +1550,365 @@ test('E15-refusal-vocabulary — every refusal the program can return is stated 
     assert.ok(
         problems.length === 0,
         `\n${problems.length} refusal-vocabulary problem(s):\n\n${problems.join('\n\n')}\n`
+    );
+});
+
+/* ===============================================================================================
+ * E16 — EVERY CLAIM DECLARES THE KIND AND LIMIT OF THE EVIDENCE BEHIND IT.
+ *
+ * `derived` — one side of the comparison comes from the PROGRAM rather than from another
+ * sentence. Not proof.
+ * `observed` — every named arm registered as executed in the gated root run.
+ * Not proof. The row NAMES those arms in `evidence.arms`, and the root aggregation requires every
+ * one of those registrations in the run being gated — see the stage-2 block below.
+ * `unverified` — NO ARM IN THIS SUITE ASSERTS IT. That is the whole meaning: not an accusation of
+ * falsehood, not a defect, and not a debt anyone owes. ⚠ THREE OF THE FIVE CANNOT BE ASSERTED BY
+ * ANY ARM THAT COULD EVER BE WRITTEN — `READABLE_NARROWER_THAN_REACHABLE` and
+ * `LIMITS_NOT_EXHAUSTIVE` are universal negatives, and `HARDLINK_INVISIBLE_TO_INSPECTION` is a
+ * claim about file managers rather than about wyrd. A fourth, `NOTHING_KEPT`, describes what the
+ * code does not contain: there is no cache, no index and no database because none was written, and
+ * no test can prove the absence of a thing nobody wrote. Reading the source is how that one is
+ * checked, and the source is short.
+ *
+ * This stage grades the table and keeps its denominator visible. It does not establish that any
+ * claim is true.
+ *
+ * ⚠⚠ STAGE 2 — WHERE THE EXECUTION CHECK LIVES, AND WHY IT IS NOT HERE. An `observed` row names
+ * its arms in `evidence.arms`, and this arm validates those names STATICALLY: non-empty, unique,
+ * present on no other grade, and known to `relocation-contract.json`. What it CANNOT do is check
+ * that they ran. `executed()` is process-local and `node --test` runs each of this package's five
+ * test files in its OWN process with no ordering guarantee; more decisively, this arm cannot see
+ * `A24-hardlink-limit`, which the fence owns. The Reader's runner sees only this package; the
+ * fence's runner has no claim table. `scripts/aggregate.mjs` at the
+ * repo root is the FIRST place holding every necessary fact, because it already unions both
+ * packages' executed sets and already knows which package owns each arm. The check lives there,
+ * and this arm hands it the mapping through `WYRD_CLAIM_EVIDENCE_OUT`.
+ *
+ * ⚠ THE ARM-NAME LOOKUP IS DATA, NOT AN IMPORT. `relocation-contract.json` is a file in this
+ * package's own tree that happens to name every arm in BOTH packages. Nothing here reaches into
+ * `wyrd-fence`, which the rule at the top of this file forbids.
+ *
+ * ⚠⚠ WHAT `observed` STILL DOES NOT ESTABLISH, and a comment here used to overclaim it. It said a
+ * mutation deleting an arm's assertion "would then redden this one". THAT IS TOO STRONG, and both
+ * independent designs for this stage said so unprompted: execution registration proves an arm
+ * REACHED `arm(id)`, never that its body still asserts anything. An arm gutted to a no-op still
+ * registers as executed. The limit is stated in full beside the root check.
+ *
+ * ⚠⚠ NO MUTATION ROW GRADES THIS ARM, AND STAGE 2 DOES NOT CHANGE THAT. The matrix mutates PRODUCT
+ * files (`FILES`, scripts/mutate.mjs:77); this arm reads a table in a TEST file and the root
+ * execution check is not reachable by a product mutation either. It stays in the position M90–M95
+ * were written to end: asserted, green, named by no mutation row. ⚠ DO NOT FABRICATE ONE —
+ * mutating a test file to make a test fail grades nothing about the product, which is the exact
+ * defect those rows record. The grade on this arm is a measurement nobody has taken, and saying so
+ * is worth more than a row that would measure the wrong thing.
+ */
+test('E16-claim-evidence — every claim declares an evidence grade and a substantive limit', () => {
+    arm('E16-claim-evidence');
+    const grades = ['derived', 'observed', 'unverified'];
+    const problems = [];
+    const seen = new Set();
+
+    for (const claim of CLAIMS) {
+        if (seen.has(claim.id)) {
+            problems.push(`CLAIM ${claim.id} appears twice — ids are the handle stage 2 binds arms to, and two rows sharing one can hold contradictory grades while the pinned set still reads correctly`);
+        }
+        seen.add(claim.id);
+        if (claim.evidence === null || typeof claim.evidence !== 'object' || Array.isArray(claim.evidence)) {
+            problems.push(`CLAIM ${claim.id} has no evidence block`);
+            continue;
+        }
+        if (!grades.includes(claim.evidence.grade)) {
+            problems.push(`CLAIM ${claim.id} has unknown evidence grade ${JSON.stringify(claim.evidence.grade)}`);
+        }
+        if (typeof claim.evidence.limit !== 'string' || claim.evidence.limit.trim().length < 40) {
+            problems.push(`CLAIM ${claim.id} has no substantive evidence limit — it must be at least 40 characters`);
+        }
+        // ⚠⚠ NO OWNER, NO REVIEW DATE, NO EXPIRY — and their removal on 2026-09-15 is the ruling
+        // worth keeping. They were added to stop `unverified` rows becoming wallpaper, which
+        // assumed every row is a debt someone must discharge. Most are not.
+        //
+        // `NOTHING_KEPT` says there is no cache, no index and no database. That is a DESCRIPTION OF
+        // THE CODE, readable in the code, and no test can prove the absence of a thing nobody
+        // wrote. `READABLE_NARROWER_THAN_REACHABLE` and `LIMITS_NOT_EXHAUSTIVE` are universal
+        // negatives; `HARDLINK_INVISIBLE_TO_INSPECTION` is about file managers, not about wyrd.
+        // A review date on any of these schedules a meeting with a fact that will not have changed.
+        //
+        // Ruled 2026-09-15: we are not trying to prove a negative, and a claim does not need a test
+        // to be true. Either the thing is kept or it is not; it is not. Anything past that is
+        // over-complication — layers of waste calling themselves sophistication.
+        //
+        // What `unverified` means here is therefore narrow and final: NO ARM ASSERTS THIS. It is
+        // not a defect, not a debt, and not a promise that someone will come back to it.
+    }
+
+    assert.ok(
+        problems.length === 0,
+        `\n${problems.length} claim-evidence problem(s):\n\n${problems.join('\n')}\n`
+    );
+
+    /**
+     * STAGE 2, STATIC HALF — the arm names an `observed` row declares must be real arms.
+     *
+     * ⚠ THE CONTRACT IS READ AS DATA AND ITS PARSE IS ASSERTED NON-EMPTY. A lookup set that comes
+     * back empty would make every name below resolve to "unknown" — which fails loudly — but an
+     * empty set built the other way round (matching everything) is the shape that passes having
+     * checked nothing. The assertion is here so the failure is about the contract rather than
+     * about the claims.
+     */
+    const contract = JSON.parse(
+        fs.readFileSync(path.join(repoRoot, 'test', 'relocation-contract.json'), 'utf8'));
+    const contractArms = new Map();
+    for (const row of [...(contract.arms ?? []), ...(contract.armsAddedPostMove ?? [])]) {
+        if (typeof row?.id === 'string') contractArms.set(row.id, row.destination);
+    }
+    assert.ok(contractArms.size > 0,
+        'relocation-contract.json yielded no arms — the name check below would have nothing to resolve against');
+
+    const observedMapping = [];
+    for (const claim of CLAIMS) {
+        const declared = claim.evidence.arms;
+        if (claim.evidence.grade !== 'observed') {
+            // ⚠ THE GRADES STAY DISJOINT. A `derived` or `unverified` row carrying arm names would
+            // read as observation to anyone scanning the table, while nothing gates those names.
+            if (declared !== undefined) {
+                problems.push(`CLAIM ${claim.id} is graded ${claim.evidence.grade} and names arms — only an \`observed\` row may, and a name nothing gates is worse than no name`);
+            }
+            continue;
+        }
+        if (!Array.isArray(declared) || declared.length === 0) {
+            problems.push(`CLAIM ${claim.id} is graded observed and names no arm — that grade requires execution registration, so it must say which arm`);
+            continue;
+        }
+        if (new Set(declared).size !== declared.length) {
+            problems.push(`CLAIM ${claim.id} names the same arm twice — a duplicate inflates how much execution evidence the row appears to name`);
+        }
+        for (const id of declared) {
+            if (typeof id !== 'string' || id.trim().length === 0) {
+                problems.push(`CLAIM ${claim.id} names an empty arm id`);
+            } else if (!contractArms.has(id)) {
+                problems.push(`CLAIM ${claim.id} names arm "${id}", which is not listed in the relocation contract — a renamed or deleted arm leaves execution evidence the contract cannot resolve`);
+            }
+        }
+        observedMapping.push({ claim: claim.id, arms: [...declared] });
+    }
+
+    // ⚠ RE-ASSERTED BEFORE THE RECORD IS WRITTEN. Everything above appends to `problems`, and the
+    // assertion that reads it sits further down — so without this, a run with a bad mapping would
+    // still hand the root a record to gate. The record must never describe a table that failed.
+    assert.ok(
+        problems.length === 0,
+        `\n${problems.length} claim-evidence problem(s):\n\n${problems.join('\n')}\n`
+    );
+
+    // Derived from the table directly, independent of the validation loop and its accumulator. This
+    // is the denominator for the handoff: mapping code that drops a push, row or arm cannot pass.
+    // ⚠ It binds the IN-MEMORY mapping. The record written below is that same array, unchanged; a
+    // future transform between this comparison and the write would sit outside what it proves.
+    const expectedObservedMapping = CLAIMS
+        .filter(claim => claim.evidence.grade === 'observed')
+        .map(claim => ({ claim: claim.id, arms: [...claim.evidence.arms] }))
+        .sort((a, b) => a.claim.localeCompare(b.claim));
+    const completeObservedMapping = [...observedMapping]
+        .sort((a, b) => a.claim.localeCompare(b.claim));
+    assert.deepEqual(
+        completeObservedMapping,
+        expectedObservedMapping,
+        'the observed-claim handoff must exactly match the independently derived claim ids and arm lists'
+    );
+
+    const observedClaimCount = expectedObservedMapping.length;
+    const namedArmCount = expectedObservedMapping
+        .reduce((total, row) => total + row.arms.length, 0);
+
+    /**
+     * STAGE 2, HANDOFF — the mapping goes to whoever can actually check execution.
+     *
+     * ⚠ A SUPPLIED DESTINATION THAT CANNOT BE WRITTEN IS A FAILURE, NEVER A WARNING. The root sets
+     * this variable precisely because it intends to gate on the result; swallowing the error would
+     * turn its gate into a no-op at the exact moment something is wrong.
+     */
+    const evidenceOut = process.env['WYRD_CLAIM_EVIDENCE_OUT'];
+    if (evidenceOut) {
+        fs.mkdirSync(path.dirname(evidenceOut), { recursive: true });
+        fs.writeFileSync(evidenceOut, JSON.stringify({
+            source: 'E16-claim-evidence',
+            observedClaimCount,
+            namedArmCount,
+            observed: completeObservedMapping
+        }, null, 2));
+    }
+
+    const unverified = CLAIMS.filter(claim => claim.evidence.grade === 'unverified');
+    const expectedUnverified = [
+        'HARDLINK_INVISIBLE_TO_INSPECTION',
+        'LIMITS_NOT_EXHAUSTIVE',
+        'NOTHING_KEPT',
+        'OBSERVE_RECORDS_PATHS_NOT_CONTENT',
+        'READABLE_NARROWER_THAN_REACHABLE'
+    ];
+    // Assert ids, never a count: a count is what went stale four times in SURFACE_NAMES history.
+    assert.deepEqual(
+        unverified.map(claim => claim.id).sort(),
+        expectedUnverified.sort(),
+        'the unverified claim set changed — re-grading requires an explicit expected-id edit'
+    );
+
+    const counts = Object.fromEntries(
+        grades.map(grade => [grade, CLAIMS.filter(claim => claim.evidence.grade === grade).length])
+    );
+    // ⚠ EVERY NUMBER HERE IS COMPUTED FROM THE TABLE, the row count included. A literal `17` stood
+    // in the two explanatory lines below until 2026-09-15 and would have drifted the moment a claim
+    // was added — the same defect this file's own `SURFACE_NAMES` history records four times over.
+    console.log([
+        `E16-claim-evidence — ${CLAIMS.length} claims, self-declared: ${counts.derived} derived, ${counts.observed} observed, ${counts.unverified} UNVERIFIED (${counts.unverified}/${CLAIMS.length}).`,
+        '  UNVERIFIED — no arm in this suite asserts these. Three of them cannot be asserted by any',
+        '  arm: two are universal negatives and one is about file managers rather than about wyrd.',
+        ...unverified.map(claim => `    · ${claim.id} — ${claim.says}`),
+        `  WHAT THIS ARM CHECKED: that each of the ${CLAIMS.length} rows declares a grade and a limit, that`,
+        '  the ids are unique, that the unverified set is exactly the pinned one, and that every arm',
+        `  named by the ${counts.observed} observed rows is listed in the relocation contract.`,
+        '  WHAT IT DID NOT CHECK: whether any grade is CORRECT, whether any `derived` grade still',
+        '  matches current behaviour, whether any limit text is adequate, or whether the',
+        `  ${CLAIMS.length} rows are all the claims there are.`,
+        // ⚠ THE DENOMINATOR OF THE EXECUTION CHECK, PRINTED EITHER WAY. A run that could not gate
+        // execution must never read as one that did — and a run that DID gate it should say where,
+        // because the check is in another file and nobody would otherwise know it happened.
+        evidenceOut
+            ? '  OBSERVED-ARM EXECUTION is gated by the root aggregation, which was handed this mapping.'
+            : [
+                '  ⚠ OBSERVED-ARM EXECUTION WAS NOT GATED. This run supplied no root sink, so nothing',
+                '  here confirms the named arms ran: each test file is its own process and the fence is',
+                '  another package entirely. The names were checked; the running was not.',
+                '  Run the root `npm test` for the execution gate.'
+            ].join('\n'),
+        '  It did not establish that any claim is true.'
+    ].join('\n'));
+});
+
+/* ===============================================================================================
+ * E19 — EVERY PROGRAM TRANSPORT HAS ITS NETWORK BEHAVIOUR ACCOUNTED FOR ON A SURFACE.
+ *
+ * This checks the SET of transports against the disclosure accounting below. It does NOT establish
+ * that any matching sentence is true; H23 and H32 exercise the HTTP disclosures, while the other
+ * disclosure arms own their narrower claims.
+ *
+ * ⚠ READ THIS PACKAGE'S DECLARATION BY PATH. E15 is right to follow `wyrd-fence`'s declared `types`
+ * entry because changing that entry changes the file handed to that package's consumers. That
+ * indirection is wrong here: this package is a binary, deliberately declares `exports: {}`, and
+ * has no type consumer to hand another file to. Adding `types` or reopening `exports` just to make
+ * this arm resolve would reopen the deep-import class the empty map closes. The subject is therefore
+ * this package's own built `dist/server.d.ts`, read directly as data.
+ *
+ * ⚠ COMMENTS ARE STRIPPED BEFORE THE UNION IS PARSED. E15 measured why: inline declaration comments
+ * between union arms once made its parser derive only 12 of 15 members. A partial parse here could
+ * silently drop a transport and therefore drop its disclosure obligation.
+ */
+function serverTransports() {
+    const raw = fs.readFileSync(path.join(repoRoot, 'dist', 'server.d.ts'), 'utf8');
+    const dts = raw.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+    const match = dts.match(/export type ServerTransport =([^;]*);/);
+    assert.ok(match,
+        '`dist/server.d.ts` no longer declares `ServerTransport` — the transport derivation has stopped deriving');
+
+    const members = [...match[1].matchAll(/'([^']+)'/g)].map(hit => hit[1]);
+    assert.ok(members.length > 0,
+        '`ServerTransport` parsed to no members — an empty derivation would make the accounting loop assert nothing');
+
+    const unexplained = match[1].replace(/'[^']+'/g, '').replace(/\|/g, '').trim();
+    assert.equal(unexplained, '',
+        '`ServerTransport` is no longer a plain union of string literals — update the derivation instead of silently skipping a member');
+
+    return new Set(members);
+}
+
+/**
+ * The transport literals the compiled runtime can assign at its selector.
+ *
+ * This is the independent defence against a partial declaration parse: if the parser found only
+ * `stdio`, the `http` literal selected by `--http` in `dist/main.js` would be absent and the arm
+ * would fail before treating the smaller set as complete.
+ */
+function runtimeSelectedTransports() {
+    const built = fs.readFileSync(path.join(repoRoot, 'dist', 'main.js'), 'utf8');
+    const selectors = [...built.matchAll(/\bconst transport\s*=\s*([^;]+);/g)];
+    assert.equal(selectors.length, 1,
+        '`dist/main.js` must contain exactly one literal transport selector — update the runtime cross-check if its shape changes');
+    const selected = [...selectors[0][1].matchAll(/'([^']+)'/g)].map(hit => hit[1]);
+    assert.ok(selected.length > 0,
+        'the runtime transport selector yielded no literals — the declaration cross-check would assert nothing');
+    return new Set(selected);
+}
+
+/** Each derived transport is stated somewhere, or carries a substantive written exemption. */
+const TRANSPORT_NETWORK_BEHAVIOUR = {
+    stdio: { surfaced: /In stdio mode(?:,)? (?:this server|it) opens no network connection of its own/i },
+    http: { surfaced: /In HTTP or HTTPS mode it listens for connections that clients initiate\. In every mode it phones nothing home and initiates no outbound connection/i }
+};
+
+test('E19-transport-network-accounting — every derived transport has network behaviour stated or exempted', { timeout: TEST_TIMEOUT_MS }, async () => {
+    arm('E19-transport-network-accounting');
+    const vault = makeVault();
+    let surfaces;
+    try {
+        await withClient(vault.grant, async client => {
+            const { tools } = await client.listTools();
+            surfaces = loadSurfaces(client, tools);
+        });
+    } finally {
+        fs.rmSync(vault.base, { recursive: true, force: true });
+    }
+
+    assert.ok(Object.keys(surfaces).length > 0,
+        'no disclosure surfaces were loaded — surfaced transport rows would have nothing to match');
+
+    const transports = serverTransports();
+    const runtimeTransports = runtimeSelectedTransports();
+    const problems = [];
+
+    for (const transport of [...runtimeTransports].sort()) {
+        if (!transports.has(transport)) {
+            problems.push(`RUNTIME transport ${transport} is selected by dist/main.js but missing from the derived ServerTransport union — the declaration parse is incomplete or the program contradicts its declared type`);
+        }
+    }
+
+    for (const transport of [...transports].sort()) {
+        const row = TRANSPORT_NETWORK_BEHAVIOUR[transport];
+        if (row === undefined) {
+            problems.push(
+                `TRANSPORT ${transport} exists in ServerTransport and this table says nothing about its network behaviour.\n` +
+                '    State that behaviour on a disclosure surface and give it a `surfaced` pattern, or write a substantive exemption.');
+            continue;
+        }
+
+        const hasSurface = row.surfaced !== undefined;
+        const hasExemption = row.exempt !== undefined;
+        if (hasSurface === hasExemption) {
+            problems.push(`TRANSPORT ${transport} must declare exactly one of \`surfaced\` or \`exempt\``);
+        } else if (hasSurface) {
+            if (!(row.surfaced instanceof RegExp)) {
+                problems.push(`TRANSPORT ${transport} has a non-pattern \`surfaced\` value`);
+                continue;
+            }
+            const carriers = Object.keys(surfaces).filter(name => row.surfaced.test(surfaces[name]));
+            if (carriers.length === 0) {
+                problems.push(
+                    `TRANSPORT ${transport} is declared as STATED, and no loaded surface states its network behaviour.\n` +
+                    `    no surface matched: ${row.surfaced}`);
+            }
+        } else if (typeof row.exempt !== 'string' || row.exempt.trim().length < 20) {
+            problems.push(`TRANSPORT ${transport} is exempted with no substantive reason — exemptions must be at least 20 characters`);
+        }
+    }
+
+    // The reverse direction: stale rows describe transports the program no longer declares.
+    for (const transport of Object.keys(TRANSPORT_NETWORK_BEHAVIOUR)) {
+        if (!transports.has(transport)) {
+            problems.push(`TRANSPORT ${transport} is accounted for here but no longer exists in ServerTransport — the row has outlived its subject`);
+        }
+    }
+
+    assert.ok(
+        problems.length === 0,
+        `\n${problems.length} transport-network-accounting problem(s):\n\n${problems.join('\n\n')}\n`
     );
 });

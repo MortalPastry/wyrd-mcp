@@ -367,7 +367,13 @@ if (preflight) {
  * `startup.test.js` and three surface arms out of `handshake.test.js`. Re-adding a fence test file
  * here would put a fence arm back in a consumer's inventory.
  */
-const FILES = ['test/handshake.test.js', 'test/manifest-schema.test.js', 'test/startup.test.js'];
+const FILES = [
+    'test/handshake.test.js',
+    'test/http.test.js',
+    'test/manifest-schema.test.js',
+    'test/startup.test.js',
+    'test/v1-baseline.test.js'
+];
 
 /**
  * ⚠ THE LIST IS PREFLIGHTED, AND IT WAS NOT UNTIL 2026-09-01. `node --test` given a path that does
@@ -403,13 +409,37 @@ const child = spawn(process.execPath, ['--test', ...FILES], {
         NO_COLOR: '1',
         FORCE_COLOR: '0'
     },
-    stdio: ['ignore', 'pipe', 'inherit']
+    // ⚠⚠ STDERR IS PIPED-AND-ECHOED, NOT INHERITED, AND THAT ONE WORD WAS COSTING REAL DIAGNOSIS.
+    // `node --test` writes the BODY of a failure — the assertion, the expected/actual, the stack —
+    // to stderr, while stdout carries only the `✖ <arm>` headline and the summary counts. With
+    // stderr inherited, those bodies went straight to the terminal and never entered `out`, so any
+    // caller capturing this script's output got headlines and nothing else.
+    //
+    // ⚠ MEASURED 2026-09-15, and it is why an arm reddening unexpectedly has been so expensive:
+    // `H29` under `M113` (twice), `H27` under `M119`, `H28` under `M109` at 1 run in 10. Every
+    // investigation ended at "which arm", because "why" had been written to a terminal nobody was
+    // watching — and the standing next step was always "run it again", the most expensive way to
+    // learn anything. Three capture loops this session died on it.
+    //
+    // ⚠ THE ECHO BELOW PRESERVES THE BEHAVIOUR THIS REPLACED. A person watching a run still sees
+    // stderr live and in order; the only change is that the bytes are also kept.
+    stdio: ['ignore', 'pipe', 'pipe']
 });
 
 let out = '';
 child.stdout.on('data', chunk => {
     out += chunk;
     process.stdout.write(chunk);
+});
+
+// ⚠ APPENDED TO THE SAME `out`, ON PURPOSE. The summary parse below anchors every match to a line
+// start with `^…$` in multiline mode, so interleaved stderr cannot satisfy `ℹ fail 0` or any other
+// counted line — and keeping one buffer means a caller that captures this script gets the failure
+// bodies adjacent to the headline they explain, which is the entire point of piping stderr at all.
+// ⚠ Echoed to OUR stderr so the live view is unchanged for whoever is watching.
+child.stderr.on('data', chunk => {
+    out += chunk;
+    process.stderr.write(chunk);
 });
 
 child.on('close', code => {

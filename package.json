@@ -1,5 +1,5 @@
 {
-  "name": "wyrd-mcp-source",
+  "name": "wyrd-source",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -7,10 +7,9 @@
     "node": ">=20"
   },
   "workspaces": [
-    "packages/wyrd",
-    "packages/wyrd-fence"
+    "packages/*"
   ],
   "scripts": {
-    "build": "npm --workspace wyrd-fence run build && npm --workspace wyrd-mcp run build"
+    "build": "npm run build --workspaces --if-present"
   }
 }

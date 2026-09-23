@@ -1,0 +1,27 @@
+{
+  "//references": "The same build-order guarantee the Reader gets: in build mode the compiler brings `wyrd-fence` up to date before compiling against it, instead of silently type-checking a stale `dist`. Declared BEFORE this package imports the fence on purpose — the hazard arrives with the first import, and a reference added at that moment is one a reviewer has to think to ask for.",
+  "references": [
+    { "path": "../wyrd-fence" }
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "declaration": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}

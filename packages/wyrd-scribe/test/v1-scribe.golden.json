@@ -1,0 +1,2026 @@
+{
+  "captured": true,
+  "protocolVersion": "2025-11-25",
+  "cases": {
+    "tierRefusals": {
+      "empty": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "must-not-open",
+            "WYRD_SCRIBE_TIER": ""
+          }
+        },
+        "byteStrictStaticStdoutLines": [],
+        "normalizedEvents": [
+          {
+            "stream": "stderr",
+            "text": "UNRECOGNISED_TIER: wyrd-scribe does not recognise tier \"\"\n"
+          },
+          {
+            "stream": "exit",
+            "code": 2,
+            "signal": null
+          }
+        ]
+      },
+      "lowercase": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "must-not-open",
+            "WYRD_SCRIBE_TIER": "a"
+          }
+        },
+        "byteStrictStaticStdoutLines": [],
+        "normalizedEvents": [
+          {
+            "stream": "stderr",
+            "text": "UNRECOGNISED_TIER: wyrd-scribe does not recognise tier \"a\"\n"
+          },
+          {
+            "stream": "exit",
+            "code": 2,
+            "signal": null
+          }
+        ]
+      },
+      "unknown": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "must-not-open",
+            "WYRD_SCRIBE_TIER": "tier-z"
+          }
+        },
+        "byteStrictStaticStdoutLines": [],
+        "normalizedEvents": [
+          {
+            "stream": "stderr",
+            "text": "UNRECOGNISED_TIER: wyrd-scribe does not recognise tier \"tier-z\"\n"
+          },
+          {
+            "stream": "exit",
+            "code": 2,
+            "signal": null
+          }
+        ]
+      },
+      "padded-both": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "must-not-open",
+            "WYRD_SCRIBE_TIER": " A "
+          }
+        },
+        "byteStrictStaticStdoutLines": [],
+        "normalizedEvents": [
+          {
+            "stream": "stderr",
+            "text": "UNRECOGNISED_TIER: wyrd-scribe does not recognise tier \" A \"\n"
+          },
+          {
+            "stream": "exit",
+            "code": 2,
+            "signal": null
+          }
+        ]
+      },
+      "newline": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "must-not-open",
+            "WYRD_SCRIBE_TIER": "A\n"
+          }
+        },
+        "byteStrictStaticStdoutLines": [],
+        "normalizedEvents": [
+          {
+            "stream": "stderr",
+            "text": "UNRECOGNISED_TIER: wyrd-scribe does not recognise tier \"A\\n\"\n"
+          },
+          {
+            "stream": "exit",
+            "code": 2,
+            "signal": null
+          }
+        ]
+      },
+      "tab-prefix": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "must-not-open",
+            "WYRD_SCRIBE_TIER": "\tA"
+          }
+        },
+        "byteStrictStaticStdoutLines": [],
+        "normalizedEvents": [
+          {
+            "stream": "stderr",
+            "text": "UNRECOGNISED_TIER: wyrd-scribe does not recognise tier \"\\tA\"\n"
+          },
+          {
+            "stream": "exit",
+            "code": 2,
+            "signal": null
+          }
+        ]
+      },
+      "space-suffix": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "must-not-open",
+            "WYRD_SCRIBE_TIER": "A "
+          }
+        },
+        "byteStrictStaticStdoutLines": [],
+        "normalizedEvents": [
+          {
+            "stream": "stderr",
+            "text": "UNRECOGNISED_TIER: wyrd-scribe does not recognise tier \"A \"\n"
+          },
+          {
+            "stream": "exit",
+            "code": 2,
+            "signal": null
+          }
+        ]
+      },
+      "unavailable-b": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "must-not-open",
+            "WYRD_SCRIBE_TIER": "B"
+          }
+        },
+        "byteStrictStaticStdoutLines": [],
+        "normalizedEvents": [
+          {
+            "stream": "stderr",
+            "text": "TIER_UNAVAILABLE: tier B is recognised but unavailable in this build\n"
+          },
+          {
+            "stream": "exit",
+            "code": 2,
+            "signal": null
+          }
+        ]
+      },
+      "unavailable-c": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "must-not-open",
+            "WYRD_SCRIBE_TIER": "C"
+          }
+        },
+        "byteStrictStaticStdoutLines": [],
+        "normalizedEvents": [
+          {
+            "stream": "stderr",
+            "text": "TIER_UNAVAILABLE: tier C is recognised but unavailable in this build\n"
+          },
+          {
+            "stream": "exit",
+            "code": 2,
+            "signal": null
+          }
+        ]
+      }
+    },
+    "expandedCharacterization": {
+      "preInitialize": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "<TEMP>\\expanded-characterization\\grant",
+            "WYRD_SCRIBE_TIER": "A"
+          }
+        },
+        "byteStrictStaticStdoutLines": [
+          {
+            "label": "pre-initialize tools/list response",
+            "byteLength": 2274,
+            "base64": "eyJyZXN1bHQiOnsidG9vbHMiOlt7Im5hbWUiOiJ3cml0ZV9wYWdlIiwidGl0bGUiOiJDcmVhdGUgYSBwYWdlIHdpdGggbGluZWFnZSIsImRlc2NyaXB0aW9uIjoiVGllciBBOiBhdHRlbXB0IHRvIGNyZWF0ZSBhIHBhZ2Ugb3V0c2lkZSBBcmMvOyB0YXJnZXQgYW5kIHNvdXJjZXMgdXNlIHRoZSBncmFudCBmZW5jZS5cblxuVGhlIHRhcmdldCBpcyBjcmVhdGVkIGV4Y2x1c2l2ZWx5LiBBbiBvY2N1cGllZCBsZWFmIHJlZnVzZXMgRVhJU1RTOyB0aGlzIHRvb2wgZG9lcyBub3Rcbm92ZXJ3cml0ZSwgZGVsZXRlIG9yIHJlbmFtZS4gVGhlIHRhcmdldCBhbmQgZXZlcnkgZGVyaXZlZF9mcm9tLnNvdXJjZSBhcmUgZ3JhbnQtcmVsYXRpdmVcbmFuZCBnbyB0aHJvdWdoIHRoZSBpbXBvcnRlZCB3eXJkLWZlbmNlIGltcGxlbWVudGF0aW9uLlxuXG5EaXJlY3Qgbm9ybWFsaXplZCBgQXJjL2AgdGFyZ2V0cyBhcmUgcmVmdXNlZC4gVGhlIGZlbmNlIHJlamVjdHMgYSBwcmUtZXhpc3RpbmcgcGFyZW50IGFsaWFzXG53aGVuIGl0cyBzcGVsbGVkIGFuZCByZXNvbHZlZCBwYXRocyBkaWZmZXIgYWZ0ZXIgY2FzZS1mb2xkaW5nOyBpdHMgZG9jdW1lbnRlZCBmb2xkLWVxdWFsLWFsaWFzXG5saW1pdCBzdGlsbCBhcHBsaWVzLiBUaGUgZmVuY2UgcmVjaGVja3Mgcm9vdCBvYmplY3QgaWRlbnRpdHkgYmVmb3JlIGVhY2ggb3BlcmF0aW9uIHRoYXRcbnRvdWNoZXMgdGhlIGZpbGVzeXN0ZW07XG5jb21wb25lbnQvbGVhZi9saW5rL3JlbmFtZSByYWNlcyBhbmQgdGhlIGludGVydmFsIGJldHdlZW4gdGhhdCByZWNoZWNrIGFuZCBvcGVuaW5nIHRoZSBmaWxlXG5yZW1haW4uIEFwcGVuZCByZWZ1c2FscyBtYXkgcmV0YWluIGEgcGFydGlhbCBvciBjb21wbGV0ZSBsaW5lLiBTZWUgdGhlIGB3eXJkLWZlbmNlYCBSRUFETUVcbnNlY3Rpb24gXCJTZWN1cml0eSBib3VuZGFyeSBhbmQgbGltaXRzXCIgYW5kIHRoZSBgY3JlYXRlRmlsZUluR3JhbnRgIC8gYGFwcGVuZExpbmVJbkdyYW50YCBBUElcbmRvY3VtZW50YXRpb24gZm9yIHRoZSBhdXRob3JpdGF0aXZlIGNvbnRyYWN0cy5cblxuU3VjY2VzcyBjcmVhdGVzIHRoZSBwYWdlIGFuZCBhcHBlbmRzIG9uZSBsaW5lYWdlIGxpbmUuIFRoZSB2YXVsdCBjb25maWd1cmF0aW9uIG1heSBhbHNvXG5wcm9qZWN0IGxpbmVhZ2UgaW50byBmcm9udG1hdHRlci4gSWYgdGhlIGxlZGdlciBmYWlscyBhZnRlciBjcmVhdGlvbiwgdGhlIHBhZ2Ugc3RheXMgaW5cbnBsYWNlIGFuZCB0aGUgcmVmdXNhbCBpbmNsdWRlcyBib3RoIHRoZSBjcmVhdGVkIHBhZ2UgYW5kIHRoZSB1bmRlcmx5aW5nIGNhdXNlLiIsImlucHV0U2NoZW1hIjp7InR5cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7InBhdGgiOnsidHlwZSI6InN0cmluZyIsIm1pbkxlbmd0aCI6MX0sImNvbnRlbnQiOnsidHlwZSI6InN0cmluZyJ9LCJkZXJpdmVkX2Zyb20iOnsidHlwZSI6ImFycmF5IiwiaXRlbXMiOnsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsic291cmNlIjp7InR5cGUiOiJzdHJpbmciLCJtaW5MZW5ndGgiOjF9LCJzcGFucyI6eyJ0eXBlIjoiYXJyYXkiLCJtaW5JdGVtcyI6MSwiaXRlbXMiOnsib25lT2YiOlt7InR5cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7Im9mZnNldCI6eyJ0eXBlIjoiaW50ZWdlciIsIm1pbmltdW0iOjB9LCJsZW5ndGgiOnsidHlwZSI6ImludGVnZXIiLCJtaW5pbXVtIjoxfX0sInJlcXVpcmVkIjpbIm9mZnNldCIsImxlbmd0aCJdLCJhZGRpdGlvbmFsUHJvcGVydGllcyI6ZmFsc2V9LHsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsicXVvdGUiOnsidHlwZSI6InN0cmluZyIsIm1pbkxlbmd0aCI6MX19LCJyZXF1aXJlZCI6WyJxdW90ZSJdLCJhZGRpdGlvbmFsUHJvcGVydGllcyI6ZmFsc2V9LHsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsib2Zmc2V0Ijp7InR5cGUiOiJpbnRlZ2VyIiwibWluaW11bSI6MH0sImxlbmd0aCI6eyJ0eXBlIjoiaW50ZWdlciIsIm1pbmltdW0iOjF9LCJxdW90ZSI6eyJ0eXBlIjoic3RyaW5nIiwibWluTGVuZ3RoIjoxfX0sInJlcXVpcmVkIjpbIm9mZnNldCIsImxlbmd0aCIsInF1b3RlIl0sImFkZGl0aW9uYWxQcm9wZXJ0aWVzIjpmYWxzZX1dfX19LCJyZXF1aXJlZCI6WyJzb3VyY2UiLCJzcGFucyJdLCJhZGRpdGlvbmFsUHJvcGVydGllcyI6ZmFsc2V9fX0sInJlcXVpcmVkIjpbInBhdGgiLCJjb250ZW50IiwiZGVyaXZlZF9mcm9tIl0sImFkZGl0aW9uYWxQcm9wZXJ0aWVzIjpmYWxzZX19XX0sImpzb25ycGMiOiIyLjAiLCJpZCI6MX0K",
+            "utf8ForReview": "{\"result\":{\"tools\":[{\"name\":\"write_page\",\"title\":\"Create a page with lineage\",\"description\":\"Tier A: attempt to create a page outside Arc/; target and sources use the grant fence.\\n\\nThe target is created exclusively. An occupied leaf refuses EXISTS; this tool does not\\noverwrite, delete or rename. The target and every derived_from.source are grant-relative\\nand go through the imported wyrd-fence implementation.\\n\\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\\nlimit still applies. The fence rechecks root object identity before each operation that\\ntouches the filesystem;\\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\\nsection \\\"Security boundary and limits\\\" and the `createFileInGrant` / `appendLineInGrant` API\\ndocumentation for the authoritative contracts.\\n\\nSuccess creates the page and appends one lineage line. The vault configuration may also\\nproject lineage into frontmatter. If the ledger fails after creation, the page stays in\\nplace and the refusal includes both the created page and the underlying cause.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\",\"minLength\":1},\"content\":{\"type\":\"string\"},\"derived_from\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"source\":{\"type\":\"string\",\"minLength\":1},\"spans\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"oneOf\":[{\"type\":\"object\",\"properties\":{\"offset\":{\"type\":\"integer\",\"minimum\":0},\"length\":{\"type\":\"integer\",\"minimum\":1}},\"required\":[\"offset\",\"length\"],\"additionalProperties\":false},{\"type\":\"object\",\"properties\":{\"quote\":{\"type\":\"string\",\"minLength\":1}},\"required\":[\"quote\"],\"additionalProperties\":false},{\"type\":\"object\",\"properties\":{\"offset\":{\"type\":\"integer\",\"minimum\":0},\"length\":{\"type\":\"integer\",\"minimum\":1},\"quote\":{\"type\":\"string\",\"minLength\":1}},\"required\":[\"offset\",\"length\",\"quote\"],\"additionalProperties\":false}]}}},\"required\":[\"source\",\"spans\"],\"additionalProperties\":false}}},\"required\":[\"path\",\"content\",\"derived_from\"],\"additionalProperties\":false}}]},\"jsonrpc\":\"2.0\",\"id\":1}\n"
+          }
+        ],
+        "normalizedEvents": [
+          {
+            "stream": "stdin",
+            "message": {
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_1>",
+              "method": "tools/list",
+              "params": {}
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdout",
+            "message": {
+              "result": {
+                "tools": [
+                  {
+                    "name": "write_page",
+                    "title": "Create a page with lineage",
+                    "description": "Tier A: attempt to create a page outside Arc/; target and sources use the grant fence.\n\nThe target is created exclusively. An occupied leaf refuses EXISTS; this tool does not\noverwrite, delete or rename. The target and every derived_from.source are grant-relative\nand go through the imported wyrd-fence implementation.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nSuccess creates the page and appends one lineage line. The vault configuration may also\nproject lineage into frontmatter. If the ledger fails after creation, the page stays in\nplace and the refusal includes both the created page and the underlying cause.",
+                    "inputSchema": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "content": {
+                          "type": "string"
+                        },
+                        "derived_from": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "spans": {
+                                "type": "array",
+                                "minItems": 1,
+                                "items": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "offset": {
+                                          "type": "integer",
+                                          "minimum": 0
+                                        },
+                                        "length": {
+                                          "type": "integer",
+                                          "minimum": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "offset",
+                                        "length"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "quote": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "quote"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "offset": {
+                                          "type": "integer",
+                                          "minimum": 0
+                                        },
+                                        "length": {
+                                          "type": "integer",
+                                          "minimum": 1
+                                        },
+                                        "quote": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "offset",
+                                        "length",
+                                        "quote"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "spans"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "content",
+                        "derived_from"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                ]
+              },
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_1>"
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdin",
+            "end": true
+          },
+          {
+            "stream": "exit",
+            "code": 0,
+            "signal": null
+          }
+        ]
+      },
+      "initializedLifecycle": {
+        "command": {
+          "runtime": "node",
+          "entrypoint": "dist/index.js",
+          "args": [],
+          "env": {
+            "WYRD_GRANT": "<TEMP>\\expanded-characterization\\grant",
+            "WYRD_SCRIBE_TIER": "A"
+          }
+        },
+        "byteStrictStaticStdoutLines": [
+          {
+            "label": "tools/call name-number response",
+            "byteLength": 270,
+            "base64": "eyJqc29ucnBjIjoiMi4wIiwiaWQiOjQsImVycm9yIjp7ImNvZGUiOi0zMjYwMywibWVzc2FnZSI6IltcbiAge1xuICAgIFwiZXhwZWN0ZWRcIjogXCJzdHJpbmdcIixcbiAgICBcImNvZGVcIjogXCJpbnZhbGlkX3R5cGVcIixcbiAgICBcInBhdGhcIjogW1xuICAgICAgXCJwYXJhbXNcIixcbiAgICAgIFwibmFtZVwiXG4gICAgXSxcbiAgICBcIm1lc3NhZ2VcIjogXCJJbnZhbGlkIGlucHV0OiBleHBlY3RlZCBzdHJpbmcsIHJlY2VpdmVkIG51bWJlclwiXG4gIH1cbl0ifX0K",
+            "utf8ForReview": "{\"jsonrpc\":\"2.0\",\"id\":4,\"error\":{\"code\":-32603,\"message\":\"[\\n  {\\n    \\\"expected\\\": \\\"string\\\",\\n    \\\"code\\\": \\\"invalid_type\\\",\\n    \\\"path\\\": [\\n      \\\"params\\\",\\n      \\\"name\\\"\\n    ],\\n    \\\"message\\\": \\\"Invalid input: expected string, received number\\\"\\n  }\\n]\"}}\n"
+          }
+        ],
+        "normalizedEvents": [
+          {
+            "stream": "stdin",
+            "message": {
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_1>",
+              "method": "initialize",
+              "params": {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {
+                  "roots": {
+                    "listChanged": true
+                  }
+                },
+                "clientInfo": {
+                  "name": "wyrd-v1-baseline-oracle",
+                  "version": "1.0.0"
+                }
+              }
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdout",
+            "message": {
+              "result": {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {
+                  "tools": {}
+                },
+                "serverInfo": {
+                  "name": "wyrd-scribe",
+                  "version": "0.0.0"
+                },
+                "instructions": "wyrd-scribe is serving exactly one canonical grant: <TEMP>\\expanded-characterization\\grant\nThe active write tier is A. Exactly these tools are registered: `write_page`.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nEvery write target and every derived_from source is grant-relative and is sent through\nthe imported `wyrd-fence` operations. Tier A creates files exclusively; an occupied leaf refuses\nEXISTS. A successful write_page creates the page and appends one lineage line, and the\nvault configuration may also project lineage into frontmatter. If the ledger fails after\nthe page is created, the page stays in place and the refusal reports that outcome."
+              },
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_1>"
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdin",
+            "message": {
+              "jsonrpc": "2.0",
+              "method": "notifications/initialized"
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdin",
+            "message": {
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_2>",
+              "method": "initialize",
+              "params": {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {
+                  "roots": {
+                    "listChanged": true
+                  }
+                },
+                "clientInfo": {
+                  "name": "wyrd-v1-baseline-oracle",
+                  "version": "1.0.0"
+                }
+              }
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdout",
+            "message": {
+              "result": {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {
+                  "tools": {}
+                },
+                "serverInfo": {
+                  "name": "wyrd-scribe",
+                  "version": "0.0.0"
+                },
+                "instructions": "wyrd-scribe is serving exactly one canonical grant: <TEMP>\\expanded-characterization\\grant\nThe active write tier is A. Exactly these tools are registered: `write_page`.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nEvery write target and every derived_from source is grant-relative and is sent through\nthe imported `wyrd-fence` operations. Tier A creates files exclusively; an occupied leaf refuses\nEXISTS. A successful write_page creates the page and appends one lineage line, and the\nvault configuration may also project lineage into frontmatter. If the ledger fails after\nthe page is created, the page stays in place and the refusal reports that outcome."
+              },
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_2>"
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdin",
+            "message": {
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_3>",
+              "method": "tools/list",
+              "params": {
+                "cursor": "v1-characterization-cursor"
+              }
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdout",
+            "message": {
+              "result": {
+                "tools": [
+                  {
+                    "name": "write_page",
+                    "title": "Create a page with lineage",
+                    "description": "Tier A: attempt to create a page outside Arc/; target and sources use the grant fence.\n\nThe target is created exclusively. An occupied leaf refuses EXISTS; this tool does not\noverwrite, delete or rename. The target and every derived_from.source are grant-relative\nand go through the imported wyrd-fence implementation.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nSuccess creates the page and appends one lineage line. The vault configuration may also\nproject lineage into frontmatter. If the ledger fails after creation, the page stays in\nplace and the refusal includes both the created page and the underlying cause.",
+                    "inputSchema": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "content": {
+                          "type": "string"
+                        },
+                        "derived_from": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "spans": {
+                                "type": "array",
+                                "minItems": 1,
+                                "items": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "offset": {
+                                          "type": "integer",
+                                          "minimum": 0
+                                        },
+                                        "length": {
+                                          "type": "integer",
+                                          "minimum": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "offset",
+                                        "length"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "quote": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "quote"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "offset": {
+                                          "type": "integer",
+                                          "minimum": 0
+                                        },
+                                        "length": {
+                                          "type": "integer",
+                                          "minimum": 1
+                                        },
+                                        "quote": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "offset",
+                                        "length",
+                                        "quote"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "spans"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "content",
+                        "derived_from"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                ]
+              },
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_3>"
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdin",
+            "message": {
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_4>",
+              "method": "tools/call",
+              "params": {
+                "name": 7
+              }
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdout",
+            "message": {
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_4>",
+              "error": {
+                "code": -32603,
+                "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"params\",\n      \"name\"\n    ],\n    \"message\": \"Invalid input: expected string, received number\"\n  }\n]"
+              }
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdin",
+            "end": true
+          },
+          {
+            "stream": "exit",
+            "code": 0,
+            "signal": null
+          }
+        ]
+      }
+    },
+    "initializeAndList": {
+      "command": {
+        "runtime": "node",
+        "entrypoint": "dist/index.js",
+        "args": [],
+        "env": {
+          "WYRD_GRANT": "<TEMP>\\production-list\\grant",
+          "WYRD_SCRIBE_TIER": "A"
+        }
+      },
+      "byteStrictStaticStdoutLines": [],
+      "normalizedEvents": [
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>",
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "wyrd-v1-baseline-oracle",
+                "version": "1.0.0"
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {
+                "tools": {}
+              },
+              "serverInfo": {
+                "name": "wyrd-scribe",
+                "version": "0.0.0"
+              },
+              "instructions": "wyrd-scribe is serving exactly one canonical grant: <TEMP>\\production-list\\grant\nThe active write tier is A. Exactly these tools are registered: `write_page`.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nEvery write target and every derived_from source is grant-relative and is sent through\nthe imported `wyrd-fence` operations. Tier A creates files exclusively; an occupied leaf refuses\nEXISTS. A successful write_page creates the page and appends one lineage line, and the\nvault configuration may also project lineage into frontmatter. If the ledger fails after\nthe page is created, the page stays in place and the refusal reports that outcome."
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>",
+            "method": "tools/list",
+            "params": {}
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "tools": [
+                {
+                  "name": "write_page",
+                  "title": "Create a page with lineage",
+                  "description": "Tier A: attempt to create a page outside Arc/; target and sources use the grant fence.\n\nThe target is created exclusively. An occupied leaf refuses EXISTS; this tool does not\noverwrite, delete or rename. The target and every derived_from.source are grant-relative\nand go through the imported wyrd-fence implementation.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nSuccess creates the page and appends one lineage line. The vault configuration may also\nproject lineage into frontmatter. If the ledger fails after creation, the page stays in\nplace and the refusal includes both the created page and the underlying cause.",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "content": {
+                        "type": "string"
+                      },
+                      "derived_from": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "source": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "spans": {
+                              "type": "array",
+                              "minItems": 1,
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "offset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "length": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "offset",
+                                      "length"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "quote": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "quote"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "offset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "length": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                      },
+                                      "quote": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "offset",
+                                      "length",
+                                      "quote"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "spans"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "content",
+                      "derived_from"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              ]
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "end": true
+        },
+        {
+          "stream": "exit",
+          "code": 0,
+          "signal": null
+        }
+      ],
+      "filesystemBefore": [
+        {
+          "path": ".wyrd",
+          "kind": "directory"
+        },
+        {
+          "path": "Arc",
+          "kind": "directory"
+        },
+        {
+          "path": "Arc\\source.md",
+          "kind": "file",
+          "bytes": 34,
+          "base64": "QSBzb3VyY2Ugd2l0aCBhIHByZWNpc2UgcXVvdGF0aW9uLg==",
+          "utf8": "A source with a precise quotation."
+        },
+        {
+          "path": "Mage",
+          "kind": "directory"
+        }
+      ],
+      "filesystemAfter": [
+        {
+          "path": ".wyrd",
+          "kind": "directory"
+        },
+        {
+          "path": "Arc",
+          "kind": "directory"
+        },
+        {
+          "path": "Arc\\source.md",
+          "kind": "file",
+          "bytes": 34,
+          "base64": "QSBzb3VyY2Ugd2l0aCBhIHByZWNpc2UgcXVvdGF0aW9uLg==",
+          "utf8": "A source with a precise quotation."
+        },
+        {
+          "path": "Mage",
+          "kind": "directory"
+        }
+      ]
+    },
+    "writeSuccess": {
+      "command": {
+        "runtime": "node",
+        "entrypoint": "test/fixtures/tier-server.mjs",
+        "args": [],
+        "env": {
+          "WYRD_GRANT": "<TEMP>\\write-success\\grant",
+          "WYRD_SCRIBE_TIER": "A",
+          "WYRD_TEST_FIXED_EVENT_ID": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "WYRD_TEST_FIXED_TIME": "2026-09-14T12:34:56.789Z",
+          "WYRD_TEST_FIXED_UUID": "11111111-2222-4333-8444-555555555555",
+          "WYRD_TEST_PORT_MODE": "normal"
+        }
+      },
+      "byteStrictStaticStdoutLines": [],
+      "normalizedEvents": [
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>",
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "wyrd-v1-baseline-oracle",
+                "version": "1.0.0"
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {
+                "tools": {}
+              },
+              "serverInfo": {
+                "name": "wyrd-scribe",
+                "version": "0.0.0"
+              },
+              "instructions": "wyrd-scribe is serving exactly one canonical grant: <TEMP>\\write-success\\grant\nThe active write tier is A. Exactly these tools are registered: `write_page`.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nEvery write target and every derived_from source is grant-relative and is sent through\nthe imported `wyrd-fence` operations. Tier A creates files exclusively; an occupied leaf refuses\nEXISTS. A successful write_page creates the page and appends one lineage line, and the\nvault configuration may also project lineage into frontmatter. If the ledger fails after\nthe page is created, the page stays in place and the refusal reports that outcome."
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>",
+            "method": "tools/call",
+            "params": {
+              "name": "write_page",
+              "arguments": {
+                "path": "Mage/answer.md",
+                "content": "the answer",
+                "derived_from": [
+                  {
+                    "source": "Arc/source.md",
+                    "spans": [
+                      {
+                        "quote": "precise quotation"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "wyrd-scribe completed write_page.\n{\"ok\":true,\"created\":{\"ok\":true,\"rel\":\"Mage\\\\answer.md\",\"bytes\":10},\"record\":{\"schema\":\"wyrd.lineage/v1\",\"event\":\"page_written\",\"event_id\":\"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\",\"recorded_at\":\"2026-09-14T12:34:56.789Z\",\"writer\":{\"server\":\"wyrd-scribe\",\"version\":\"0.0.0\",\"tool\":\"write_page\"},\"vault\":{\"kind\":\"uuid\",\"id\":\"11111111-2222-4333-8444-555555555555\"},\"page\":{\"identity\":{\"kind\":\"path\",\"vault_id\":\"11111111-2222-4333-8444-555555555555\",\"path\":\"Mage/answer.md\"},\"content\":{\"algorithm\":\"sha256\",\"digest\":\"a7c9985d46ca5719357525cc365641e45d6882fb66949d4c08989883f8148c8b\",\"bytes\":10}},\"sources\":[{\"identity\":{\"kind\":\"path\",\"vault_id\":\"11111111-2222-4333-8444-555555555555\",\"path\":\"Arc/source.md\"},\"content\":{\"algorithm\":\"sha256\",\"digest\":\"c5765d4a7866c16afddbcede0fe90eeaf3ce0b454e36c43be8b8e871c2a2c6e6\",\"bytes\":34},\"spans\":[{\"offset\":16,\"length\":17,\"quote\":{\"text\":\"precise quotation\",\"original_utf8_bytes\":17,\"stored_utf8_bytes\":17,\"sha256\":\"843368466d7416a7fca22adc81d5cb7745182c3f325f43f39e1a1d41fc6b5f04\",\"truncated\":false}}]}]},\"appended\":962,\"config_created\":true}"
+                }
+              ]
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "end": true
+        },
+        {
+          "stream": "exit",
+          "code": 0,
+          "signal": null
+        }
+      ],
+      "filesystemBefore": [
+        {
+          "path": ".wyrd",
+          "kind": "directory"
+        },
+        {
+          "path": "Arc",
+          "kind": "directory"
+        },
+        {
+          "path": "Arc\\source.md",
+          "kind": "file",
+          "bytes": 34,
+          "base64": "QSBzb3VyY2Ugd2l0aCBhIHByZWNpc2UgcXVvdGF0aW9uLg==",
+          "utf8": "A source with a precise quotation."
+        },
+        {
+          "path": "Mage",
+          "kind": "directory"
+        }
+      ],
+      "filesystemAfter": [
+        {
+          "path": ".wyrd",
+          "kind": "directory"
+        },
+        {
+          "path": ".wyrd\\lineage.jsonl",
+          "kind": "file",
+          "bytes": 962,
+          "base64": "eyJzY2hlbWEiOiJ3eXJkLmxpbmVhZ2UvdjEiLCJldmVudCI6InBhZ2Vfd3JpdHRlbiIsImV2ZW50X2lkIjoiYWFhYWFhYWEtYmJiYi00Y2NjLThkZGQtZWVlZWVlZWVlZWVlIiwicmVjb3JkZWRfYXQiOiIyMDI2LTA5LTE0VDEyOjM0OjU2Ljc4OVoiLCJ3cml0ZXIiOnsic2VydmVyIjoid3lyZC1zY3JpYmUiLCJ2ZXJzaW9uIjoiMC4wLjAiLCJ0b29sIjoid3JpdGVfcGFnZSJ9LCJ2YXVsdCI6eyJraW5kIjoidXVpZCIsImlkIjoiMTExMTExMTEtMjIyMi00MzMzLTg0NDQtNTU1NTU1NTU1NTU1In0sInBhZ2UiOnsiaWRlbnRpdHkiOnsia2luZCI6InBhdGgiLCJ2YXVsdF9pZCI6IjExMTExMTExLTIyMjItNDMzMy04NDQ0LTU1NTU1NTU1NTU1NSIsInBhdGgiOiJNYWdlL2Fuc3dlci5tZCJ9LCJjb250ZW50Ijp7ImFsZ29yaXRobSI6InNoYTI1NiIsImRpZ2VzdCI6ImE3Yzk5ODVkNDZjYTU3MTkzNTc1MjVjYzM2NTY0MWU0NWQ2ODgyZmI2Njk0OWQ0YzA4OTg5ODgzZjgxNDhjOGIiLCJieXRlcyI6MTB9fSwic291cmNlcyI6W3siaWRlbnRpdHkiOnsia2luZCI6InBhdGgiLCJ2YXVsdF9pZCI6IjExMTExMTExLTIyMjItNDMzMy04NDQ0LTU1NTU1NTU1NTU1NSIsInBhdGgiOiJBcmMvc291cmNlLm1kIn0sImNvbnRlbnQiOnsiYWxnb3JpdGhtIjoic2hhMjU2IiwiZGlnZXN0IjoiYzU3NjVkNGE3ODY2YzE2YWZkZGJjZWRlMGZlOTBlZWFmM2NlMGI0NTRlMzZjNDNiZThiOGU4NzFjMmEyYzZlNiIsImJ5dGVzIjozNH0sInNwYW5zIjpbeyJvZmZzZXQiOjE2LCJsZW5ndGgiOjE3LCJxdW90ZSI6eyJ0ZXh0IjoicHJlY2lzZSBxdW90YXRpb24iLCJvcmlnaW5hbF91dGY4X2J5dGVzIjoxNywic3RvcmVkX3V0ZjhfYnl0ZXMiOjE3LCJzaGEyNTYiOiI4NDMzNjg0NjZkNzQxNmE3ZmNhMjJhZGM4MWQ1Y2I3NzQ1MTgyYzNmMzI1ZjQzZjM5ZTFhMWQ0MWZjNmI1ZjA0IiwidHJ1bmNhdGVkIjpmYWxzZX19XX1dfQo=",
+          "utf8": "{\"schema\":\"wyrd.lineage/v1\",\"event\":\"page_written\",\"event_id\":\"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\",\"recorded_at\":\"2026-09-14T12:34:56.789Z\",\"writer\":{\"server\":\"wyrd-scribe\",\"version\":\"0.0.0\",\"tool\":\"write_page\"},\"vault\":{\"kind\":\"uuid\",\"id\":\"11111111-2222-4333-8444-555555555555\"},\"page\":{\"identity\":{\"kind\":\"path\",\"vault_id\":\"11111111-2222-4333-8444-555555555555\",\"path\":\"Mage/answer.md\"},\"content\":{\"algorithm\":\"sha256\",\"digest\":\"a7c9985d46ca5719357525cc365641e45d6882fb66949d4c08989883f8148c8b\",\"bytes\":10}},\"sources\":[{\"identity\":{\"kind\":\"path\",\"vault_id\":\"11111111-2222-4333-8444-555555555555\",\"path\":\"Arc/source.md\"},\"content\":{\"algorithm\":\"sha256\",\"digest\":\"c5765d4a7866c16afddbcede0fe90eeaf3ce0b454e36c43be8b8e871c2a2c6e6\",\"bytes\":34},\"spans\":[{\"offset\":16,\"length\":17,\"quote\":{\"text\":\"precise quotation\",\"original_utf8_bytes\":17,\"stored_utf8_bytes\":17,\"sha256\":\"843368466d7416a7fca22adc81d5cb7745182c3f325f43f39e1a1d41fc6b5f04\",\"truncated\":false}}]}]}\n"
+        },
+        {
+          "path": ".wyrd\\scribe.json",
+          "kind": "file",
+          "bytes": 117,
+          "base64": "ewogICJzY2hlbWEiOiAid3lyZC5zY3JpYmUvdjEiLAogICJ2YXVsdF9pZCI6ICIxMTExMTExMS0yMjIyLTQzMzMtODQ0NC01NTU1NTU1NTU1NTUiLAogICJ3cml0ZV9mcm9udG1hdHRlciI6IGZhbHNlCn0K",
+          "utf8": "{\n  \"schema\": \"wyrd.scribe/v1\",\n  \"vault_id\": \"11111111-2222-4333-8444-555555555555\",\n  \"write_frontmatter\": false\n}\n"
+        },
+        {
+          "path": "Arc",
+          "kind": "directory"
+        },
+        {
+          "path": "Arc\\source.md",
+          "kind": "file",
+          "bytes": 34,
+          "base64": "QSBzb3VyY2Ugd2l0aCBhIHByZWNpc2UgcXVvdGF0aW9uLg==",
+          "utf8": "A source with a precise quotation."
+        },
+        {
+          "path": "Mage",
+          "kind": "directory"
+        },
+        {
+          "path": "Mage\\answer.md",
+          "kind": "file",
+          "bytes": 10,
+          "base64": "dGhlIGFuc3dlcg==",
+          "utf8": "the answer"
+        }
+      ]
+    },
+    "schemaErrors": {
+      "command": {
+        "runtime": "node",
+        "entrypoint": "test/fixtures/tier-server.mjs",
+        "args": [],
+        "env": {
+          "WYRD_GRANT": "<TEMP>\\schema-errors\\grant",
+          "WYRD_SCRIBE_TIER": "A",
+          "WYRD_TEST_PORT_COUNT": "<TEMP>\\schema-port-calls.txt",
+          "WYRD_TEST_PORT_MODE": "normal"
+        }
+      },
+      "byteStrictStaticStdoutLines": [],
+      "normalizedEvents": [
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>",
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "wyrd-v1-baseline-oracle",
+                "version": "1.0.0"
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {
+                "tools": {}
+              },
+              "serverInfo": {
+                "name": "wyrd-scribe",
+                "version": "0.0.0"
+              },
+              "instructions": "wyrd-scribe is serving exactly one canonical grant: <TEMP>\\schema-errors\\grant\nThe active write tier is A. Exactly these tools are registered: `write_page`.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nEvery write target and every derived_from source is grant-relative and is sent through\nthe imported `wyrd-fence` operations. Tier A creates files exclusively; an occupied leaf refuses\nEXISTS. A successful write_page creates the page and appends one lineage line, and the\nvault configuration may also project lineage into frontmatter. If the ledger fails after\nthe page is created, the page stays in place and the refusal reports that outcome."
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>",
+            "method": "tools/call",
+            "params": {
+              "name": "write_page",
+              "arguments": {
+                "path": "Mage/extra.md",
+                "content": "x",
+                "derived_from": [],
+                "extra": true
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "wyrd-scribe refused invalid tool arguments: arguments/extra is not allowed by inputSchema."
+                }
+              ],
+              "isError": true
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_3>",
+            "method": "tools/call",
+            "params": {
+              "name": "write_page",
+              "arguments": {
+                "path": "Mage/negative.md",
+                "content": "x",
+                "derived_from": [
+                  {
+                    "source": "Arc/source.md",
+                    "spans": [
+                      {
+                        "offset": -1,
+                        "length": 1
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "wyrd-scribe refused invalid tool arguments: arguments/derived_from/0/spans/0/offset must be >= 0."
+                }
+              ],
+              "isError": true
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_3>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_4>",
+            "method": "tools/call",
+            "params": {
+              "name": "write_page",
+              "arguments": {
+                "path": "Mage/empty-spans.md",
+                "content": "x",
+                "derived_from": [
+                  {
+                    "source": "Arc/source.md",
+                    "spans": []
+                  }
+                ]
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "wyrd-scribe refused invalid tool arguments: arguments/derived_from/0/spans must NOT have fewer than 1 items."
+                }
+              ],
+              "isError": true
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_4>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_5>",
+            "method": "tools/call",
+            "params": {
+              "name": "write_page",
+              "arguments": {
+                "path": "Mage/missing-source.md",
+                "content": "x",
+                "derived_from": [
+                  {
+                    "spans": [
+                      {
+                        "quote": "precise quotation"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "wyrd-scribe refused invalid tool arguments: arguments/derived_from/0/source is required by inputSchema."
+                }
+              ],
+              "isError": true
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_5>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_6>",
+            "method": "tools/call",
+            "params": {
+              "name": "write_page",
+              "arguments": {
+                "path": "Mage/zero-length.md",
+                "content": "x",
+                "derived_from": [
+                  {
+                    "source": "Arc/source.md",
+                    "spans": [
+                      {
+                        "offset": 0,
+                        "length": 0,
+                        "quote": "precise quotation"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "wyrd-scribe refused invalid tool arguments: arguments/derived_from/0/spans/0/length must be >= 1."
+                }
+              ],
+              "isError": true
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_6>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "end": true
+        },
+        {
+          "stream": "exit",
+          "code": 0,
+          "signal": null
+        }
+      ],
+      "filesystemBefore": [
+        {
+          "path": ".wyrd",
+          "kind": "directory"
+        },
+        {
+          "path": ".wyrd\\scribe.json",
+          "kind": "file",
+          "bytes": 103,
+          "base64": "eyJzY2hlbWEiOiJ3eXJkLnNjcmliZS92MSIsInZhdWx0X2lkIjoiMTExMTExMTEtMjIyMi00MzMzLTg0NDQtNTU1NTU1NTU1NTU1Iiwid3JpdGVfZnJvbnRtYXR0ZXIiOmZhbHNlfQ==",
+          "utf8": "{\"schema\":\"wyrd.scribe/v1\",\"vault_id\":\"11111111-2222-4333-8444-555555555555\",\"write_frontmatter\":false}"
+        },
+        {
+          "path": "Arc",
+          "kind": "directory"
+        },
+        {
+          "path": "Arc\\source.md",
+          "kind": "file",
+          "bytes": 34,
+          "base64": "QSBzb3VyY2Ugd2l0aCBhIHByZWNpc2UgcXVvdGF0aW9uLg==",
+          "utf8": "A source with a precise quotation."
+        },
+        {
+          "path": "Mage",
+          "kind": "directory"
+        }
+      ],
+      "filesystemAfter": [
+        {
+          "path": ".wyrd",
+          "kind": "directory"
+        },
+        {
+          "path": ".wyrd\\scribe.json",
+          "kind": "file",
+          "bytes": 103,
+          "base64": "eyJzY2hlbWEiOiJ3eXJkLnNjcmliZS92MSIsInZhdWx0X2lkIjoiMTExMTExMTEtMjIyMi00MzMzLTg0NDQtNTU1NTU1NTU1NTU1Iiwid3JpdGVfZnJvbnRtYXR0ZXIiOmZhbHNlfQ==",
+          "utf8": "{\"schema\":\"wyrd.scribe/v1\",\"vault_id\":\"11111111-2222-4333-8444-555555555555\",\"write_frontmatter\":false}"
+        },
+        {
+          "path": "Arc",
+          "kind": "directory"
+        },
+        {
+          "path": "Arc\\source.md",
+          "kind": "file",
+          "bytes": 34,
+          "base64": "QSBzb3VyY2Ugd2l0aCBhIHByZWNpc2UgcXVvdGF0aW9uLg==",
+          "utf8": "A source with a precise quotation."
+        },
+        {
+          "path": "Mage",
+          "kind": "directory"
+        }
+      ],
+      "portCallFileExists": false
+    },
+    "fenceRefusals": {
+      "command": {
+        "runtime": "node",
+        "entrypoint": "dist/index.js",
+        "args": [],
+        "env": {
+          "WYRD_GRANT": "<TEMP>\\fence-refusals\\grant",
+          "WYRD_SCRIBE_TIER": "A"
+        }
+      },
+      "byteStrictStaticStdoutLines": [],
+      "normalizedEvents": [
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>",
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "wyrd-v1-baseline-oracle",
+                "version": "1.0.0"
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {
+                "tools": {}
+              },
+              "serverInfo": {
+                "name": "wyrd-scribe",
+                "version": "0.0.0"
+              },
+              "instructions": "wyrd-scribe is serving exactly one canonical grant: <TEMP>\\fence-refusals\\grant\nThe active write tier is A. Exactly these tools are registered: `write_page`.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nEvery write target and every derived_from source is grant-relative and is sent through\nthe imported `wyrd-fence` operations. Tier A creates files exclusively; an occupied leaf refuses\nEXISTS. A successful write_page creates the page and appends one lineage line, and the\nvault configuration may also project lineage into frontmatter. If the ledger fails after\nthe page is created, the page stays in place and the refusal reports that outcome."
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>",
+            "method": "tools/call",
+            "params": {
+              "name": "write_page",
+              "arguments": {
+                "path": "Arc/no.md",
+                "content": "x",
+                "derived_from": []
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "wyrd-scribe refused write_page.\n{\"ok\":false,\"reason\":\"ARC_IMMUTABLE\",\"detail\":\"Arc/ is the provenance layer; this server refuses writes addressed into it\"}"
+                }
+              ],
+              "isError": true
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_3>",
+            "method": "tools/call",
+            "params": {
+              "name": "write_page",
+              "arguments": {
+                "path": "Mage/occupied.md",
+                "content": "new",
+                "derived_from": []
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "wyrd-scribe refused write_page.\n{\"ok\":false,\"reason\":\"EXISTS\",\"detail\":\"Mage\\\\occupied.md already exists\",\"resolvedPath\":\"\",\"retained\":null}"
+                }
+              ],
+              "isError": true
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_3>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_4>",
+            "method": "tools/call",
+            "params": {
+              "name": "write_page",
+              "arguments": {
+                "path": "../outside/new.md",
+                "content": "x",
+                "derived_from": []
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "wyrd-scribe refused write_page.\n{\"ok\":false,\"reason\":\"ESCAPES\",\"detail\":\"the path leaves the granted folder\",\"resolvedPath\":\"\",\"retained\":null}"
+                }
+              ],
+              "isError": true
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_4>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_5>",
+            "method": "tools/call",
+            "params": {
+              "name": "write_page",
+              "arguments": {
+                "path": "Mage/from-escape.md",
+                "content": "x",
+                "derived_from": [
+                  {
+                    "source": "../outside/outside.md",
+                    "spans": [
+                      {
+                        "quote": "OUTSIDE"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "wyrd-scribe refused write_page.\n{\"ok\":false,\"reason\":\"ESCAPES\",\"detail\":\"the path leaves the granted folder\",\"resolvedPath\":\"\"}"
+                }
+              ],
+              "isError": true
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_5>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "end": true
+        },
+        {
+          "stream": "exit",
+          "code": 0,
+          "signal": null
+        }
+      ],
+      "filesystemBefore": [
+        {
+          "path": "grant",
+          "kind": "directory"
+        },
+        {
+          "path": "grant\\.wyrd",
+          "kind": "directory"
+        },
+        {
+          "path": "grant\\.wyrd\\scribe.json",
+          "kind": "file",
+          "bytes": 103,
+          "base64": "eyJzY2hlbWEiOiJ3eXJkLnNjcmliZS92MSIsInZhdWx0X2lkIjoiMTExMTExMTEtMjIyMi00MzMzLTg0NDQtNTU1NTU1NTU1NTU1Iiwid3JpdGVfZnJvbnRtYXR0ZXIiOmZhbHNlfQ==",
+          "utf8": "{\"schema\":\"wyrd.scribe/v1\",\"vault_id\":\"11111111-2222-4333-8444-555555555555\",\"write_frontmatter\":false}"
+        },
+        {
+          "path": "grant\\Arc",
+          "kind": "directory"
+        },
+        {
+          "path": "grant\\Arc\\source.md",
+          "kind": "file",
+          "bytes": 34,
+          "base64": "QSBzb3VyY2Ugd2l0aCBhIHByZWNpc2UgcXVvdGF0aW9uLg==",
+          "utf8": "A source with a precise quotation."
+        },
+        {
+          "path": "grant\\Mage",
+          "kind": "directory"
+        },
+        {
+          "path": "grant\\Mage\\occupied.md",
+          "kind": "file",
+          "bytes": 8,
+          "base64": "b3JpZ2luYWw=",
+          "utf8": "original"
+        },
+        {
+          "path": "outside",
+          "kind": "directory"
+        },
+        {
+          "path": "outside\\outside.md",
+          "kind": "file",
+          "bytes": 7,
+          "base64": "T1VUU0lERQ==",
+          "utf8": "OUTSIDE"
+        }
+      ],
+      "filesystemAfter": [
+        {
+          "path": "grant",
+          "kind": "directory"
+        },
+        {
+          "path": "grant\\.wyrd",
+          "kind": "directory"
+        },
+        {
+          "path": "grant\\.wyrd\\scribe.json",
+          "kind": "file",
+          "bytes": 103,
+          "base64": "eyJzY2hlbWEiOiJ3eXJkLnNjcmliZS92MSIsInZhdWx0X2lkIjoiMTExMTExMTEtMjIyMi00MzMzLTg0NDQtNTU1NTU1NTU1NTU1Iiwid3JpdGVfZnJvbnRtYXR0ZXIiOmZhbHNlfQ==",
+          "utf8": "{\"schema\":\"wyrd.scribe/v1\",\"vault_id\":\"11111111-2222-4333-8444-555555555555\",\"write_frontmatter\":false}"
+        },
+        {
+          "path": "grant\\Arc",
+          "kind": "directory"
+        },
+        {
+          "path": "grant\\Arc\\source.md",
+          "kind": "file",
+          "bytes": 34,
+          "base64": "QSBzb3VyY2Ugd2l0aCBhIHByZWNpc2UgcXVvdGF0aW9uLg==",
+          "utf8": "A source with a precise quotation."
+        },
+        {
+          "path": "grant\\Mage",
+          "kind": "directory"
+        },
+        {
+          "path": "grant\\Mage\\occupied.md",
+          "kind": "file",
+          "bytes": 8,
+          "base64": "b3JpZ2luYWw=",
+          "utf8": "original"
+        },
+        {
+          "path": "outside",
+          "kind": "directory"
+        },
+        {
+          "path": "outside\\outside.md",
+          "kind": "file",
+          "bytes": 7,
+          "base64": "T1VUU0lERQ==",
+          "utf8": "OUTSIDE"
+        }
+      ]
+    },
+    "fixtureB": {
+      "command": {
+        "runtime": "node",
+        "entrypoint": "test/fixtures/tier-server.mjs",
+        "args": [],
+        "env": {
+          "WYRD_GRANT": {
+            "unset": true
+          },
+          "WYRD_SCRIBE_TIER": "B",
+          "WYRD_TEST_PORT_MODE": {
+            "unset": true
+          }
+        }
+      },
+      "byteStrictStaticStdoutLines": [],
+      "normalizedEvents": [
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>",
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "wyrd-v1-baseline-oracle",
+                "version": "1.0.0"
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {
+                "tools": {}
+              },
+              "serverInfo": {
+                "name": "wyrd-scribe",
+                "version": "0.0.0"
+              },
+              "instructions": "Test-only inert tier B; registered tools: write_page, overwrite_page. No filesystem grant is opened."
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>",
+            "method": "tools/list",
+            "params": {}
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "tools": [
+                {
+                  "name": "write_page",
+                  "title": "Fixture write_page",
+                  "description": "Tier B: test-only inert registration; performs no filesystem operation.",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "name": "overwrite_page",
+                  "title": "Fixture overwrite_page",
+                  "description": "Tier B: test-only inert registration; performs no filesystem operation.",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                  }
+                }
+              ]
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_3>",
+            "method": "tools/call",
+            "params": {
+              "name": "overwrite_page",
+              "arguments": {}
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "fixture:B:overwrite_page"
+                }
+              ]
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_3>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "end": true
+        },
+        {
+          "stream": "exit",
+          "code": 0,
+          "signal": null
+        }
+      ]
+    },
+    "fixtureC": {
+      "command": {
+        "runtime": "node",
+        "entrypoint": "test/fixtures/tier-server.mjs",
+        "args": [],
+        "env": {
+          "WYRD_GRANT": {
+            "unset": true
+          },
+          "WYRD_SCRIBE_TIER": "C",
+          "WYRD_TEST_PORT_MODE": {
+            "unset": true
+          }
+        }
+      },
+      "byteStrictStaticStdoutLines": [],
+      "normalizedEvents": [
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>",
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "wyrd-v1-baseline-oracle",
+                "version": "1.0.0"
+              }
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "protocolVersion": "2025-11-25",
+              "capabilities": {
+                "tools": {}
+              },
+              "serverInfo": {
+                "name": "wyrd-scribe",
+                "version": "0.0.0"
+              },
+              "instructions": "Test-only inert tier C; registered tools: write_page, overwrite_page, delete_page, rename_page. No filesystem grant is opened."
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_1>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>",
+            "method": "tools/list",
+            "params": {}
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "tools": [
+                {
+                  "name": "write_page",
+                  "title": "Fixture write_page",
+                  "description": "Tier C: test-only inert registration; performs no filesystem operation.",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "name": "overwrite_page",
+                  "title": "Fixture overwrite_page",
+                  "description": "Tier C: test-only inert registration; performs no filesystem operation.",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "name": "delete_page",
+                  "title": "Fixture delete_page",
+                  "description": "Tier C: test-only inert registration; performs no filesystem operation.",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "name": "rename_page",
+                  "title": "Fixture rename_page",
+                  "description": "Tier C: test-only inert registration; performs no filesystem operation.",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                  }
+                }
+              ]
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_2>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_3>",
+            "method": "tools/call",
+            "params": {
+              "name": "delete_page",
+              "arguments": {}
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "fixture:C:delete_page"
+                }
+              ]
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_3>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "message": {
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_4>",
+            "method": "tools/call",
+            "params": {
+              "name": "rename_page",
+              "arguments": {}
+            }
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdout",
+          "message": {
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "fixture:C:rename_page"
+                }
+              ]
+            },
+            "jsonrpc": "2.0",
+            "id": "<REQUEST_ID_4>"
+          },
+          "ending": "\n"
+        },
+        {
+          "stream": "stdin",
+          "end": true
+        },
+        {
+          "stream": "exit",
+          "code": 0,
+          "signal": null
+        }
+      ]
+    }
+  }
+}

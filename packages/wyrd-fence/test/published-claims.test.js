@@ -1,7 +1,7 @@
 /**
- * THE FENCE'S PUBLISHED SECURITY ACCOUNT — `PC1`, `PC2`, `PC3`.
+ * THE FENCE'S PUBLISHED SECURITY ACCOUNT — `PC1`, `PC2`, `PC3`, `PC4`.
  *
- * ⚠⚠ WHAT THESE THREE ARMS DO NOT DO, STATED FIRST BECAUSE THE TEMPTATION IS TO READ THEM AS MORE.
+ * ⚠⚠ WHAT THESE FOUR ARMS DO NOT DO, STATED FIRST BECAUSE THE TEMPTATION IS TO READ THEM AS MORE.
  * NONE OF THEM CHECKS A CLAIM AGAINST THE CODE. The fence's published limits were wrong three times
  * in one night, and of those three failures these arms would have caught EXACTLY ONE: the
  * `package.json` description that told a reader the README listed every known limit while the README
@@ -31,6 +31,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -119,12 +120,16 @@ function resolveNpmCli() {
 
 function packedFiles() {
     let raw;
+    const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-fence-npm-cache-'));
     try {
         const npmCli = resolveNpmCli();
         raw = execFileSync(
             process.execPath,
             [npmCli, 'pack', '--dry-run', '--json', '--ignore-scripts', pkgRoot],
-            { cwd: pkgRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000 }
+            {
+                cwd: pkgRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000,
+                env: { ...process.env, npm_config_cache: cache }
+            }
         );
     } catch (error) {
         throw new Error(
@@ -132,7 +137,7 @@ function packedFiles() {
             'is unknown. This arm refuses rather than falling back to the `files` field: `files` is a ' +
             `declaration and pack is the fact. Underlying failure: ${error?.message ?? error}`
         );
-    }
+    } finally { fs.rmSync(cache, { recursive: true, force: true }); }
     let parsed;
     try {
         parsed = JSON.parse(raw);
@@ -329,4 +334,34 @@ test('PC3-limits-section-live — the limits section is substantive and the sour
         flatten(manifest.description ?? '').includes(`See the README section '${LIMITS_HEADING}'`),
         "package.json's description must keep routing to the README section by name"
     );
+});
+
+test('PC4-append-window-single-home — the exact append race account lives only in the README', () => {
+    arm('PC4-append-window-single-home');
+
+    const start = readme.indexOf(`## ${LIMITS_HEADING}`);
+    const rest = readme.slice(start + LIMITS_HEADING.length + 3);
+    const next = rest.search(/^##\s/m);
+    const limits = next === -1 ? rest : rest.slice(0, next);
+    const appendStart = source.indexOf('Append ONE already-serialised');
+    const appendEnd = source.indexOf('appendLineInGrant(request:', appendStart);
+    const appendComment = source.slice(appendStart, appendEnd);
+
+    const flatLimits = flatten(limits);
+    for (const required of [
+        /once before it opens the leaf and once from the descriptor afterwards/i,
+        /After the fence's last check[\s\S]*before the single write/i,
+        /no share mode and no way to forbid `link\(\)` or `rename\(\)`/i,
+        /single-named and inside the folder when it was opened/i,
+        /bytes can end up under a name the other party chose/i
+    ]) assert.match(flatLimits, required, 'the authoritative README lost part of the exact append-window account');
+
+    assert.match(appendComment, /README\.md, "Security boundary and limits"/);
+    assert.match(appendComment, /bytes under a name chosen by another writer/i);
+    for (const distinctive of [
+        /before the single write/i,
+        /no share mode and no way to forbid `link\(\)` or `rename\(\)`/i,
+        /single-named and inside the folder when it was opened/i
+    ]) assert.doesNotMatch(appendComment, distinctive,
+        'distinctive timing language appears in both the README and appendLineInGrant source comment');
 });
