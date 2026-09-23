@@ -1,0 +1,46 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.wyrdmcp/wyrd-scribe",
+  "description": "Creates new pages with provenance and records lineage in a ledger under .wyrd/.",
+  "repository": {
+    "url": "https://github.com/MortalPastry/wyrd-mcp",
+    "source": "github",
+    "subfolder": "packages/wyrd-scribe"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "wyrd-scribe",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--grant",
+          "description": "Folder where pages may be created. It must already contain a .wyrd/ directory. Wins over WYRD_GRANT.",
+          "isRequired": false,
+          "format": "filepath",
+          "isSecret": false
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "WYRD_GRANT",
+          "description": "Folder where pages may be created. It must already contain a .wyrd/ directory. Used when --grant is absent.",
+          "isRequired": false,
+          "format": "filepath",
+          "isSecret": false
+        },
+        {
+          "name": "WYRD_SCRIBE_TIER",
+          "description": "Selects tier A by default. Tiers B and C are recognized but this build refuses to start with either.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

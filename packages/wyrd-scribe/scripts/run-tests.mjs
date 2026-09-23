@@ -54,6 +54,7 @@ const FILES = [
     'test/stamp.test.js',
     'test/server.test.js',
     'test/package.test.js',
+    'test/manifest-schema.test.js',
     'test/v1-baseline.test.js'
 ];
 

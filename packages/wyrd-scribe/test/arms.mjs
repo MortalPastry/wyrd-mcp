@@ -213,13 +213,21 @@ export const SERVER_ARMS = {
 };
 
 export const PACKAGE_ARMS = {
-    'PK1-manifest-surface': 'the published 0.1.0 manifest has the exact binary, files, metadata and Fence dependency surface without publish material',
+    'PK1-manifest-surface': 'the published 0.1.1 manifest has the exact binary, files, metadata and Fence dependency surface without publish material',
     'PK2-packed-files': 'npm pack derives package metadata, docs, the bin and every expected dist output while excluding source, scripts, tests and build metadata',
     'PK3-version-single-source': 'the generated runtime version equals package.json and server.ts owns no second literal',
     'PK4-readme-contract': 'the README states the Tier-A, configuration, input, lineage, recovery, security and privacy contracts and links to the Fence window'
 };
 
-export const ALL_ARMS = { ...SPAN_ARMS, ...STAMP_ARMS, ...SERVER_ARMS, ...PACKAGE_ARMS };
+/** MCP Registry manifest arms — `test/manifest-schema.test.js`. */
+export const MANIFEST_ARMS = {
+    'MF1-manifest-schema': 'server.json conforms to the Reader vendored MCP Registry schema',
+    'MF2-manifest-cross-reference': 'server.json names this exact npm package and version, advertises only stdio, and declares only runtime configuration names'
+};
+
+export const ALL_ARMS = {
+    ...SPAN_ARMS, ...STAMP_ARMS, ...SERVER_ARMS, ...PACKAGE_ARMS, ...MANIFEST_ARMS
+};
 
 /**
  * ⚠ EVERY SCRIBE ARM IS STILL PORTABLE, AND THE REASON CHANGED WITH THIS SLICE. It used to be that

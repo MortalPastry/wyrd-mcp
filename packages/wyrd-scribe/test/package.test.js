@@ -54,12 +54,12 @@ function packedFiles() {
 
 // ⚠ THIS ARM PINNED `private: true` AT `0.0.0` UNTIL 2026-09-22, and that pin was the catch that
 // kept the Scribe from shipping by accident. Publishing was ruled that day; the pin moved to the
-// first published version rather than being loosened, so a later edit to either field still reddens
+// current published version rather than being loosened, so a later edit to either field still reddens
 // here and has to be made on purpose.
 test('PK1-manifest-surface — the published package has its exact binary surface and metadata', () => {
     arm('PK1-manifest-surface');
     assert.equal(manifest.name, 'wyrd-scribe');
-    assert.equal(manifest.version, '0.1.0');
+    assert.equal(manifest.version, '0.1.1');
     assert.equal(manifest.private, false);
     assert.equal(typeof manifest.private, 'boolean');
     assert.equal(manifest.license, 'Apache-2.0');
@@ -93,7 +93,7 @@ test('PK1-manifest-surface — the published package has its exact binary surfac
     assert.equal(manifest.scripts?.['pretest:portable'], 'npm --prefix ../wyrd run build');
     assert.equal(manifest.scripts?.publish, undefined);
     assert.equal(manifest.publishConfig, undefined);
-    assert.equal(manifest.mcpName, undefined);
+    assert.equal(manifest.mcpName, 'com.wyrdmcp/wyrd-scribe');
     assert.equal(manifest.server, undefined);
 });
 
