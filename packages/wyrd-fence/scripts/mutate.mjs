@@ -37,8 +37,12 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { loadContract, verifyMutationRows, verifyMutationResults, refuse } from '../../wyrd/scripts/verify-relocation-contract.mjs';
+import { lineEndingOf, withLineEnding } from './mutation-text.mjs';
+import { guardBattery, batteryLockFixture, registerBatteryTargets, recordBatteryMutant, assertNoBatteryLockRefusal } from './battery-lock.mjs';
 
 const pkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+if (!process.argv.some(arg => ['--eol-fixture', '--restore-fixture'].includes(arg))) guardBattery('fence mutation');
+batteryLockFixture();
 
 /**
  * ⚠⚠ THIS ENTRY IS LOAD-BEARING FOR THE WHOLE RUN. Its value is read by an unconditional
@@ -200,6 +204,29 @@ const ROWS = [
         to: 'if (volumeIdentity(rawGrant) === volumeIdentity(normalized)) {' },
     { id: 'M30', file: 'fsgate', what: 'delete the root-identity re-check (all three sites)', plan: '(added)',
         replace: s => s.replaceAll('const moved = rootStillCanonical();', 'const moved = null;') },
+    { id: 'M228-root-resolution', file: 'fsgate', what: 'skip re-resolving the granted root', plan: 'A45-root-identity',
+        from: 'current = path.normalize(prim.realpathNative(root));', to: 'current = root;' },
+    // Measured twice: A81 alone goes red. A45 stays green because its numeric lstat injection
+    // evaluates st.ino + 1n (test/fsgate.test.js:1825), throwing TypeError before returning stats.
+    // rootStillCanonical's numeric-read catch still refuses ROOT_MOVED (src/fsgate.ts:1900).
+    { id: 'M229-root-numeric-identity', file: 'fsgate', what: 'skip the numeric root object comparison', plan: 'A81-root-numeric-snapshot',
+        from: 'rootIdentity.dev === now.dev && rootIdentity.ino === now.ino &&', to: 'true &&' },
+    { id: 'M230-root-exact-identity', file: 'fsgate', what: 'skip the exact root object comparison', plan: 'A35-root-moved',
+        from: 'sameObject(rootExactIdentity, currentExactIdentity);', to: 'true;' },
+    { id: 'M231-root-numeric-unavailable', file: 'fsgate', what: 'accept zero numeric root inode identities', plan: 'A55-same-path-replacement',
+        from: 'rootIdentity.ino !== 0 && now.ino !== 0 &&', to: 'true &&' },
+    { id: 'M232-root-numeric-read-error', file: 'fsgate', what: 'accept a failed numeric root identity read', plan: 'A80-root-observation-fail-closed',
+        from: "catch {\n            return refuse('ROOT_MOVED', 'the granted folder has been replaced since startup');\n        }",
+        to: 'catch { return null; }' },
+    { id: 'M233-root-exact-read-error', file: 'fsgate', what: 'accept a failed exact root identity read', plan: 'A80-root-observation-fail-closed',
+        from: "return refuse('ROOT_MOVED', 'the granted folder identity could not be read');",
+        to: 'return null;' },
+    { id: 'M235-metadata-rel-native', file: 'fsgate', what: 'return native separators in file metadata rel', plan: 'A83-metadata-rel-slashes',
+        from: "rel: resolved.rel.split(path.sep).join('/'), size: stats.size,",
+        to: 'rel: resolved.rel, size: stats.size,' },
+    { id: 'M234-root-exact-unavailable', file: 'fsgate', what: 'accept an unavailable exact root identity', plan: 'A80-root-observation-fail-closed',
+        from: 'sameObject(rootExactIdentity, currentExactIdentity);',
+        to: '(currentExactIdentity === null || sameObject(rootExactIdentity, currentExactIdentity));' },
     { id: 'M31', file: 'fsgate', what: 'invoke a primitive as a property of the table (leaks `this`)', plan: '(added — EXECUTED defect)',
         from: 'lstat: target => Reflect.apply(lstatFn, undefined, [target]),', to: 'lstat: lstatFn,' },
     { id: 'M14', file: 'fsgate', what: 'refuse every reparse point', plan: 'A13 pass / A12 pass',
@@ -266,18 +293,15 @@ const ROWS = [
     // under the previous design. If this mutant ever survives, the containment argument for the
     // entire write surface has silently reverted to an enumeration, and the enumeration has been
     // measured wrong four times.
-    // ⚠⚠ M48 IS **NOT EQUIVALENT** — IT IS A SURVIVOR WITH NO DETERMINISTIC KILLING ARM, AND THIS
-    // ROW SAID "EQUIVALENT" UNTIL BOTH ROUND-3 LENSES CORRECTED IT INDEPENDENTLY.
+    // ⚠⚠ M48 IS **NOT EQUIVALENT** — A82-create-exclusive-open-race KILLS IT DETERMINISTICALLY.
+    // The row previously claimed no deterministic arm could construct the race. The existing
+    // `lstat` substitution observes a real ENOENT, creates the competing file, then rethrows that
+    // observation. The production `openExclusive` remains uninjected: `wx` refuses the file and
+    // preserves its content; `w` truncates it and lets the create overwrite it.
     //
-    // The distinction is not pedantry. EQUIVALENT means the mutation cannot change behaviour, so
-    // the guard could be deleted. This mutation CAN change behaviour: once the leaf probe returns
-    // ENOENT, an ordinary file appearing before the open is refused by `wx` and truncated by `w`.
-    // `wx` is doing real work in exactly the race window it exists for — what is missing is an arm,
-    // because killing it requires winning that race deterministically.
-    //
-    // ⚠ THE FLAG STAYS, AND THE REASON IS NOW THE RIGHT ONE. Calling it equivalent invites a future
-    // session to delete `wx` as dead weight. Do not "fix" this by weakening the probe.
-    { id: 'M48', file: 'fsgate', what: 'open the create path NON-exclusively (wx -> w)', plan: 'SURVIVES — no deterministic arm, NOT equivalent; see the note above',
+    // ⚠ THE FLAG STAYS. Do not remove `wx` as dead weight or weaken the leaf probe: they cover
+    // different windows, and A82 now measures the exclusive-open half directly.
+    { id: 'M48', file: 'fsgate', what: 'open the create path NON-exclusively (wx -> w)', plan: 'A82-create-exclusive-open-race',
         from: "const _openExclusive = target => fs.openSync(target, 'wx');",
         to: "const _openExclusive = target => fs.openSync(target, 'w');" },
     // ⚠⚠ M49-M51 ARE REGRESSION MUTANTS FOR THE ROUND-2 ESCALATION. Each pins a guard whose
@@ -340,7 +364,7 @@ const ROWS = [
      * and that is `A55-same-path-replacement`, which only became a detector when F8 closed. Measured
      * 2026-09-03: red set is A55 alone. */
     { id: 'M54', file: 'fsgate', what: 'restore case-folding on the root recheck', plan: 'A55-same-path-replacement',
-        from: '        const identifiable = rootIdentity.ino !== 0 && now.ino !== 0 &&\n            rootIdentity.dev === now.dev && rootIdentity.ino === now.ino;',
+        from: '        const identifiable = rootIdentity.ino !== 0 && now.ino !== 0 &&\n            rootIdentity.dev === now.dev && rootIdentity.ino === now.ino &&\n            sameObject(rootExactIdentity, currentExactIdentity);',
         to: '        const identifiable = current.toLowerCase() === root.toLowerCase();' },
     { id: 'M55', file: 'fsgate', what: 'drop the stem trailing-space trim (NUL .txt survives)', plan: 'A39-not-filenames',
         from: "    const stem = (trimmed.split('.')[0] ?? '').replace(/[ ]+$/, '');",
@@ -676,11 +700,15 @@ const ROWS = [
         replace: source => {
             const heading = '## Security boundary and limits';
             const closing = 'This section is the authoritative account.';
-            const bodyStart = source.indexOf('\n\n', source.indexOf(heading)) + 2;
+            const eol = lineEndingOf(source, 'M102 README');
+            const headingStart = source.indexOf(heading);
+            const bodyBreak = source.indexOf(`${eol}${eol}`, headingStart);
+            if (bodyBreak === -1) throw new Error('M102 could not find the blank line after the limits heading');
+            const bodyStart = bodyBreak + (2 * eol.length);
             const bodyEnd = source.indexOf(closing, bodyStart);
             const body = source.slice(bodyStart, bodyEnd);
             const bullets = [...body.matchAll(/^- /gm)].map(match => match.index);
-            if (bullets.length !== 12) throw new Error(`M102 expected exactly 12 limits bullets, found ${bullets.length}`);
+            if (bullets.length !== 14) throw new Error(`M102 expected exactly 14 limits bullets, found ${bullets.length}`);
             return source.slice(0, bodyStart) + body.slice(0, bullets[3]) + source.slice(bodyEnd);
         } },
 
@@ -722,8 +750,193 @@ const ROWS = [
 
     { id: 'M108-probe-kind-collapsed', file: 'fsgate', what: 'report every successful existence probe as a file', plan: 'A67-probe-directory / A70-probe-junction',
         from: 'return Object.freeze({ ok: true, kind: entryKind(stats) });',
-        to: "return Object.freeze({ ok: true, kind: 'file' });" }
+        to: "return Object.freeze({ ok: true, kind: 'file' });" },
+    { id: 'M138-overwrite-skip-digest', file: 'fsgate', what: 'skip the first expected digest comparison', plan: 'A72-overwrite-if-match',
+        from: 'if (first.digest !== expectedSha256)', to: 'if (false)' },
+    { id: 'M139-overwrite-stage-before-mismatch', file: 'fsgate', what: 'create a stage name before refusing the first digest mismatch', plan: 'A72-overwrite-if-match',
+        from: "return fail('DIGEST_MISMATCH', `${rel} does not match expectedSha256`);",
+        to: "{ const premature = prim.openExclusive(path.join(parentActual, `.wyrd-stage-${randomBytes(16).toString('hex')}`)); prim.close(premature); return fail('DIGEST_MISMATCH', `${rel} does not match expectedSha256`); }" },
+    { id: 'M140-overwrite-accept-multilink', file: 'fsgate', what: 'open a multiply named target instead of refusing at the first link-count check', plan: 'A73-overwrite-leaf-no-follow',
+        from: 'if (beforeIdentity.nlink !== 1n)', to: 'if (false)' },
+    { id: 'M141-overwrite-skip-postopen-identity', file: 'fsgate', what: 'skip the post-open comparison between descriptor and target name', plan: 'A73-overwrite-leaf-no-follow',
+        from: '|| !sameObject(descriptor, namedIdentity)', to: '|| false' },
+    { id: 'M142-overwrite-skip-final-rehash', file: 'fsgate', what: 'accept a changed target digest at the final recheck', plan: 'A73-overwrite-leaf-no-follow',
+        from: 'if (finalTarget.digest !== expectedSha256)', to: 'if (false)' },
+    { id: 'M143-overwrite-skip-stage-identity', file: 'fsgate', what: 'publish a stage whose name was swapped to another regular file', plan: 'A74-overwrite-effect-reporting',
+        edits: [
+            ['|| !sameObject(stageIdentity, observedIdentityOf(stage)) || observedIdentityOf(stage)?.nlink !== 1n)', '|| false || observedIdentityOf(stage)?.nlink !== 1n)'],
+            ['const checkedStage = await hashBoundStage(stage);', 'const checkedStage = sha256;']
+        ] },
+    { id: 'M144-overwrite-short-stage-success', file: 'fsgate', what: 'treat a short staging write as complete', plan: 'A74-overwrite-effect-reporting',
+        from: 'if (written !== content.length)', to: 'if (false)' },
+    { id: 'M145-overwrite-swallow-close', file: 'fsgate', what: 'swallow a failed stage close and publish anyway', plan: 'A74-overwrite-effect-reporting',
+        from: "return fail('IO_ERROR', `${stageHint} failed to close after writing`);",
+        to: '/* close failure swallowed */' },
+    { id: 'M146-overwrite-lost-stage-effect', file: 'fsgate', what: 'report stage none after a short staging write', plan: 'A74-overwrite-effect-reporting',
+        from: "return fail('IO_ERROR', `${stageHint} wrote ${written} of ${content.length} bytes`);",
+        to: "{ effect = none; return fail('IO_ERROR', `${stageHint} wrote ${written} of ${content.length} bytes`); }" },
+    { id: 'M147-overwrite-skip-final-root', file: 'fsgate', what: 'omit the last root recheck before stage publication', plan: 'A74-overwrite-effect-reporting',
+        from: 'const finalRoot = rootStillCanonical();', to: 'const finalRoot = null;' },
+    { id: 'M148-overwrite-post-identity', file: 'fsgate', what: 'trust a different object installed under the target name', plan: 'A74-overwrite-effect-reporting',
+        from: '|| !sameObject(stageIdentity, installedIdentity) || installedIdentity.nlink !== 1n)',
+        to: '|| false || installedIdentity.nlink !== 1n)' },
+    { id: 'M149-overwrite-post-rehash', file: 'fsgate', what: 'trust the staged digest after installed bytes change', plan: 'A74-overwrite-effect-reporting',
+        from: "hash.digest('hex') !== sha256", to: 'false' },
+    { id: 'M150-overwrite-pre-rehash', file: 'fsgate', what: 'publish a stage edited in place after flush', plan: 'A74-overwrite-effect-reporting',
+        from: 'const checkedStage = await hashBoundStage(stage);', to: 'const checkedStage = sha256;' },
+    { id: 'M151-overwrite-link-effect', file: 'fsgate', what: 'report a swapped stage link as retained', plan: 'A74-overwrite-effect-reporting',
+        anchors: ['if (!stageStats.isFile() || stageStats.isSymbolicLink()'],
+        replace: source => source.replace(/(if \(!stageStats\.isFile\(\)[\s\S]*?effect = \{ target: 'not_replaced', stage: \{ state: ')indeterminate/, '$1retained') }
+    ,{ id: 'M152-overwrite-post-parent', file: 'fsgate', what: 'skip the immediate parent binding after publication', plan: 'A75-overwrite-post-parent',
+        from: 'const afterParent = checkParent();', to: 'const afterParent = null;' }
+    ,{ id: 'M153-overwrite-post-hash-parent', file: 'fsgate', what: 'skip the parent binding after the installed hash', plan: 'A75-overwrite-post-parent',
+        from: 'const postHashParent = checkParent();', to: 'const postHashParent = null;' }
+    ,{ id: 'M154-overwrite-installed-realpath', file: 'fsgate', what: 'trust an installed object whose real path is not the expected target', plan: 'A75-overwrite-post-parent',
+        from: 'if (!samePath(prim.realpathNative(actual), actual)) {', to: 'if (false && !samePath(prim.realpathNative(actual), actual)) {' }
+    ,{ id: 'M155-overwrite-unreadable-verification', file: 'fsgate', what: 'report a failed verification read as observed change', plan: 'A76-overwrite-verification-read',
+        from: 'catch (error) {\n                    return mapFsError(error, hint);\n                }',
+        to: "catch (error) {\n                    return refuse('TARGET_CHANGED', hint);\n                }" }
+    ,{ id: 'M156-overwrite-unreadable-installed-name', file: 'fsgate', what: 'bypass the injected installed-name probe', plan: 'A76-overwrite-verification-read',
+        from: 'const installedStats = prim.lstat(actual);',
+        to: 'const installedStats = fs.lstatSync(actual);' }
+    ,{ id: 'M157-overwrite-pre-realpath-equality', file: 'fsgate', what: 'accept a target whose real path differs inside the grant before rename', plan: 'A75-overwrite-post-parent',
+        anchors: ['if (!samePath(canonical, actual))\n                            result =', 'if (!samePath(afterCanonical, actual))\n                                result ='],
+        replace: (source, ending) => source.replace(withLineEnding('if (!samePath(canonical, actual))\n                            result =', ending), 'if (false) result =')
+            .replace(withLineEnding('if (!samePath(afterCanonical, actual))\n                                result =', ending), 'if (false) result =') }
+    ,{ id: 'M158-overwrite-stage-realpath-equality', file: 'fsgate', what: 'accept a stage whose real path differs inside the grant before rename', plan: 'A75-overwrite-post-parent',
+        anchors: ['if (!samePath(stageCanonical, stage)) {', 'if (!samePath(canonical, name))\n                        return refuse', '|| !samePath(path.normalize(prim.realpathNative(name)), name))', 'if (!samePath(path.normalize(prim.realpathNative(stage)), stage)) {'],
+        anchorCounts: { 'if (!samePath(stageCanonical, stage)) {': 2 },
+        replace: (source, ending) => source.replaceAll('if (!samePath(stageCanonical, stage)) {', 'if (false) {')
+            .replace(withLineEnding('if (!samePath(canonical, name))\n                        return refuse', ending), 'if (false) return refuse')
+            .replace('|| !samePath(path.normalize(prim.realpathNative(name)), name))', '|| false)')
+            .replace('if (!samePath(path.normalize(prim.realpathNative(stage)), stage)) {', 'if (false) {') }
+    ,{ id: 'M159-overwrite-post-parent-reason', file: 'fsgate', what: 'rewrite an unobservable post-rename parent as target changed', plan: 'A76-overwrite-verification-read',
+        from: 'if (afterParent)\n                    return wrap(afterParent);', to: "if (afterParent)\n                    return fail('TARGET_CHANGED', parentRequest);" }
+    ,{ id: 'M160-overwrite-name-identity-seam', file: 'fsgate', what: 'bypass injected bigint name identity errors', plan: 'A76-overwrite-verification-read',
+        from: 'const identity = exactIdentityOf(name, prim);', to: 'const identity = exactIdentityOf(name);' }
+    ,{ id: 'M161-overwrite-descriptor-identity-seam', file: 'fsgate', what: 'bypass injected bigint descriptor identity errors', plan: 'A76-overwrite-verification-read',
+        from: 'const identity = exactIdentityOfDescriptor(fd, prim);', to: 'const identity = exactIdentityOfDescriptor(fd);' }
+    ,{ id: 'M162-overwrite-post-path-open', file: 'fsgate', what: 'open the installed path after rename', plan: 'A76-overwrite-verification-read',
+        from: 'const installedStats = prim.lstat(actual);', to: "const extraFd = prim.open(actual, 'r'); prim.close(extraFd); const installedStats = prim.lstat(actual);" }
+    ,{ id: 'M163-overwrite-final-name-identity', file: 'fsgate', what: 'trust the final target name without observing its identity', plan: 'A75-overwrite-post-parent',
+        from: 'const finalIdentity = observedIdentityOf(actual);', to: 'const finalIdentity = stageIdentity!;' }
+    ,{ id: 'M164-overwrite-post-hash-parent-reason', file: 'fsgate', what: 'rewrite an unobservable late parent as target changed', plan: 'A76-overwrite-verification-read',
+        from: 'if (postHashParent)\n                    return wrap(postHashParent);', to: "if (postHashParent)\n                    return fail('TARGET_CHANGED', parentRequest);" }
+    ,{ id: 'M165-overwrite-open-before-stage-check', file: 'fsgate', what: 'open the stage name before checking its kind and identity', plan: 'A78-overwrite-stage-preopen',
+        from: 'const beforeOpen = prim.lstat(stage);',
+        to: "const prematureFd = prim.open(stage, 'r'); prim.close(prematureFd); const beforeOpen = prim.lstat(stage);" }
+    ,{ id: 'M166-overwrite-preopen-effect', file: 'fsgate', what: 'claim a retained stage after its pre-publication open fails', plan: 'A76-overwrite-verification-read',
+        anchors: ['const beforeOpen = prim.lstat(stage);'],
+        replace: source => source.replace(
+            /(const beforeOpen = prim\.lstat\(stage\);[\s\S]*?catch \(error\) \{[\s\S]*?stage: \{ state: ')indeterminate(', relHint: stageHint \} \};[\s\S]*?return wrap\(mapFsError\(error, stageHint\)\);)/,
+            '$1retained$2'
+        ) }
+    ,{ id: 'M167-overwrite-alias-as-change', file: 'fsgate', what: 'report a real-path alias as target changed', plan: 'A75-overwrite-post-parent / A79-overwrite-alias-reason',
+        from: "if (!samePath(canonical, actual))\n                            result = refuse('PARENT_ALIAS',",
+        to: "if (!samePath(canonical, actual))\n                            result = refuse('TARGET_CHANGED'," }    ,{ id: 'M177-placeholder-preopen', file: 'fsgate', what: 'open a placeholder on the default read path', plan: 'SR2-no-open-without-opt-in',
+        from: 'if (dehydrated && !hydrate) {', to: 'if (false && !hydrate) {' }
+    ,{ id: 'M180-native-filetime-layout', file: 'fsgate', what: 'shift the native Win32 fields by restoring aligned long timestamps', plan: 'SR5-native-placeholder-layout',
+        from: 'public struct FileTime { public uint low; public uint high; }\n  public FileTime creation; public FileTime access; public FileTime write;',
+        to: 'public long creation; public long access; public long write;' }
+    ,{ id: 'M181-post-open-read-check', file: 'fsgate', what: 'allow a placeholder that appears after the read open', plan: 'SR6-post-open-placeholder',
+        from: 'if (now && !hydrate)', to: 'if (false && !hydrate)' }
+    ,{ id: 'M182-overwrite-placeholder-guard', file: 'fsgate', what: 'open an overwrite target even when pre-open detection reports a placeholder', plan: 'SR7-write-placeholder-guards',
+        from: "if (placeholder)\n                        return refuse('PLACEHOLDER', `hashing ${rel} would download its cloud placeholder`);",
+        to: "if (false && placeholder)\n                        return refuse('PLACEHOLDER', `hashing ${rel} would download its cloud placeholder`);" }
+    ,{ id: 'M183-detector-startup-bound', file: 'fsgate', what: 'wait thirty seconds for the first detector answer', plan: 'SR8-detector-startup-bound',
+        from: 'own.startup = setTimeout(() => {\n            failed();\n            child.kill();\n        }, 5000);',
+        to: 'own.startup = setTimeout(() => {\n            failed();\n            child.kill();\n        }, 30000);' }
+    ,{ id: 'M192-walk-batch-trust-failed-probe', file: 'fsgate', what: 'trust a failed native batch probe as a searchable file', plan: 'SR22-walk-batch-fail-closed',
+        from: 'if (!info) {', to: 'if (false && !info) {' }
+    ,{ id: 'M207-clm-helper-cause', file: 'fsgate', what: 'hide the PowerShell helper load failure cause', plan: 'SR29-clm-helper-load',
+        from: "catch { Write-Output 'HELPER_LOAD_FAILED'; exit 1 }", to: "catch { Write-Output 'ERR'; exit 1 }" }
+    ,{ id: 'M208-clm-fresh-gate-latch', file: 'fsgate', what: 'report placeholder detection available on a fresh gate after helper load failure', plan: 'SR29-clm-helper-load',
+        from: "process.platform === 'win32' && !placeholderHelperLoadFailed ? 'available' : 'unavailable'",
+        to: "process.platform === 'win32' ? 'available' : 'unavailable'" }
 ];
+
+function missingMutationAnchors(row, source, ending) {
+    return declaredAnchors(row).filter(anchor => !source.includes(withLineEnding(anchor, ending)));
+}
+
+function applyMutationRow(row, source, ending) {
+    if (row.replace) return row.replace(source, ending);
+    if (row.edits) return row.edits.reduce((acc, [from, to]) =>
+        acc.replace(withLineEnding(from, ending), () => withLineEnding(to, ending)), source);
+    return source.replace(withLineEnding(row.from, ending),
+        () => withLineEnding(row.to, ending));
+}
+
+if (process.argv.includes('--check-anchors')) {
+    const problems = [];
+    for (const row of ROWS) {
+        const key = row.file ?? 'fsgate';
+        const target = FILES[key];
+        if (!target) {
+            problems.push(`${row.id}: no mutation target is registered for file ${JSON.stringify(key)}`);
+            continue;
+        }
+        const source = fs.readFileSync(target, 'utf8');
+        const ending = lineEndingOf(source, target);
+        for (const anchor of declaredAnchors(row)) {
+            const hits = source.split(withLineEnding(anchor, ending)).length - 1;
+            if (hits !== requiredAnchorHits(row, anchor)) problems.push(`${row.id}: ${key} (${target}) anchor matched ${hits} times, expected ${requiredAnchorHits(row, anchor)}: ${JSON.stringify(anchor)}`);
+        }
+    }
+    if (problems.length) refuse(problems, 'mutation anchors are not applicable');
+    console.log(`✔ fence mutation anchors: ${ROWS.length} rows apply to their registered targets.`);
+    process.exit(0);
+}
+
+if (process.argv[2] === '--eol-fixture') {
+    const [arm, target] = process.argv.slice(3);
+    const bytes = fs.readFileSync(target);
+    const source = bytes.toString('utf8');
+    try {
+        if (arm === 'BH2-eol-mixed') {
+            let refused = false;
+            try { lineEndingOf(source, target); } catch (error) {
+                refused = /mixed or unsupported line endings/.test(error.message);
+            }
+            if (!refused) throw new Error('mixed-ending target was accepted');
+        } else {
+            const ending = lineEndingOf(source, target);
+            if (arm === 'BH1-eol-crlf') {
+                const row = ROWS.find(item => item.id === 'M102-readme-limits-condensed');
+                if (missingMutationAnchors(row, source, ending).length) throw new Error('M102 CRLF anchor missing');
+                fs.writeFileSync(target, applyMutationRow(row, source, ending));
+                const changed = fs.readFileSync(target, 'utf8');
+                if (!changed.includes('- bullet 3') || changed.includes('- bullet 4')) throw new Error('M102 CRLF edit did not land');
+                const multiline = { edits: [['alpha\nbeta', 'alpha\ndelta']] };
+                if (missingMutationAnchors(multiline, source, ending).length) throw new Error('CRLF multiline anchor missing');
+                fs.writeFileSync(target, applyMutationRow(multiline, source, ending));
+                if (!fs.readFileSync(target, 'utf8').includes('alpha\r\ndelta\r\n')) throw new Error('CRLF multiline edit did not land');
+            } else if (arm === 'BH3-eol-all-edits') {
+                const row = { edits: [['alpha', 'delta'], ['absent\nsecond', 'nope']] };
+                if (missingMutationAnchors(row, source, ending).length !== 1) throw new Error('second edit was not refused');
+            } else throw new Error('unknown EOL fixture arm');
+        }
+    } finally {
+        fs.writeFileSync(target, bytes);
+        if (!fs.readFileSync(target).equals(bytes)) throw new Error('fixture restore changed bytes');
+    }
+    console.log(`fixture ${arm}: fence PASS`);
+    process.exit(0);
+}
+
+if (process.argv[2] === '--restore-fixture') {
+    const target = process.argv[3];
+    const pristine = fs.readFileSync(target);
+    try {
+        fs.writeFileSync(target, Buffer.from('temporary mutation'));
+        restoreAll({ fixture: target }, { fixture: pristine });
+        if (!fs.readFileSync(target).equals(pristine)) throw new Error('restore fixture changed bytes');
+        console.log('fixture byte restore: fence PASS');
+    } finally {
+        fs.writeFileSync(target, pristine);
+    }
+    process.exit(0);
+}
 
 // ⚠ ROW IDS MUST BE UNIQUE, AND NOTHING CHECKED UNTIL 2026-08-29, WHEN A DUPLICATE WAS ADDED AND
 // RAN. Two rows answered to `M29`; `--only M29` silently executed BOTH and printed two result lines
@@ -793,6 +1006,12 @@ const jsonOut = args.includes('--json');
 const onlyArg = args.find(a => a.startsWith('--only'));
 const only = onlyArg ? (onlyArg.includes('=') ? onlyArg.split('=')[1] : args[args.indexOf(onlyArg) + 1]) : null;
 const selected = only ? new Set(only.split(',').map(s => s.trim())) : null;
+if (args.includes('--bh6-spawn-fixture')) {
+    const result = runSuite(path.join(pkg, 'missing-executable'));
+    if (!result.failed || redTests(result.out).length) throw new Error('spawn failure received a mutation verdict');
+    console.log('INFRASTRUCTURE: suite did not start');
+    process.exit(0);
+}
 // ⚠ AN UNKNOWN `--only` ID USED TO SELECT NOTHING AND EXIT 0 — a run that mutated nothing, tested
 // nothing and reported `0/0 killed` as success. Found by the close-side review 2026-09-03.
 if (selected) {
@@ -806,6 +1025,9 @@ if (selected) {
 
 const ORIGINAL = Object.fromEntries(Object.entries(FILES).map(([k, p]) => [k, fs.readFileSync(p, 'utf8')]));
 const ORIGINAL_BYTES = Object.fromEntries(Object.entries(FILES).map(([k, p]) => [k, fs.readFileSync(p)]));
+registerBatteryTargets(Object.values(FILES));
+const ENDINGS = Object.fromEntries(Object.entries(ORIGINAL).map(([key, source]) =>
+    [key, lineEndingOf(source, FILES[key])]));
 
 // Refuse rather than overwrite a differing backup: after a killed run, either the target is
 // damaged and `--restore` is required, or the target is intentional and the backup directory must
@@ -832,6 +1054,10 @@ function declaredAnchors(row) {
     return row.anchors ?? (row.edits ? row.edits.map(([from]) => from) : row.from ? [row.from] : []);
 }
 
+function requiredAnchorHits(row, anchor) {
+    return row.anchorCounts?.[anchor] ?? 1;
+}
+
 /**
  * ⚠⚠ AN ANCHOR THAT MATCHES TWICE IS AS BROKEN AS ONE THAT MATCHES NEVER, AND IT LOOKS FINE.
  *
@@ -852,22 +1078,31 @@ function declaredAnchors(row) {
 {
     const ambiguous = [];
     for (const row of ROWS) {
-        const source = ORIGINAL[row.file ?? 'fsgate'];
+        const key = row.file ?? 'fsgate';
+        const source = ORIGINAL[key];
         for (const anchor of declaredAnchors(row)) {
-            const hits = source.split(anchor).length - 1;
+            const adapted = withLineEnding(anchor, ENDINGS[key]);
+            const hits = source.split(adapted).length - 1;
+            if (hits === requiredAnchorHits(row, anchor)) continue;
             if (hits > 1) ambiguous.push(`${row.id} anchors on text occurring ${hits} times in \`${row.file ?? 'fsgate'}\` — a string replace would mutate only the first, leaving a partial mutant: ${JSON.stringify(anchor.slice(0, 70))}`);
+            if (hits === 0) ambiguous.push(`${row.id} anchor does not occur in \`${key}\`: ${JSON.stringify(anchor.slice(0, 70))}`);
         }
     }
     if (ambiguous.length) refuse(ambiguous, 'a mutation anchor is not unique in its source');
 }
 
-function restoreAll() {
-    for (const [key, file] of Object.entries(FILES)) fs.writeFileSync(file, ORIGINAL[key]);
+function restoreAll(files = FILES, originals = ORIGINAL_BYTES) {
+    for (const [key, file] of Object.entries(files)) {
+        fs.writeFileSync(file, originals[key]);
+        if (!fs.readFileSync(file).equals(originals[key])) {
+            throw new Error(`restore failed byte comparison: ${file}`);
+        }
+    }
 }
 
-function runSuite() {
+function runSuite(executable = process.execPath) {
     try {
-        const out = execFileSync(process.execPath, [...SUITE],
+        const out = execFileSync(executable, [...SUITE],
             { cwd: pkg, encoding: 'utf8', timeout: SUITE_TIMEOUT_MS, stdio: ['ignore', 'pipe', 'pipe'] });
         return { failed: false, out };
     } catch (error) {
@@ -875,6 +1110,7 @@ function runSuite() {
         return { failed: true, out: (error.stdout ?? '') + (error.stderr ?? '') };
     }
 }
+
 
 /** Named tests that went red, as the runner printed them. */
 function redTests(out) {
@@ -925,27 +1161,25 @@ try {
         // callback's substitutions are opaque from here. A row that declares none keeps the older,
         // weaker check — the whole-file no-op below — and that limit is real rather than closed.
         const declared = declaredAnchors(row);
-        const missing = declared.filter(a => !source.includes(a));
+        const missing = missingMutationAnchors(row, source, ENDINGS[key]);
         if (missing.length) {
             results.push({ ...meta(row), status: 'ANCHOR-NOT-FOUND', red: [] });
             continue;
         }
 
-        if (row.replace) {
-            mutated = row.replace(source);
-        } else if (row.edits) {
-            mutated = row.edits.reduce((acc, [f, t]) => acc.replace(f, t), source);
-        } else {
-            mutated = source.replace(row.from, row.to);
-        }
+        mutated = applyMutationRow(row, source, ENDINGS[key]);
         if (mutated === source) {
             results.push({ ...meta(row), status: 'ANCHOR-NOT-FOUND', red: [] });
             continue;
         }
 
+        recordBatteryMutant(FILES[key], Buffer.from(mutated));
         fs.writeFileSync(FILES[key], mutated);
         const { failed, out } = runSuite();
         restoreAll();
+        assertNoBatteryLockRefusal(out);
+        if (out === 'SUITE TIMED OUT OR WAS KILLED' ||
+            (failed && redTests(out).length === 0)) throw new Error(`suite infrastructure error: ${out.slice(-1000)}`);
         results.push({ ...meta(row), status: failed ? 'KILLED' : 'SURVIVED', red: failed ? redTests(out) : [] });
     }
 } finally {
@@ -985,9 +1219,10 @@ if (jsonOut) {
 /**
  * ⚠⚠ AN UNANCHORED MUTANT FAILS THE RUN. A SURVIVOR DOES NOT — AND THE ASYMMETRY IS THE POINT.
  *
- * `SURVIVED` is a reasoned state: M4 and M48 are documented above, each with why no arm can kill
- * it. `ANCHOR-NOT-FOUND` is a BROKEN INSTRUMENT — the mutation never applied, so the row tested
- * nothing and reported in the same breath as rows that did. It is the file's own lesson arriving
+ * `SURVIVED` is a reasoned state: M4 is documented above with why no arm can kill it. M48 now
+ * has a deterministic killing arm, A82-create-exclusive-open-race. `ANCHOR-NOT-FOUND` is a BROKEN
+ * INSTRUMENT — the mutation never applied, so the row tested nothing and reported in the same
+ * breath as rows that did. It is the file's own lesson arriving
  * one level up: a mutation that does not reproduce its defect certifies the guard without testing
  * it, and this harness had no way to say so.
  *

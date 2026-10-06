@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { spawnSync, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,6 +16,71 @@ import { after, before, test } from 'node:test';
 import { createFsGate, isRefusal } from '../dist/fsgate.js';
 import { buildFixture, CANARY, teardown } from './fixtures.mjs';
 import { declare as arm, tier2 } from './manifest.mjs';
+
+test('A83-metadata-rel-slashes — nested metadata uses the same forward-slash rel as the grant walk', async () => {
+    arm('A83-metadata-rel-slashes');
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-metadata-rel-'));
+    const grant = path.join(base, 'grant');
+    try {
+        fs.mkdirSync(path.join(grant, 'folder'), { recursive: true });
+        fs.writeFileSync(path.join(grant, 'folder', 'file.md'), 'nested');
+        const gate = createFsGate({ rawGrant: grant, primitives: {
+            placeholderAttributes: async () => ({ attributes: 0, reparseTag: 0 })
+        } });
+        assert.equal(isRefusal(gate), false);
+        const metadata = await gate.fileMetadataInGrant(path.join('folder', 'file.md'));
+        assert.equal(isRefusal(metadata), false);
+        assert.equal(metadata.rel, 'folder/file.md');
+        const walk = await gate.walkGrant();
+        assert.equal(isRefusal(walk), false);
+        assert.equal(walk.files.length, 1);
+        assert.equal(metadata.rel, walk.files[0].rel);
+    } finally {
+        fs.rmSync(base, { recursive: true, force: true });
+    }
+});
+
+test('SR15-walk-alias-cycle — a fresh grant walk handles aliases and refuses escapes', async () => {
+    arm('SR15-walk-alias-cycle');
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-walk-'));
+    const grant = path.join(base, 'grant');
+    const outside = path.join(base, 'outside');
+    try {
+        fs.mkdirSync(grant);
+        fs.mkdirSync(outside);
+        fs.mkdirSync(path.join(grant, 'inside'));
+        fs.mkdirSync(path.join(grant, 'cloud'));
+        fs.writeFileSync(path.join(grant, 'cloud', 'hidden.md'), 'dehydrated');
+        fs.writeFileSync(path.join(grant, 'inside', 'pass.md'), 'inside');
+        fs.writeFileSync(path.join(outside, 'deny.md'), 'outside');
+        fs.symlinkSync(path.join(grant, 'inside'), path.join(grant, 'alias'), process.platform === 'win32' ? 'junction' : 'dir');
+        fs.symlinkSync(grant, path.join(grant, 'cycle'), process.platform === 'win32' ? 'junction' : 'dir');
+        fs.symlinkSync(outside, path.join(grant, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+        const opens = [];
+        const listings = [];
+        const gate = createFsGate({ rawGrant: grant, primitives: {
+            open: (target, flags) => { opens.push(target); return fs.openSync(target, flags); },
+            lstat: target => Object.assign(fs.lstatSync(target), { ino: 1 }),
+            readdir: target => { listings.push(target); return fs.readdirSync(target, { withFileTypes: true }); },
+            placeholderAttributes: async target => ({ attributes: path.basename(target) === 'cloud' ? 0x1000 : 0, reparseTag: 0 })
+        } });
+        assert.equal(isRefusal(gate), false);
+        const walk = await gate.walkGrant();
+        assert.equal(isRefusal(walk), false);
+        assert.equal(walk.files.length, 1, 'the alias and cycle do not repeat the file');
+        assert.match(walk.files[0].rel, /^(alias|inside)\/pass\.md$/);
+        assert.ok(walk.inaccessible_count >= 1, 'outside alias is refused');
+        assert.equal(JSON.stringify(walk).includes(base), false, 'no resolved pathname escapes');
+        assert.equal(opens.length, 0, 'enumeration never opens content');
+        assert.equal(listings.some(target => path.basename(target) === 'cloud'), false, 'dehydrated directory is not enumerated');
+        const passing = await gate.readFileInGrant('inside/pass.md', 0, 20);
+        assert.equal(passing.bytes.toString(), 'inside');
+        const refused = await gate.readFileInGrant('escape/deny.md', 0, 20);
+        assert.equal(isRefusal(refused), true);
+    } finally {
+        fs.rmSync(base, { recursive: true, force: true });
+    }
+});
 
 /**
  * ⚠ SKIPS FAIL THE BUILD. Arms are declared in `test/arms.mjs` and reconciled across every test
@@ -54,10 +120,9 @@ function outsideRoot(canonicalRoot, candidate) {
 /**
  * Is this recorded call one of `rootStillCanonical`'s own, on the granted root?
  *
- * ⚠⚠ IT IS TWO CALLS, AND IT USED TO BE ONE (F8, option C, ruled 2026-09-03). The root
- * re-check resolves the real path and then `lstat`s it to prove object identity — and the `lstat`
- * became UNCONDITIONAL when F8 was closed, because the old "only when the spelling changed" form
- * never fired for a directory destroyed and recreated under the same name.
+ * ⚠⚠ TWO CALLS ARE RECORDED: real path and numeric `lstat` of the root. The latter became
+ * unconditional under F8 (2026-09-03). The exact-ID read added later uses `lstatBigint`, which
+ * this spy does not record; it still names only the canonical root.
  *
  * ⚠ THE ALLOWANCE IS STILL PINNED TO THE CANONICAL ROOT, WHICH IS THE WHOLE POINT. These arms
  * assert that the NAME SCREENS reach the filesystem zero times before a request is refused; they
@@ -90,6 +155,7 @@ function spyPrimitives(sink) {
         // suite still looked fully instrumented — the guard would be structurally unable to
         // witness the one class of call that can destroy data.
         openExclusive: t => { record('openExclusive', t); return fs.openSync(t, 'wx'); },
+        replaceStaged: (stage, target) => { record('replaceStaged', stage); record('replaceTarget', target); return fs.renameSync(stage, target); },
         // ⚠ THE APPEND OPEN IS MIRRORED FOR THE SAME REASON `openExclusive` IS: `createFsGate`
         // falls back to the production primitive for anything not supplied, so a spy table missing
         // it would leave every append outside the containment guard while the suite still looked
@@ -127,11 +193,12 @@ function guardingPrimitives(sink) {
     const guarded = {};
     for (const [name, fn] of Object.entries(spy)) {
         guarded[name] = (...args) => {
-            if (ROOT_GUARD !== null && typeof args[0] === 'string' && outsideRoot(ROOT_GUARD, args[0])) {
+            const outsideArgument = args.find(arg => typeof arg === 'string' && ROOT_GUARD !== null && outsideRoot(ROOT_GUARD, arg));
+            if (outsideArgument !== undefined) {
                 // Record BEFORE throwing, and into an array the fence cannot swallow.
-                VIOLATIONS.push({ primitive: name, argument: args[0] });
-                sink.push({ name, argument: args[0] });
-                const error = new Error(`FENCE VIOLATION: ${name} named ${args[0]}, outside ${ROOT_GUARD}`);
+                VIOLATIONS.push({ primitive: name, argument: outsideArgument });
+                sink.push({ name, argument: outsideArgument });
+                const error = new Error(`FENCE VIOLATION: ${name} named ${outsideArgument}, outside ${ROOT_GUARD}`);
                 error.code = 'WYRD_FENCE_VIOLATION';
                 throw error;
             }
@@ -152,6 +219,15 @@ async function refusal(request) {
     assert.ok(isRefusal(result), `expected ${request} to refuse, it returned content`);
     return result;
 }
+
+const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+const overwriteDir = () => fs.mkdtempSync(path.join(root, 'ow-'));
+const overwriteGate = overrides => {
+    const made = createFsGate({ rawGrant: FX.grant, primitives: { ...guardingPrimitives([]), ...overrides } });
+    assert.ok(!isRefusal(made));
+    return made;
+};
+const relative = absolute => path.relative(root, absolute);
 
 before(() => {
     FX = buildFixture();
@@ -578,7 +654,95 @@ function stagedRootSwapObservation(canonicalRoot, replacementRoot) {
     };
 }
 
-test('A35-root-moved — swapping the granted folder after startup is CAUGHT, not closed', async () => {
+test('A82-create-exclusive-open-race — a file appearing after the leaf probe stays untouched', async t => {
+    arm('A82-create-exclusive-open-race');
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-create-race-'));
+    try {
+        const target = path.join(fs.realpathSync.native(base), 'raced.md');
+        const interposed = Buffer.from('interposed content must survive intact');
+        let appearances = 0;
+        const made = createFsGate({ rawGrant: base, primitives: {
+            // Override only the probe: the shipped openExclusive must exercise its own flags.
+            lstat: name => {
+                try { return fs.lstatSync(name); }
+                catch (error) {
+                    if (name === target && error.code === 'ENOENT') {
+                        fs.writeFileSync(target, interposed, { flag: 'wx' });
+                        appearances++;
+                    }
+                    // Return the real missing-leaf observation after the competing file appears.
+                    throw error;
+                }
+            }
+        } });
+        assert.ok(!isRefusal(made), 'gate construction');
+        const result = await made.createFileInGrant('raced.md', Buffer.from('replacement'));
+        assert.equal(appearances, 1, 'the leaf probe must observe ENOENT and interpose exactly once');
+        assert.deepEqual({
+            ok: result.ok, reason: result.reason, retained: result.retained,
+            content: fs.readFileSync(target)
+        }, { ok: false, reason: 'EXISTS', retained: null, content: interposed },
+        'the production exclusive open must refuse without changing the competing file');
+        t.diagnostic('real ENOENT leaf observation, one interposed file, production open refused EXISTS; content unchanged');
+    } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('A81-root-numeric-snapshot — a changed numeric root observation refuses', async () => {
+    arm('A81-root-numeric-snapshot');
+    const canonical = fs.realpathSync.native(FX.grant);
+    let armed = false;
+    const made = createFsGate({
+        rawGrant: FX.grant,
+        primitives: {
+            ...spyPrimitives([]),
+            lstat: target => {
+                const stats = fs.lstatSync(target);
+                if (armed && target === canonical) stats.ino += 2048;
+                return stats;
+            },
+            lstatBigint: target => fs.lstatSync(target, { bigint: true })
+        }
+    });
+    assert.ok(!isRefusal(made));
+    armed = true;
+    const result = await made.readFileInGrant('subdir/note.md', 0, 4096);
+    assert.ok(isRefusal(result), 'a changed numeric snapshot must refuse');
+    assert.equal(result.reason, 'ROOT_MOVED');
+});
+
+test('A80-root-observation-fail-closed — each unavailable root observation refuses', async () => {
+    arm('A80-root-observation-fail-closed');
+    const canonical = fs.realpathSync.native(FX.grant);
+    for (const fault of ['realpath', 'numeric-read', 'exact-read', 'exact-zero']) {
+        let armed = false;
+        const primitives = {
+            ...spyPrimitives([]),
+            realpathNative: target => {
+                if (armed && target === canonical && fault === 'realpath') throw new Error('root realpath unavailable');
+                return fs.realpathSync.native(target);
+            },
+            lstat: target => {
+                if (armed && target === canonical && fault === 'numeric-read') throw new Error('root lstat unavailable');
+                const stats = fs.lstatSync(target);
+                return stats;
+            },
+            lstatBigint: target => {
+                if (armed && target === canonical && fault === 'exact-read') throw new Error('root exact identity unavailable');
+                const stats = fs.lstatSync(target, { bigint: true });
+                if (armed && target === canonical && fault === 'exact-zero') stats.ino = 0n;
+                return stats;
+            }
+        };
+        const made = createFsGate({ rawGrant: FX.grant, primitives });
+        assert.ok(!isRefusal(made), `${fault}: gate construction`);
+        armed = true;
+        const result = await made.readFileInGrant('subdir/note.md', 0, 4096);
+        assert.ok(isRefusal(result), `${fault}: unobserved root must refuse`);
+        assert.equal(result.reason, 'ROOT_MOVED', `${fault}: refusal reason`);
+    }
+});
+
+test('A35-root-moved — swapping the granted folder after startup is CAUGHT, not closed', async t => {
     arm('A35-root-moved');
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-rootswap-'));
     try {
@@ -588,6 +752,8 @@ test('A35-root-moved — swapping the granted folder after startup is CAUGHT, no
         fs.mkdirSync(evil);
         fs.writeFileSync(path.join(vault, 'note.md'), 'REAL-VAULT');
         fs.writeFileSync(path.join(evil, 'note.md'), 'SWAPPED-CONTENT');
+        const originalIdentity = fs.lstatSync(vault, { bigint: true });
+        const originalNumeric = fs.lstatSync(vault);
 
         const rootObservation = stagedRootSwapObservation(
             fs.realpathSync.native(vault),
@@ -598,6 +764,22 @@ test('A35-root-moved — swapping the granted folder after startup is CAUGHT, no
             primitives: { ...spyPrimitives([]), realpathNative: rootObservation.realpathNative }
         });
         assert.ok(!isRefusal(made));
+        const roundedIdentityGate = createFsGate({
+            rawGrant: vault,
+            primitives: {
+                ...spyPrimitives([]),
+                realpathNative: rootObservation.realpathNative,
+                lstat: target => {
+                    const stats = fs.lstatSync(target);
+                    if (path.normalize(target) === path.normalize(evil)) {
+                        stats.dev = originalNumeric.dev;
+                        stats.ino = originalNumeric.ino;
+                    }
+                    return stats;
+                }
+            }
+        });
+        assert.ok(!isRefusal(roundedIdentityGate));
         assert.equal((await made.readFileInGrant('note.md', 0, 100)).bytes.toString('utf8'), 'REAL-VAULT');
 
         // Move the real folder aside and put a junction to elsewhere in its place.
@@ -607,6 +789,11 @@ test('A35-root-moved — swapping the granted folder after startup is CAUGHT, no
 
         const after = await made.readFileInGrant('note.md', 0, 100);
         assert.ok(isRefusal(after), 'the swapped root must not serve content');
+        if (after.reason !== 'ROOT_MOVED') {
+            const replacement = fs.realpathSync.native(vault);
+            const currentIdentity = fs.lstatSync(replacement, { bigint: true });
+            t.diagnostic(`root swap: original=${originalIdentity.dev}:${originalIdentity.ino}, replacement=${currentIdentity.dev}:${currentIdentity.ino}, numeric original=${Number(originalIdentity.ino)}, numeric replacement=${Number(currentIdentity.ino)}, realpath=${replacement}, refusal=${after.reason}: ${after.detail}`);
+        }
         assert.equal(after.reason, 'ROOT_MOVED');
         // ⚠ THE APPEND LEG — a SECOND write entry point, and it re-checks the root itself rather
         // than inheriting the check from `resolveNew`, which it does not call. Deleting the recheck
@@ -617,6 +804,10 @@ test('A35-root-moved — swapping the granted folder after startup is CAUGHT, no
         assert.equal(appended.retained, null, 'a root refusal opens nothing');
         assert.equal(fs.existsSync(path.join(evil, 'note.jsonl')), false,
             '⚠ THE APPEND LANDED IN THE SWAPPED DIRECTORY');
+        // A numeric file-ID collision must not hide the replacement directory.
+        const rounded = await roundedIdentityGate.readFileInGrant('note.md', 0, 100);
+        assert.ok(isRefusal(rounded));
+        assert.equal(rounded.reason, 'ROOT_MOVED');
         // ⚠ This NARROWS a window, it does not close one: a swap landing between the check and
         // the open is still unhandled, and no Node-only fix exists without handle-relative APIs.
         // It belongs beside TOCTOU and hardlinks in the not-covered list.
@@ -1241,15 +1432,21 @@ test('SHAPE-no-mutator — the gate is frozen, null-prototype, and exposes no se
     // method becomes a deliberate act. `E4-export-inventory` is deliberately UNCHANGED by that
     // work: the module still exports exactly `createFsGate` and `isRefusal`, so the new surface
     // rides on a constructed gate and no consumer gains a second way in.
+    // The conditional overwrite is the next deliberately exposed gate method.
     assert.deepEqual(Object.keys(gate).sort(), [
         'appendLineInGrant',
         'createFileInGrant',
         'disclosedRoot',
+        'fileMetadataInGrant',
+        'grantPlaceholderSummary',
         'hashInGrant',
         'listDirInGrant',
         'listGrantRoot',
+        'overwriteFileInGrant',
+        'placeholderDetection',
         'probeInGrant',
-        'readFileInGrant'
+        'readFileInGrant',
+        'walkGrant'
     ]);
     for (const key of Object.keys(gate)) {
         assert.equal(typeof gate[key], 'function', `${key} must be a method, not a value`);
@@ -1758,7 +1955,7 @@ test('A55-same-path-replacement — a DIFFERENT directory at the IDENTICAL canon
         const made = createFsGate({ rawGrant: vault });
         assert.ok(!isRefusal(made));
         const canonicalRoot = made.disclosedRoot();
-        const identityBefore = fs.lstatSync(canonicalRoot);
+        const identityBefore = fs.lstatSync(canonicalRoot, { bigint: true });
         assert.equal((await made.readFileInGrant('note.md', 0, 100)).bytes.toString('utf8'), 'REAL-VAULT');
 
         /* (1) THE SWAP — a real one, not a staged spelling. The granted directory is DESTROYED and
@@ -1779,10 +1976,10 @@ test('A55-same-path-replacement — a DIFFERENT directory at the IDENTICAL canon
          *     measuring something other than what it claims. */
         assert.equal(path.normalize(fs.realpathSync.native(canonicalRoot)), path.normalize(canonicalRoot),
             'the canonical path string must be unchanged — that is the condition that skips the identity check');
-        const identityAfter = fs.lstatSync(canonicalRoot);
+        const identityAfter = fs.lstatSync(canonicalRoot, { bigint: true });
         assert.ok(identityBefore.dev !== identityAfter.dev || identityBefore.ino !== identityAfter.ino,
             'the replacement must be a genuinely different object, or this arm proves nothing');
-        assert.ok(identityBefore.ino !== 0 && identityAfter.ino !== 0,
+        assert.ok(identityBefore.ino !== 0n && identityAfter.ino !== 0n,
             'both identities must be supplied by the filesystem, or the comparison could not have run anyway');
 
         /* (3) WHAT THE FENCE DOES ABOUT IT NOW: refuses ROOT_MOVED, on every surface. EVERY surface
@@ -2470,7 +2667,7 @@ test('A66-parent-alias-refused — a write goes where it was SPELLED, and the ch
      * is an in-grant junction to `protected_dir`: it resolves INSIDE the grant, so `ESCAPES` is
      * false, the walk is happy and the realpath arbitration is happy. Every containment predicate
      * this fence owns returns "yes" and the write lands somewhere the caller never named. Measured
-     * against the shipped gate on 2026-09-04 with the Scribe's real vault: `Notes -> Arc`, then
+     * against the shipped gate on 2026-09-04 with a real vault layout: `Notes -> Arc`, then
      * `writePage({path:'Notes/planted.md'})` returned `ok: true` with the file at
      * `vault/Arc/planted.md`.
      *
@@ -3495,4 +3692,1223 @@ test('A42-hash — a source hashes through the gate, and no result carries an ab
     }
 
     assert.equal(VIOLATIONS.length, seen, 'no primitive may be handed an outside path by the seam');
+});
+
+test('A72-overwrite-if-match — exact bytes, validation and first refusal create no stage', async () => {
+    arm('A72-overwrite-if-match');
+    const dir = overwriteDir();
+    const target = path.join(dir, 'page.md');
+    const request = relative(target);
+    fs.writeFileSync(target, Buffer.from([0, 255, 10]));
+    const old = digest(fs.readFileSync(target));
+    const names = () => fs.readdirSync(dir).sort();
+    const original = names();
+    for (const [sha, data, reason] of [
+        ['A'.repeat(64), Buffer.from('x'), 'BAD_INPUT'],
+        [old, 'not a buffer', 'BAD_INPUT'],
+        ['0'.repeat(64), Buffer.from('x'), 'DIGEST_MISMATCH']
+    ]) {
+        const result = await gate.overwriteFileInGrant(request, sha, data);
+        assert.equal(result.reason, reason);
+        assert.deepEqual(result.effect, { target: 'not_replaced', stage: { state: 'none' } });
+        assert.deepEqual(names(), original);
+    }
+    const missing = await gate.overwriteFileInGrant(relative(path.join(dir, 'missing.md')), old, Buffer.alloc(0));
+    assert.equal(missing.reason, 'MISSING');
+    assert.deepEqual(missing.effect.stage, { state: 'none' });
+    assert.deepEqual(names(), original);
+    const empty = await gate.overwriteFileInGrant(request, old, Buffer.alloc(0));
+    assert.deepEqual(empty, { ok: true, rel: request, bytes: 0, previousSha256: old,
+        sha256: digest(Buffer.alloc(0)), effect: { target: 'replaced', stage: { state: 'none' } } });
+    assert.equal(fs.readFileSync(target).length, 0);
+    const newBytes = Buffer.from([7, 0, 255]);
+    const next = await gate.overwriteFileInGrant(request, digest(Buffer.alloc(0)), newBytes);
+    assert.equal(next.ok, true);
+    assert.equal(next.bytes, 3);
+    assert.deepEqual(fs.readFileSync(target), newBytes);
+    assert.deepEqual(names(), original);
+    const create = await gate.createFileInGrant(request, Buffer.from('no'));
+    assert.equal(create.reason, 'EXISTS');
+    assert.deepEqual(fs.readFileSync(target), newBytes);
+    const production = createFsGate({ rawGrant: FX.grant });
+    assert.equal(isRefusal(production), false);
+    const defaultReplace = await production.overwriteFileInGrant(request, digest(newBytes), Buffer.from('production'));
+    assert.equal(defaultReplace.ok, true, 'production writeAll, fsync and rename run without an injected substitute');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'production');
+});
+
+test('A73-overwrite-leaf-no-follow — identity, links, aliases and final digest', async () => {
+    arm('A73-overwrite-leaf-no-follow');
+    const dir = overwriteDir();
+    const target = path.join(dir, 'page.md');
+    const request = relative(target);
+    const oldBytes = Buffer.from('old');
+    fs.writeFileSync(target, oldBytes);
+    const expected = digest(oldBytes);
+    assert.equal((await gate.overwriteFileInGrant(relative(dir), expected, Buffer.from('new'))).reason, 'NOT_A_FILE');
+    const hard = path.join(dir, 'hard.md');
+    fs.linkSync(target, hard);
+    let hardOpened = 0;
+    const hardGate = overwriteGate({ open: (name, flags) => { hardOpened++; return fs.openSync(name, flags); } });
+    assert.equal((await hardGate.overwriteFileInGrant(request, expected, Buffer.from('new'))).reason, 'NOT_A_FILE');
+    assert.equal(hardOpened, 0, 'a multiply named target must be rejected before open');
+    fs.unlinkSync(hard);
+    assert.equal((await gate.overwriteFileInGrant('../outside/secret.md', expected, Buffer.from('new'))).reason, 'ESCAPES');
+    const alias = path.join(root, `ow-alias-${path.basename(dir)}`);
+    fs.symlinkSync(dir, alias, 'junction');
+    assert.equal((await gate.overwriteFileInGrant(relative(path.join(alias, 'page.md')), expected, Buffer.from('new'))).reason, 'PARENT_ALIAS');
+    fs.unlinkSync(alias);
+    let swapped = false;
+    const openSwap = overwriteGate({ open: (name, flags) => {
+        if (name === target && !swapped) {
+            swapped = true;
+            fs.renameSync(target, path.join(dir, 'old.md'));
+            fs.writeFileSync(target, oldBytes);
+        }
+        return fs.openSync(name, flags);
+    } });
+    assert.equal((await openSwap.overwriteFileInGrant(request, expected, Buffer.from('new'))).reason, 'TARGET_CHANGED');
+    assert.equal(swapped, true);
+    let postOpenSwap = false;
+    const temporarilyMoved = path.join(dir, 'temporarily-open.md');
+    const afterOpen = overwriteGate({ open: (name, flags) => {
+        const fd = fs.openSync(name, flags);
+        if (name === target && !postOpenSwap) {
+            postOpenSwap = true;
+            fs.renameSync(target, temporarilyMoved);
+            fs.writeFileSync(target, oldBytes);
+        }
+        return fd;
+    }, read: (fd, buffer, offset, length, position) => {
+        if (postOpenSwap && fs.existsSync(temporarilyMoved)) {
+            fs.unlinkSync(target);
+            fs.renameSync(temporarilyMoved, target);
+        }
+        return fs.readSync(fd, buffer, offset, length, position);
+    } });
+    assert.equal((await afterOpen.overwriteFileInGrant(request, expected, Buffer.from('new'))).reason, 'TARGET_CHANGED');
+    assert.equal(postOpenSwap, true);
+    if (fs.existsSync(temporarilyMoved)) { fs.unlinkSync(target); fs.renameSync(temporarilyMoved, target); }
+    let edited = false;
+    const editAfterFirstHash = overwriteGate({ stageFlush: fd => {
+        fs.fsyncSync(fd);
+        fs.writeFileSync(target, Buffer.from('edit'));
+        edited = true;
+    } });
+    const final = await editAfterFirstHash.overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(edited, true);
+    assert.equal(final.reason, 'DIGEST_MISMATCH');
+    assert.equal(final.effect.target, 'not_replaced');
+    assert.equal(final.effect.stage.state, 'retained');
+    assert.equal(fs.existsSync(path.join(root, final.effect.stage.relHint)), true);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'edit');
+    fs.writeFileSync(target, oldBytes);
+    const movedParent = path.join(root, `ow-moved-${path.basename(dir)}`);
+    let moveStageFd;
+    const parentChange = await overwriteGate({ openExclusive: name => {
+        moveStageFd = fs.openSync(name, 'wx');
+        return moveStageFd;
+    }, close: fd => {
+        fs.closeSync(fd);
+        if (fd === moveStageFd) fs.renameSync(dir, movedParent);
+    } }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(parentChange.ok, false);
+    assert.equal(parentChange.effect.target, 'not_replaced');
+    assert.equal(parentChange.effect.stage.state, 'retained');
+    fs.renameSync(movedParent, dir);
+});
+
+test('A73b-overwrite-symlink — file, dangling and directory parent links refuse', async () => {
+    arm('A73b-overwrite-symlink');
+    const dir = overwriteDir();
+    const target = path.join(dir, 'page.md');
+    fs.writeFileSync(target, 'old');
+    const valid = digest(Buffer.from('old'));
+    const link = path.join(dir, 'link.md');
+    const dangling = path.join(dir, 'dangling.md');
+    const parent = path.join(root, `ow-sym-${path.basename(dir)}`);
+    fs.symlinkSync(target, link, 'file');
+    fs.symlinkSync(path.join(dir, 'gone.md'), dangling, 'file');
+    fs.symlinkSync(dir, parent, 'dir');
+    for (const name of [link, dangling]) {
+        const r = await gate.overwriteFileInGrant(relative(name), valid, Buffer.from('new'));
+        assert.equal(r.ok, false);
+        assert.deepEqual(r.effect.stage, { state: 'none' });
+    }
+    const aliased = await gate.overwriteFileInGrant(relative(path.join(parent, 'page.md')), valid, Buffer.from('new'));
+    assert.equal(aliased.reason, 'PARENT_ALIAS');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    const outside = path.join(FX.outside, `ow-symlink-${path.basename(dir)}.md`);
+    fs.writeFileSync(outside, 'outside');
+    let held;
+    const lateLink = await overwriteGate({ replaceStaged: (stage, name) => {
+        held = `${stage}-held`;
+        fs.renameSync(stage, held);
+        fs.symlinkSync(outside, stage, 'file');
+        fs.renameSync(stage, name);
+    } }).overwriteFileInGrant(relative(target), valid, Buffer.from('new'));
+    assert.equal(lateLink.reason, 'TARGET_CHANGED');
+    assert.equal(lateLink.effect.target, 'indeterminate');
+    assert.equal(lateLink.effect.stage.state, 'indeterminate');
+    assert.deepEqual(fs.readdirSync(dir).sort(), ['page.md', 'link.md', 'dangling.md', path.basename(held)].sort());
+    assert.equal(fs.lstatSync(target).isSymbolicLink(), true);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'outside');
+    assert.equal(fs.readFileSync(held, 'utf8'), 'new');
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'outside');
+    fs.unlinkSync(target); fs.unlinkSync(held); fs.unlinkSync(outside);
+    fs.unlinkSync(link); fs.unlinkSync(dangling); fs.unlinkSync(parent);
+});
+
+test('A74-overwrite-effect-reporting — retained and indeterminate stages, replace outcomes, measured residual race', async () => {
+    arm('A74-overwrite-effect-reporting');
+    const dir = overwriteDir();
+    const target = path.join(dir, 'page.md');
+    const request = relative(target);
+    fs.writeFileSync(target, 'old');
+    const expected = digest(Buffer.from('old'));
+    const run = (overrides, content = Buffer.from('new')) => overwriteGate(overrides).overwriteFileInGrant(request, expected, content);
+    const names = () => fs.readdirSync(dir).sort();
+    const collision = path.join(dir, '.wyrd-stage-collision');
+    fs.writeFileSync(collision, 'canary');
+    let collisionCalls = 0;
+    const collided = await run({ openExclusive: name => {
+        if (collisionCalls++ === 0) { const error = new Error('collision'); error.code = 'EEXIST'; throw error; }
+        return fs.openSync(name, 'wx');
+    } });
+    assert.equal(collided.ok, true);
+    assert.equal(collisionCalls, 2);
+    assert.deepEqual(names(), ['page.md', '.wyrd-stage-collision'].sort());
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    assert.equal(fs.readFileSync(collision, 'utf8'), 'canary');
+    fs.writeFileSync(target, 'old');
+    let exhaustedCalls = 0;
+    const exhausted = await run({ openExclusive: () => {
+        exhaustedCalls++;
+        const error = new Error('collision'); error.code = 'EEXIST'; throw error;
+    } });
+    assert.equal(exhausted.reason, 'IO_ERROR');
+    assert.equal(exhaustedCalls, 8);
+    assert.deepEqual(exhausted.effect.stage, { state: 'none' });
+    assert.deepEqual(names(), ['page.md', '.wyrd-stage-collision'].sort());
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    let closeStageFd;
+    let closeThrown = false;
+    for (const [name, override] of [
+        ['short', { writeAll: (fd, data) => fs.writeSync(fd, data.subarray(0, 1)) }],
+        ['zero', { writeAll: () => 0 }],
+        ['throw', { writeAll: () => { throw new Error('write'); } }],
+        ['flush', { stageFlush: () => { throw new Error('flush'); } }],
+        ['close', { openExclusive: name => { closeStageFd = fs.openSync(name, 'wx'); return closeStageFd; },
+            close: fd => { fs.closeSync(fd); if (fd === closeStageFd && !closeThrown) { closeThrown = true; throw new Error('close'); } } }]
+    ]) {
+        const beforeNames = names();
+        const r = await run(override);
+        assert.equal(r.ok, false, name);
+        assert.equal(r.effect.target, 'not_replaced', name);
+        assert.equal(r.effect.stage.state, 'retained', name);
+        const stage = path.join(root, r.effect.stage.relHint);
+        assert.deepEqual(names(), [...beforeNames, path.basename(stage)].sort(), `${name}: directory contents`);
+        assert.equal(fs.lstatSync(stage).isFile(), true, `${name}: stage kind`);
+        assert.equal(fs.readFileSync(stage, 'utf8'), name === 'short' ? 'n' : name === 'zero' || name === 'throw' ? '' : 'new', `${name}: stage bytes`);
+        assert.equal(fs.readFileSync(target, 'utf8'), 'old', name);
+    }
+    let inPlaceStage;
+    const beforeInPlace = names();
+    const changedStage = await run({ openExclusive: name => { inPlaceStage = name; return fs.openSync(name, 'wx'); },
+        stageFlush: fd => { fs.fsyncSync(fd); fs.writeFileSync(inPlaceStage, 'bad'); } });
+    assert.equal(changedStage.reason, 'TARGET_CHANGED');
+    assert.equal(changedStage.effect.target, 'not_replaced');
+    assert.equal(changedStage.effect.stage.state, 'indeterminate');
+    assert.deepEqual(names(), [...beforeInPlace, path.basename(inPlaceStage)].sort());
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    assert.equal(fs.readFileSync(inPlaceStage, 'utf8'), 'bad');
+    const outside = path.join(FX.outside, `ow-hard-${path.basename(dir)}.md`);
+    fs.writeFileSync(outside, 'outside');
+    let heldStage;
+    const beforeLate = names();
+    const lateHard = await run({ replaceStaged: (stage, name) => {
+        heldStage = `${stage}-held`;
+        fs.renameSync(stage, heldStage);
+        fs.linkSync(outside, stage);
+        fs.renameSync(stage, name);
+    } });
+    assert.equal(lateHard.reason, 'TARGET_CHANGED');
+    assert.equal(lateHard.effect.target, 'indeterminate');
+    assert.equal(lateHard.effect.stage.state, 'indeterminate');
+    assert.deepEqual(names(), [...beforeLate, path.basename(heldStage)].sort());
+    assert.equal(fs.readFileSync(target, 'utf8'), 'outside');
+    assert.equal(fs.readFileSync(heldStage, 'utf8'), 'new');
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'outside');
+    fs.unlinkSync(target); fs.writeFileSync(target, 'old'); fs.unlinkSync(heldStage); fs.unlinkSync(outside);
+    const sameBytes = path.join(dir, 'same-bytes.md');
+    fs.writeFileSync(sameBytes, 'new');
+    const beforeSame = names();
+    const sameObjectSwap = await run({ replaceStaged: (stage, name) => {
+        heldStage = `${stage}-held`;
+        fs.renameSync(stage, heldStage);
+        fs.renameSync(sameBytes, stage);
+        fs.renameSync(stage, name);
+    } });
+    assert.equal(sameObjectSwap.reason, 'TARGET_CHANGED');
+    assert.equal(sameObjectSwap.effect.target, 'indeterminate');
+    assert.deepEqual(names(), [...beforeSame.filter(name => name !== 'same-bytes.md'), path.basename(heldStage)].sort());
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    assert.equal(fs.readFileSync(heldStage, 'utf8'), 'new');
+    fs.unlinkSync(target); fs.writeFileSync(target, 'old'); fs.unlinkSync(heldStage);
+    const preLinkOutside = path.join(FX.outside, `ow-prelink-${path.basename(dir)}.md`);
+    fs.writeFileSync(preLinkOutside, 'outside');
+    let preLinkFd;
+    let preLinkName;
+    let preLinkSwapped = false;
+    const beforePreLink = names();
+    const preLink = await run({ openExclusive: name => { preLinkName = name; preLinkFd = fs.openSync(name, 'wx'); return preLinkFd; },
+        close: fd => {
+            fs.closeSync(fd);
+            if (fd === preLinkFd && !preLinkSwapped) {
+                preLinkSwapped = true;
+                fs.renameSync(preLinkName, `${preLinkName}-held`);
+                fs.linkSync(preLinkOutside, preLinkName);
+            }
+        } });
+    assert.equal(preLink.reason, 'TARGET_CHANGED');
+    assert.equal(preLink.effect.stage.state, 'indeterminate');
+    assert.deepEqual(names(), [...beforePreLink, path.basename(preLinkName), `${path.basename(preLinkName)}-held`].sort());
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    assert.equal(fs.readFileSync(preLinkName, 'utf8'), 'outside');
+    assert.equal(fs.readFileSync(`${preLinkName}-held`, 'utf8'), 'new');
+    assert.equal(fs.readFileSync(preLinkOutside, 'utf8'), 'outside');
+    fs.unlinkSync(preLinkName); fs.unlinkSync(`${preLinkName}-held`); fs.unlinkSync(preLinkOutside);
+    const beforeCorrupt = names();
+    const postCorrupt = await run({ replaceStaged: (stage, name) => {
+        fs.renameSync(stage, name);
+        fs.writeFileSync(name, 'bad');
+    } });
+    assert.equal(postCorrupt.reason, 'TARGET_CHANGED');
+    assert.equal(postCorrupt.effect.target, 'indeterminate');
+    assert.equal(postCorrupt.effect.stage.state, 'indeterminate');
+    assert.deepEqual(names(), beforeCorrupt);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'bad');
+    fs.writeFileSync(target, 'old');
+    const beforeReplaceNames = names();
+    const before = await run({ replaceStaged: () => { throw new Error('before rename'); } });
+    assert.equal(before.effect.target, 'indeterminate');
+    assert.equal(before.effect.stage.state, 'indeterminate');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    const beforeStage = path.join(root, before.effect.stage.relHint);
+    assert.deepEqual(names(), [...beforeReplaceNames, path.basename(beforeStage)].sort());
+    assert.equal(fs.readFileSync(beforeStage, 'utf8'), 'new');
+    const beforeAfterNames = names();
+    const after = await run({ replaceStaged: (stage, name) => { fs.renameSync(stage, name); throw new Error('after rename'); } });
+    assert.equal(after.effect.target, 'indeterminate');
+    assert.equal(after.effect.stage.state, 'indeterminate');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    assert.deepEqual(names(), beforeAfterNames);
+    assert.equal(fs.existsSync(path.join(root, after.effect.stage.relHint)), false);
+    fs.writeFileSync(target, 'old');
+    let stageSwapped = false;
+    let swapStageFd;
+    let swapStageName;
+    const beforeStageSwapNames = names();
+    const replacedStage = await run({ openExclusive: name => {
+        swapStageName = name;
+        swapStageFd = fs.openSync(name, 'wx');
+        return swapStageFd;
+    }, close: fd => {
+        fs.closeSync(fd);
+        if (fd === swapStageFd && !stageSwapped) {
+            fs.renameSync(swapStageName, `${swapStageName}-held`);
+            fs.writeFileSync(swapStageName, 'bad');
+            stageSwapped = true;
+        }
+    } });
+    assert.equal(stageSwapped, true);
+    assert.equal(replacedStage.reason, 'TARGET_CHANGED');
+    assert.equal(replacedStage.effect.stage.state, 'indeterminate');
+    assert.deepEqual(names(), [...beforeStageSwapNames, path.basename(swapStageName), `${path.basename(swapStageName)}-held`].sort());
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    assert.equal(fs.readFileSync(swapStageName, 'utf8'), 'bad');
+    assert.equal(fs.readFileSync(`${swapStageName}-held`, 'utf8'), 'new');
+    let stageRealpathCalls = 0;
+    let published = false;
+    const beforeRootMoveNames = names();
+    const finalRootMove = await run({ realpathNative: name => {
+        if (name.includes('.wyrd-stage-')) stageRealpathCalls++;
+        if (name === root && stageRealpathCalls >= 2 && !published) return FX.outside;
+        return fs.realpathSync.native(name);
+    }, replaceStaged: (stage, name) => { published = true; fs.renameSync(stage, name); } });
+    assert.equal(finalRootMove.reason, 'ROOT_MOVED');
+    assert.equal(finalRootMove.effect.target, 'not_replaced');
+    assert.equal(published, false);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    assert.deepEqual(names(), [...beforeRootMoveNames, path.basename(finalRootMove.effect.stage.relHint)].sort());
+    assert.equal(fs.readFileSync(path.join(root, finalRootMove.effect.stage.relHint), 'utf8'), 'new');
+    const beforePostRootNames = names();
+    const postRootMove = await run({ realpathNative: name => {
+        if (name === root && published) return FX.outside;
+        return fs.realpathSync.native(name);
+    }, replaceStaged: (stage, name) => { published = true; fs.renameSync(stage, name); } });
+    assert.equal(postRootMove.reason, 'ROOT_MOVED');
+    assert.equal(postRootMove.effect.target, 'indeterminate');
+    assert.equal(postRootMove.effect.stage.state, 'indeterminate');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    assert.deepEqual(names(), beforePostRootNames);
+    fs.writeFileSync(target, 'old');
+    published = false;
+    const beforeMeasuredNames = names();
+    const measured = await run({ replaceStaged: (stage, name) => {
+        fs.writeFileSync(name, 'external');
+        fs.renameSync(stage, name);
+    } });
+    // This measures the last-check-to-rename residual race; it is not a passing safety proof.
+    assert.equal(measured.ok, true);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    assert.deepEqual(names(), beforeMeasuredNames);
+});
+
+test('A75-overwrite-post-parent — descriptor reads and sampled parent checks', async t => {
+    arm('A75-overwrite-post-parent');
+    if (process.platform !== 'win32') { t.diagnostic('Windows junction race only'); return; }
+    const parent = overwriteDir();
+    const moved = `${parent}-moved`;
+    const other = overwriteDir();
+    const target = path.join(parent, 'page.md');
+    const otherTarget = path.join(other, 'page.md');
+    fs.writeFileSync(target, 'old');
+    fs.writeFileSync(otherTarget, 'other');
+    let redirected = false;
+    let postAliasReads = 0;
+    const result = await overwriteGate({ read: (fd, buffer, offset, length, position) => {
+        if (redirected) postAliasReads++;
+        return fs.readSync(fd, buffer, offset, length, position);
+    }, replaceStaged: (stage, name) => {
+        fs.renameSync(parent, moved);
+        fs.symlinkSync(other, parent, 'junction');
+        fs.renameSync(path.join(moved, path.basename(stage)), path.join(other, path.basename(stage)));
+        fs.renameSync(stage, name);
+        redirected = true;
+    } }).overwriteFileInGrant(relative(target), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(result.reason, 'DENIED');
+    assert.equal(result.effect.target, 'indeterminate');
+    assert.equal(postAliasReads, 0, 'the aliased parent must refuse before post-publication read');
+    assert.equal(fs.readFileSync(otherTarget, 'utf8'), 'other');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    const outsideParent = overwriteDir();
+    const outsideMoved = `${outsideParent}-moved`;
+    const outsideDir = fs.mkdtempSync(path.join(FX.outside, 'ow-'));
+    const outsideTarget = path.join(outsideDir, 'page.md');
+    const outsideRequest = path.join(outsideParent, 'page.md');
+    fs.writeFileSync(outsideRequest, 'old');
+    fs.writeFileSync(outsideTarget, 'outside');
+    const escaped = await overwriteGate({ replaceStaged: (stage, name) => {
+        fs.renameSync(outsideParent, outsideMoved);
+        fs.symlinkSync(outsideDir, outsideParent, 'junction');
+        fs.renameSync(path.join(outsideMoved, path.basename(stage)), path.join(outsideDir, path.basename(stage)));
+        fs.renameSync(stage, name);
+    } }).overwriteFileInGrant(relative(outsideRequest), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(escaped.reason, 'DENIED');
+    assert.equal(escaped.effect.target, 'indeterminate');
+    assert.equal(fs.readFileSync(outsideTarget, 'utf8'), 'outside');
+    assert.equal(fs.readFileSync(outsideRequest, 'utf8'), 'old');
+    const fresh = overwriteDir();
+    const freshMoved = `${fresh}-moved`;
+    const freshTarget = path.join(fresh, 'page.md');
+    fs.writeFileSync(freshTarget, 'old');
+    const recreated = await overwriteGate({ replaceStaged: (stage, name) => {
+        fs.renameSync(fresh, freshMoved);
+        fs.mkdirSync(fresh);
+        fs.renameSync(path.join(freshMoved, path.basename(stage)), stage);
+        fs.renameSync(stage, name);
+    } }).overwriteFileInGrant(relative(freshTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(recreated.reason, 'DENIED');
+    assert.equal(recreated.effect.target, 'indeterminate');
+    assert.equal(fs.readFileSync(freshTarget, 'utf8'), 'old');
+    const canonicalDir = overwriteDir();
+    const canonicalTarget = path.join(canonicalDir, 'page.md');
+    fs.writeFileSync(canonicalTarget, 'old');
+    let canonicalPublished = false;
+    const misresolved = await overwriteGate({
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); canonicalPublished = true; },
+        realpathNative: name => name === canonicalTarget && canonicalPublished ? otherTarget : fs.realpathSync.native(name)
+    }).overwriteFileInGrant(relative(canonicalTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(misresolved.reason, 'PARENT_ALIAS');
+    assert.equal(misresolved.effect.target, 'indeterminate');
+    assert.deepEqual(fs.readdirSync(canonicalDir), ['page.md']);
+    assert.equal(fs.readFileSync(canonicalTarget, 'utf8'), 'new');
+    const preCanonicalTarget = path.join(overwriteDir(), 'page.md');
+    fs.writeFileSync(preCanonicalTarget, 'old');
+    const preMisresolved = await overwriteGate({
+        realpathNative: name => name === preCanonicalTarget ? otherTarget : fs.realpathSync.native(name)
+    }).overwriteFileInGrant(relative(preCanonicalTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(preMisresolved.reason, 'PARENT_ALIAS');
+    assert.deepEqual(preMisresolved.effect, { target: 'not_replaced', stage: { state: 'none' } });
+    assert.equal(fs.readFileSync(preCanonicalTarget, 'utf8'), 'old');
+    const stageCanonicalTarget = path.join(overwriteDir(), 'page.md');
+    fs.writeFileSync(stageCanonicalTarget, 'old');
+    const stageMisresolved = await overwriteGate({
+        realpathNative: name => name.includes('.wyrd-stage-') ? otherTarget : fs.realpathSync.native(name)
+    }).overwriteFileInGrant(relative(stageCanonicalTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(stageMisresolved.reason, 'TARGET_CHANGED');
+    assert.equal(stageMisresolved.effect.target, 'not_replaced');
+    assert.equal(stageMisresolved.effect.stage.state, 'indeterminate');
+    assert.equal(fs.readFileSync(stageCanonicalTarget, 'utf8'), 'old');
+    const finalSampleTarget = path.join(overwriteDir(), 'page.md');
+    fs.writeFileSync(finalSampleTarget, 'old');
+    let finalPublished = false;
+    let finalNameSwapped = false;
+    const finalSample = await overwriteGate({
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); finalPublished = true; },
+        realpathNative: name => {
+            const canonical = fs.realpathSync.native(name);
+            if (name === finalSampleTarget && finalPublished) finalNameSwapped = true;
+            return canonical;
+        },
+        lstat: name => fs.lstatSync(name === finalSampleTarget && finalNameSwapped ? otherTarget : name),
+        lstatBigint: name => fs.lstatSync(name === finalSampleTarget && finalNameSwapped ? otherTarget : name, { bigint: true })
+    }).overwriteFileInGrant(relative(finalSampleTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(finalSample.reason, 'TARGET_CHANGED');
+    assert.equal(finalSample.effect.target, 'indeterminate');
+    assert.deepEqual(fs.readdirSync(path.dirname(finalSampleTarget)), ['page.md']);
+    assert.equal(fs.readFileSync(finalSampleTarget, 'utf8'), 'new');
+    const firstNameTarget = path.join(overwriteDir(), 'page.md');
+    fs.writeFileSync(firstNameTarget, 'old');
+    let firstNamePublished = false;
+    let firstNameProbe = true;
+    const firstNameSample = await overwriteGate({
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); firstNamePublished = true; },
+        lstatBigint: name => {
+            if (name === firstNameTarget && firstNamePublished && firstNameProbe) {
+                firstNameProbe = false;
+                return fs.lstatSync(otherTarget, { bigint: true });
+            }
+            return fs.lstatSync(name, { bigint: true });
+        }
+    }).overwriteFileInGrant(relative(firstNameTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(firstNameSample.reason, 'TARGET_CHANGED');
+    assert.equal(firstNameSample.effect.target, 'indeterminate');
+    assert.deepEqual(fs.readdirSync(path.dirname(firstNameTarget)).sort(), ['page.md']);
+    assert.equal(fs.readFileSync(firstNameTarget, 'utf8'), 'new');
+    const transientParentTarget = path.join(overwriteDir(), 'page.md');
+    fs.writeFileSync(transientParentTarget, 'old');
+    let transientPublished = false;
+    let transientProbe = true;
+    const transientParent = await overwriteGate({
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); transientPublished = true; },
+        read: (fd, buffer, offset, length, position) => {
+            if (transientPublished) transientProbe = false;
+            return fs.readSync(fd, buffer, offset, length, position);
+        },
+        lstatBigint: name => {
+            if (name === path.dirname(transientParentTarget) && transientPublished && transientProbe) {
+                transientProbe = false;
+                return fs.lstatSync(other, { bigint: true });
+            }
+            return fs.lstatSync(name, { bigint: true });
+        }
+    }).overwriteFileInGrant(relative(transientParentTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(transientParent.reason, 'TARGET_CHANGED');
+    assert.equal(transientParent.effect.target, 'indeterminate');
+    assert.deepEqual(fs.readdirSync(path.dirname(transientParentTarget)).sort(), ['page.md']);
+    assert.equal(fs.readFileSync(transientParentTarget, 'utf8'), 'new');
+    const parentSampleTarget = path.join(overwriteDir(), 'page.md');
+    fs.writeFileSync(parentSampleTarget, 'old');
+    let parentPublished = false;
+    const parentSample = await overwriteGate({
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); parentPublished = true; },
+        lstatBigint: name => fs.lstatSync(name === path.dirname(parentSampleTarget) && parentPublished ? other : name, { bigint: true })
+    }).overwriteFileInGrant(relative(parentSampleTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(parentSample.reason, 'TARGET_CHANGED');
+    assert.equal(parentSample.effect.target, 'indeterminate');
+    assert.deepEqual(fs.readdirSync(path.dirname(parentSampleTarget)).sort(), ['page.md']);
+    assert.equal(fs.readFileSync(parentSampleTarget, 'utf8'), 'new');
+    const lateParentTarget = path.join(overwriteDir(), 'page.md');
+    fs.writeFileSync(lateParentTarget, 'old');
+    let lateParentPublished = false;
+    let lateParentFlip = false;
+    const lateParentSample = await overwriteGate({
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); lateParentPublished = true; },
+        read: (fd, buffer, offset, length, position) => {
+            if (lateParentPublished) lateParentFlip = true;
+            return fs.readSync(fd, buffer, offset, length, position);
+        },
+        lstatBigint: name => fs.lstatSync(name === path.dirname(lateParentTarget) && lateParentFlip ? other : name, { bigint: true })
+    }).overwriteFileInGrant(relative(lateParentTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(lateParentSample.reason, 'TARGET_CHANGED');
+    assert.equal(lateParentSample.effect.target, 'indeterminate');
+    assert.deepEqual(fs.readdirSync(path.dirname(lateParentTarget)).sort(), ['page.md']);
+    assert.equal(fs.readFileSync(lateParentTarget, 'utf8'), 'new');
+    const lateDir = overwriteDir();
+    const lateMoved = `${lateDir}-moved`;
+    const lateTarget = path.join(lateDir, 'page.md');
+    fs.writeFileSync(lateTarget, 'old');
+    let latePublished = false;
+    let lateSwapped = false;
+    let verificationFd;
+    const late = await overwriteGate({
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); latePublished = true; },
+        open: (name, flags) => {
+            const fd = fs.openSync(name, flags);
+            if (latePublished && name === lateTarget) verificationFd = fd;
+            return fd;
+        },
+        close: fd => {
+            fs.closeSync(fd);
+            if (fd === verificationFd && !lateSwapped) {
+                lateSwapped = true;
+                fs.renameSync(lateDir, lateMoved);
+                fs.mkdirSync(lateDir);
+                fs.renameSync(path.join(lateMoved, 'page.md'), lateTarget);
+            }
+        }
+    }).overwriteFileInGrant(relative(lateTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(late.ok, true);
+    assert.equal(lateSwapped, false, 'post-rename must not open a new descriptor');
+    assert.equal(fs.readFileSync(lateTarget, 'utf8'), 'new');
+    const escapedParent = overwriteDir();
+    const escapedMoved = `${escapedParent}-moved`;
+    const escapedOutside = fs.mkdtempSync(path.join(FX.outside, 'ow-'));
+    const escapedTarget = path.join(escapedParent, 'page.md');
+    fs.writeFileSync(escapedTarget, 'old');
+    let escapedPublished = false;
+    let swapDenied = false;
+    let outsideOpens = 0;
+    let outsideReads = 0;
+    const escapedAfterParent = await overwriteGate({
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); escapedPublished = true; },
+        lstat: name => {
+            if (name === escapedTarget && escapedPublished) {
+                escapedPublished = false;
+                try {
+                    fs.renameSync(escapedParent, escapedMoved);
+                    fs.symlinkSync(escapedOutside, escapedParent, 'junction');
+                    fs.renameSync(path.join(escapedMoved, 'page.md'), path.join(escapedOutside, 'page.md'));
+                } catch (error) {
+                    if (!['EACCES', 'EPERM'].includes(error.code)) throw error;
+                    swapDenied = true;
+                }
+            }
+            return fs.lstatSync(name);
+        },
+        realpathNative: name => name === escapedTarget && !escapedPublished
+            && fs.existsSync(path.join(escapedOutside, 'page.md')) ? escapedTarget : fs.realpathSync.native(name),
+        open: (name, flags) => {
+            if (name === escapedTarget && fs.realpathSync.native(escapedParent) === escapedOutside) outsideOpens++;
+            return fs.openSync(name, flags);
+        },
+        read: (fd, buffer, offset, length, position) => {
+            if (fs.existsSync(path.join(escapedOutside, 'page.md'))) outsideReads++;
+            return fs.readSync(fd, buffer, offset, length, position);
+        }
+    }).overwriteFileInGrant(relative(escapedTarget), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(outsideOpens, 0, 'post-rename must not open through a swapped parent');
+    assert.equal(outsideReads, 0, 'post-rename must not read an outside object');
+    if (swapDenied) {
+        t.diagnostic('Windows denied moving a parent while the stage descriptor was held');
+        assert.equal(escapedAfterParent.ok, true);
+        assert.equal(fs.readFileSync(escapedTarget, 'utf8'), 'new');
+        assert.equal(fs.existsSync(path.join(escapedOutside, 'page.md')), false);
+    } else {
+        assert.equal(escapedAfterParent.reason, 'TARGET_CHANGED');
+        assert.equal(escapedAfterParent.effect.target, 'indeterminate');
+        assert.equal(fs.readFileSync(path.join(escapedOutside, 'page.md'), 'utf8'), 'new');
+    }
+});
+
+test('A77-overwrite-between-samples — physical parent swap and restoration', async t => {
+    arm('A77-overwrite-between-samples');
+    if (process.platform === 'win32') { t.diagnostic('held descriptor prevents physical parent move on Windows'); return; }
+    const parent = overwriteDir();
+    const moved = `${parent}-moved`;
+    const empty = `${parent}-empty`;
+    const target = path.join(parent, 'page.md');
+    fs.writeFileSync(target, 'old');
+    let published = false;
+    let firstSample = false;
+    let swapped = false;
+    const result = await overwriteGate({
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); published = true; },
+        lstat: name => {
+            if (name === target && published) firstSample = true;
+            return fs.lstatSync(name);
+        },
+        lstatBigint: name => {
+            if (name === target && firstSample && !swapped) {
+                fs.renameSync(parent, moved);
+                fs.mkdirSync(parent);
+                fs.renameSync(parent, empty);
+                fs.renameSync(moved, parent);
+                swapped = true;
+            }
+            return fs.lstatSync(name, { bigint: true });
+        }
+    }).overwriteFileInGrant(relative(target), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(swapped, true);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.effect, { target: 'replaced', stage: { state: 'none' } });
+    assert.deepEqual(fs.readdirSync(parent), ['page.md']);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    assert.deepEqual(fs.readdirSync(empty), []);
+});
+
+test('A78-overwrite-stage-preopen — swapped stage is rejected before outside object opens', async t => {
+    arm('A78-overwrite-stage-preopen');
+    const parent = overwriteDir();
+    const target = path.join(parent, 'page.md');
+    const outside = path.join(FX.outside, 'stage-outside.md');
+    fs.writeFileSync(target, 'old');
+    fs.writeFileSync(outside, 'outside');
+    let stageReadFd;
+    let stagePath;
+    let outsideOpens = 0;
+    const result = await overwriteGate({
+        open: (name, flags) => {
+            const fd = fs.openSync(name, flags);
+            if (name.includes('.wyrd-stage-')) {
+                if (stageReadFd === undefined) stageReadFd = fd;
+                // Exact bigint identity: numeric NTFS ids round (ULP 4), so a stage file created just
+                // after `outside` can collide with it (see exactIdentityOf in src/fsgate.ts).
+                const opened = fs.fstatSync(fd, { bigint: true });
+                const outsideId = fs.statSync(outside, { bigint: true });
+                if (opened.dev === outsideId.dev && opened.ino === outsideId.ino) {
+                    outsideOpens++;
+                    t.diagnostic(`outside open: stage=${opened.dev}:${opened.ino} outside=${outsideId.dev}:${outsideId.ino} name=${name}`);
+                }
+            }
+            return fd;
+        },
+        close: fd => {
+            fs.closeSync(fd);
+            if (fd === stageReadFd && stagePath === undefined) {
+                stagePath = path.join(parent, fs.readdirSync(parent).find(name => name.startsWith('.wyrd-stage-')));
+                fs.renameSync(stagePath, `${stagePath}-held`);
+                fs.linkSync(outside, stagePath);
+            }
+        }
+    }).overwriteFileInGrant(relative(target), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(result.reason, 'TARGET_CHANGED');
+    assert.equal(result.effect.target, 'not_replaced');
+    assert.equal(result.effect.stage.state, 'indeterminate');
+    assert.equal(outsideOpens, 0);
+    assert.deepEqual(fs.readdirSync(parent).sort(), [path.basename(stagePath), `${path.basename(stagePath)}-held`, 'page.md'].sort());
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'outside');
+});
+
+test('A79-overwrite-alias-reason — spelling-only real path mismatch uses alias refusal', async t => {
+    arm('A79-overwrite-alias-reason');
+    if (process.platform === 'win32') { t.diagnostic('non-Windows path equality only'); return; }
+    const parent = overwriteDir();
+    const target = path.join(parent, 'file.md');
+    fs.writeFileSync(target, 'old');
+    const result = await overwriteGate({
+        realpathNative: name => name === target ? path.join(parent, 'File.md') : fs.realpathSync.native(name)
+    }).overwriteFileInGrant(relative(target), digest(Buffer.from('old')), Buffer.from('new'));
+    assert.equal(result.reason, 'PARENT_ALIAS');
+    assert.deepEqual(result.effect, { target: 'not_replaced', stage: { state: 'none' } });
+    assert.deepEqual(fs.readdirSync(parent), ['file.md']);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+});
+
+test('A76-overwrite-verification-read — unreadable verification reports IO_ERROR with observed effects', async () => {
+    arm('A76-overwrite-verification-read');
+    const parent = overwriteDir();
+    const target = path.join(parent, 'page.md');
+    const request = relative(target);
+    const expected = digest(Buffer.from('old'));
+    fs.writeFileSync(target, 'old');
+    const denied = () => { const error = new Error('verification read denied'); error.code = 'EACCES'; throw error; };
+    const pre = await overwriteGate({ open: (name, flags) => name.includes('.wyrd-stage-') ? denied() : fs.openSync(name, flags) })
+        .overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(pre.reason, 'DENIED');
+    assert.equal(pre.effect.target, 'not_replaced');
+    assert.equal(pre.effect.stage.state, 'retained');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    assert.equal(fs.readFileSync(path.join(root, pre.effect.stage.relHint), 'utf8'), 'new');
+    let stageReadFd;
+    const preRead = await overwriteGate({
+        open: (name, flags) => {
+            const fd = fs.openSync(name, flags);
+            if (name.includes('.wyrd-stage-')) stageReadFd = fd;
+            return fd;
+        },
+        read: (fd, buffer, offset, length, position) => fd === stageReadFd ? denied() : fs.readSync(fd, buffer, offset, length, position)
+    }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(preRead.reason, 'DENIED');
+    assert.equal(preRead.effect.target, 'not_replaced');
+    assert.equal(preRead.effect.stage.state, 'retained');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+    assert.equal(fs.readFileSync(path.join(root, preRead.effect.stage.relHint), 'utf8'), 'new');
+    for (const code of ['ENOENT', 'EACCES']) {
+        let stageOpens = 0;
+        const beforeNames = fs.readdirSync(parent).sort();
+        const preOpen = await overwriteGate({
+            open: (name, flags) => {
+                if (name.includes('.wyrd-stage-') && ++stageOpens === 2) {
+                    const error = new Error('stage became unavailable'); error.code = code; throw error;
+                }
+                return fs.openSync(name, flags);
+            }
+        }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+        assert.equal(preOpen.reason, code === 'ENOENT' ? 'MISSING' : 'DENIED');
+        assert.match(preOpen.detail, /\.wyrd-stage-/);
+        assert.equal(preOpen.effect.target, 'not_replaced');
+        assert.equal(preOpen.effect.stage.state, 'indeterminate');
+        assert.deepEqual(fs.readdirSync(parent).sort(), [...beforeNames, path.basename(preOpen.effect.stage.relHint)].sort());
+        assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+        assert.equal(fs.readFileSync(path.join(root, preOpen.effect.stage.relHint), 'utf8'), 'new');
+    }
+    let published = false;
+    const post = await overwriteGate({
+        open: (name, flags) => name === target && published ? denied() : fs.openSync(name, flags),
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); published = true; }
+    }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(post.ok, true, 'post-rename must not open the installed name');
+    assert.deepEqual(post.effect, { target: 'replaced', stage: { state: 'none' } });
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    fs.writeFileSync(target, 'old');
+    published = false;
+    const postRead = await overwriteGate({
+        read: (fd, buffer, offset, length, position) => published ? denied() : fs.readSync(fd, buffer, offset, length, position),
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); published = true; }
+    }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(postRead.reason, 'DENIED');
+    assert.equal(postRead.effect.target, 'indeterminate');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    fs.writeFileSync(target, 'old');
+    published = false;
+    const unreadableName = await overwriteGate({
+        lstat: name => name === target && published ? denied() : fs.lstatSync(name),
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); published = true; }
+    }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(unreadableName.reason, 'DENIED');
+    assert.equal(unreadableName.effect.target, 'indeterminate');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    fs.writeFileSync(target, 'old');
+    published = false;
+    let firstInstalledProbe = true;
+    const firstNameDenied = await overwriteGate({
+        lstat: name => {
+            if (name === target && published && firstInstalledProbe) {
+                firstInstalledProbe = false;
+                return denied();
+            }
+            return fs.lstatSync(name);
+        },
+        read: (fd, buffer, offset, length, position) => {
+            if (published) firstInstalledProbe = false;
+            return fs.readSync(fd, buffer, offset, length, position);
+        },
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); published = true; }
+    }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(firstNameDenied.reason, 'DENIED');
+    assert.equal(firstNameDenied.effect.target, 'indeterminate');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    fs.writeFileSync(target, 'old');
+    published = false;
+    const parentDenied = await overwriteGate({
+        lstat: name => {
+            if (name === parent && published) return denied();
+            return fs.lstatSync(name);
+        },
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); published = true; }
+    }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(parentDenied.reason, 'DENIED');
+    assert.equal(parentDenied.effect.target, 'indeterminate');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    fs.writeFileSync(target, 'old');
+    published = false;
+    let descriptorRead = false;
+    const lateParentDenied = await overwriteGate({
+        lstat: name => name === parent && descriptorRead ? denied() : fs.lstatSync(name),
+        read: (fd, buffer, offset, length, position) => {
+            if (published) descriptorRead = true;
+            return fs.readSync(fd, buffer, offset, length, position);
+        },
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); published = true; }
+    }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(lateParentDenied.reason, 'DENIED');
+    assert.equal(lateParentDenied.effect.target, 'indeterminate');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    fs.writeFileSync(target, 'old');
+    published = false;
+    const identityDenied = await overwriteGate({
+        lstatBigint: name => {
+            if (name === target && published) return denied();
+            return fs.lstatSync(name, { bigint: true });
+        },
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); published = true; }
+    }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(identityDenied.reason, 'DENIED');
+    assert.equal(identityDenied.effect.target, 'indeterminate');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+    fs.writeFileSync(target, 'old');
+    published = false;
+    const descriptorDenied = await overwriteGate({
+        fstatBigint: fd => published ? denied() : fs.fstatSync(fd, { bigint: true }),
+        replaceStaged: (stage, name) => { fs.renameSync(stage, name); published = true; }
+    }).overwriteFileInGrant(request, expected, Buffer.from('new'));
+    assert.equal(descriptorDenied.reason, 'DENIED');
+    assert.equal(descriptorDenied.effect.target, 'indeterminate');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'new');
+});
+
+test('SR2-no-open-without-opt-in — metadata, census and read guard a synthetic placeholder', async t => {
+    arm('SR2-no-open-without-opt-in');
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-sr2-'));
+    try {
+        for (let i = 0; i < 20; i++) fs.writeFileSync(path.join(base, `file${i}.md`), 'local bytes');
+        const opens = [];
+        const custom = createFsGate({ rawGrant: base, primitives: {
+            open: (target, flags) => { opens.push(target); return fs.openSync(target, flags); },
+            placeholderAttributes: async target => ({
+                attributes: path.basename(target) === 'file7.md' ? 0x1000 : 0,
+                reparseTag: 0
+            })
+        } });
+        assert.equal(isRefusal(custom), false);
+        const summary = await custom.grantPlaceholderSummary();
+        assert.equal(summary.placeholder_detection, 'available');
+        assert.equal(summary.placeholder_count, 1);
+        assert.equal(summary.file_count, 20);
+        assert.equal(summary.placeholder_fraction, 0.05);
+        const metadata = await custom.fileMetadataInGrant('file7.md');
+        assert.equal(metadata.rel, 'file7.md');
+        assert.equal(metadata.size, Buffer.byteLength('local bytes'));
+        assert.equal(metadata.dehydrated, true);
+        assert.equal(typeof metadata.mtimeMs, 'number');
+        assert.equal(JSON.stringify(metadata).includes(base), false);
+        const blocked = await custom.readFileInGrant('file7.md', 0, 20);
+        assert.equal(blocked.reason, 'PLACEHOLDER');
+        assert.match(blocked.detail, /would download/);
+        assert.equal(opens.length, 0, 'the placeholder content must remain unopened');
+        const blockedHash = await custom.hashInGrant('file7.md');
+        assert.equal(blockedHash.reason, 'PLACEHOLDER');
+        assert.equal(opens.length, 0, 'the Scribe hash path must also remain unopened');
+        const ordinary = await custom.readFileInGrant('file6.md', 0, 20);
+        assert.equal(ordinary.ok, true);
+        assert.equal(ordinary.bytes.toString(), 'local bytes');
+        const hydrated = await custom.readFileInGrant('file7.md', 0, 20, true);
+        assert.equal(hydrated.ok, true);
+        assert.equal(hydrated.dehydrated, true);
+        assert.equal(opens.filter(target => path.basename(target) === 'file7.md').length, 1);
+
+        const tagOpens = [];
+        const tagGate = createFsGate({ rawGrant: base, primitives: {
+            open: (target, flags) => { tagOpens.push(target); return fs.openSync(target, flags); },
+            placeholderAttributes: async target => ({ attributes:
+                path.basename(target) === 'file9.md' ? 0x40000 :
+                path.basename(target) === 'file10.md' ? 0x400000 : 0,
+                reparseTag: path.basename(target) === 'file8.md' ? 0x9000101a : 0 })
+        } });
+        for (const name of ['file8.md', 'file9.md', 'file10.md']) {
+            const result = await tagGate.readFileInGrant(name, 0, 20);
+            assert.equal(result.reason, 'PLACEHOLDER', `${name} must refuse from its tag or recall bit`);
+        }
+        assert.equal(tagOpens.length, 0);
+
+        const empty = path.join(base, 'empty');
+        fs.mkdirSync(empty);
+        const unavailableGate = createFsGate({ rawGrant: empty, primitives: {
+            placeholderAttributes: async () => null
+        } });
+        const unavailable = await unavailableGate.grantPlaceholderSummary();
+        assert.equal(unavailable.placeholder_detection, 'unavailable');
+        assert.equal(unavailable.placeholder_count, null);
+        assert.equal(unavailable.placeholder_fraction, null);
+        if (process.platform === 'win32') {
+            fs.writeFileSync(path.join(empty, 'plain.md'), 'local');
+            const unavailableOpens = [];
+            const failedDetector = createFsGate({ rawGrant: empty, primitives: {
+                open: (target, flags) => { unavailableOpens.push(target); return fs.openSync(target, flags); },
+                placeholderAttributes: async () => null
+            } });
+            const blocked = await failedDetector.readFileInGrant('plain.md', 0, 20);
+            assert.equal(blocked.reason, 'IO_ERROR');
+            assert.equal(unavailableOpens.length, 0);
+            const blockedHash = await failedDetector.hashInGrant('plain.md');
+            assert.equal(blockedHash.reason, 'IO_ERROR');
+            assert.equal(unavailableOpens.length, 0);
+            const optedIn = await failedDetector.readFileInGrant('plain.md', 0, 20, true);
+            assert.equal(optedIn.bytes.toString(), 'local');
+            assert.equal(optedIn.placeholder_detection, 'unavailable');
+        } else {
+            t.diagnostic('Windows fail-closed open check is exercised only on Windows');
+        }
+    } finally {
+        fs.rmSync(base, { recursive: true, force: true });
+    }
+});
+
+test('SR5-native-placeholder-layout — shipped Windows helper reports independent sizes and offline bit', async t => {
+    arm('SR5-native-placeholder-layout');
+    if (process.platform !== 'win32') {
+        t.diagnostic('native FindFirstFileW measurement requires Windows');
+        return;
+    }
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-native-metadata-'));
+    const names = ['tiny ü note.md', 'medium.md', 'large.md'];
+    try {
+        fs.writeFileSync(path.join(base, names[0]), 'abc');
+        fs.writeFileSync(path.join(base, names[1]), Buffer.alloc(70000, 0x61));
+        const large = path.join(base, names[2]);
+        const fd = fs.openSync(large, 'w');
+        try { fs.ftruncateSync(fd, 0x100000000 + 37); } finally { fs.closeSync(fd); }
+        const built = fs.readFileSync(new URL('../dist/fsgate.js', import.meta.url), 'utf8');
+        const match = /const WINDOWS_PLACEHOLDER_SCRIPT = String.raw\s*`([\s\S]*?)`;/m.exec(built);
+        assert.ok(match, 'the shipped helper script must be present in the built fence');
+        const script = match[1];
+        assert.match(built, /'-Command', WINDOWS_PLACEHOLDER_SCRIPT/);
+        assert.doesNotMatch(built, /-EncodedCommand/);
+        execFileSync('attrib.exe', ['+O', path.join(base, names[0])]);
+        const input = names.map(name => Buffer.from(path.join(base, name), 'utf16le').toString('base64')).join('\n') + '\n';
+        const child = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+            input, encoding: 'utf8', timeout: 15000, windowsHide: true
+        });
+        assert.equal(child.status, 0, child.stderr);
+        const lines = child.stdout.trim().split(/\r?\n/);
+        assert.equal(lines.length, names.length, child.stdout);
+        for (let i = 0; i < names.length; i++) {
+            const parts = lines[i].trim().split(' ').map(Number);
+            assert.equal(parts.length, 4, lines[i]);
+            assert.ok(parts.every(Number.isSafeInteger), lines[i]);
+            assert.equal(parts[2] * 0x100000000 + parts[3], fs.statSync(path.join(base, names[i])).size,
+                `native size for ${names[i]}`);
+            if (i === 0) assert.notEqual(parts[0] & 0x1000, 0, 'attrib +O must appear as Offline');
+        }
+        const gate = createFsGate({ rawGrant: base });
+        assert.equal(isRefusal(gate), false);
+        const metadata = await gate.fileMetadataInGrant(names[0]);
+        assert.equal(metadata.dehydrated, true, 'the runtime detector must parse the real helper reply');
+    } finally {
+        try { execFileSync('attrib.exe', ['-O', path.join(base, names[0])]); } catch {}
+        fs.rmSync(base, { recursive: true, force: true });
+    }
+});
+
+test('SR29-clm-helper-load — a constrained child names its failed helper and leaves content closed', async t => {
+    arm('SR29-clm-helper-load');
+    if (process.platform !== 'win32') {
+        t.diagnostic('PowerShell Constrained Language Mode requires Windows');
+        return;
+    }
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-clm-'));
+    try {
+        fs.writeFileSync(path.join(base, 'note.md'), 'local bytes');
+        const built = fs.readFileSync(new URL('../dist/fsgate.js', import.meta.url), 'utf8');
+        const match = /const WINDOWS_PLACEHOLDER_SCRIPT = String.raw\s*`([\s\S]*?)`;/m.exec(built);
+        assert.ok(match);
+        const prefix = "$ExecutionContext.SessionState.LanguageMode = 'ConstrainedLanguage'\n";
+        const input = Buffer.from(path.join(base, 'note.md'), 'utf16le').toString('base64');
+        const start = Date.now();
+        const child = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', prefix + match[1]], {
+            input: input + '\nB' + input + '\n', encoding: 'utf8', timeout: 7000, windowsHide: true
+        });
+        t.diagnostic(`constrained Add-Type: exit ${child.status}, ${Date.now() - start} ms; stdout ${JSON.stringify(child.stdout)}`);
+        assert.equal(child.status, 1, child.stderr);
+        assert.equal(child.stderr, '');
+        assert.equal(child.stdout.trim(), 'HELPER_LOAD_FAILED');
+        const patched = built.replace(/(const WINDOWS_PLACEHOLDER_SCRIPT = String.raw\s*`)/,
+            (_, head) => head + '\n' + prefix);
+        assert.notEqual(patched, built);
+        const counted = patched.replace("const child = spawn('powershell.exe',",
+            "placeholderSpawnCount++;\n        const child = spawn('powershell.exe',");
+        assert.notEqual(counted, patched);
+        const isolated = await import('data:text/javascript;base64,' +
+            Buffer.from('export let placeholderSpawnCount = 0;\n' + counted).toString('base64'));
+        const gate = isolated.createFsGate({ rawGrant: base });
+        assert.equal(isRefusal(gate), false);
+        const first = Date.now();
+        const read = await gate.readFileInGrant('note.md', 0, 20);
+        t.diagnostic(`first refused read: ${Date.now() - first} ms`);
+        assert.equal(isolated.placeholderSpawnCount, 1, 'the first probe starts one helper');
+        const fresh = isolated.createFsGate({ rawGrant: base });
+        assert.equal(isRefusal(fresh), false);
+        assert.equal(fresh.placeholderDetection(), 'unavailable', 'a fresh gate inherits the module latch before probing');
+        const hash = await gate.hashInGrant('note.md');
+        const write = await gate.appendLineInGrant('note.md', Buffer.from('line\n'));
+        const cause = 'placeholder detection unavailable because PowerShell could not load the helper ' +
+            '(Add-Type failed; Constrained Language Mode or an application-control policy are common causes)';
+        for (const refusal of [read, hash, write]) {
+            assert.equal(refusal.reason, 'IO_ERROR');
+            assert.equal(refusal.detail, cause, 'one accurate cause with no extra path or error text');
+        }
+        assert.equal(fs.readFileSync(path.join(base, 'note.md'), 'utf8'), 'local bytes');
+        const created = await fresh.createFileInGrant('new.md', Buffer.from('new bytes'));
+        assert.equal(created.ok, true, 'creating a new file does not consult the failed helper');
+        assert.equal(fs.readFileSync(path.join(base, 'new.md'), 'utf8'), 'new bytes');
+        const walk = await fresh.walkGrant();
+        assert.equal(walk.placeholder_detection, 'unavailable');
+        assert.equal(walk.files.length, 0);
+        assert.equal(isolated.placeholderSpawnCount, 1, 'the batch after the latch does not restart the helper');
+        assert.equal(gate.placeholderDetection(), 'unavailable');
+    } finally {
+        fs.rmSync(base, { recursive: true, force: true });
+    }
+});
+
+test('SR6-post-open-placeholder — a flipped detector prevents every content read', async () => {
+    arm('SR6-post-open-placeholder');
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-postopen-'));
+    try {
+        fs.writeFileSync(path.join(base, 'note.md'), 'content');
+        for (const operation of ['read', 'hash']) {
+            let calls = 0;
+            let reads = 0;
+            const gate = createFsGate({ rawGrant: base, primitives: {
+                placeholderAttributes: async () => ({ attributes: ++calls >= 2 ? 0x1000 : 0, reparseTag: 0 }),
+                read: (...args) => { reads++; return fs.readSync(...args); }
+            } });
+            assert.equal(isRefusal(gate), false);
+            const result = operation === 'read'
+                ? await gate.readFileInGrant('note.md', 0, 16)
+                : await gate.hashInGrant('note.md');
+            assert.equal(result.reason, 'PLACEHOLDER', operation);
+            assert.equal(reads, 0, operation);
+            assert.equal(calls, 2, operation);
+        }
+    } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('SR7-write-placeholder-guards — overwrite, stage and append refuse before content', async () => {
+    arm('SR7-write-placeholder-guards');
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-write-placeholder-'));
+    const target = path.join(base, 'note.md');
+    try {
+        fs.writeFileSync(target, 'old');
+        const digest = createHash('sha256').update('old').digest('hex');
+        for (const variant of ['overwrite', 'stage', 'append']) {
+            const contentOpens = [];
+            let reads = 0;
+            const gate = createFsGate({ rawGrant: base, primitives: {
+                placeholderAttributes: async name => ({
+                    attributes: variant === 'stage' ? (name.includes('.wyrd-stage-') ? 0x1000 : 0) : 0x1000,
+                    reparseTag: 0
+                }),
+                open: (name, flags) => { contentOpens.push(name); return fs.openSync(name, flags); },
+                openAppend: (name, mode) => { contentOpens.push(name); return fs.openSync(name, mode === 'existing' ? 'a' : 'ax'); },
+                read: (...args) => { reads++; return fs.readSync(...args); }
+            } });
+            assert.equal(isRefusal(gate), false);
+            const result = variant === 'append'
+                ? await gate.appendLineInGrant('note.md', Buffer.from('new\n'))
+                : await gate.overwriteFileInGrant('note.md', digest, Buffer.from('new'));
+            assert.equal(result.reason, 'PLACEHOLDER', variant);
+            if (variant === 'stage') {
+                assert.equal(contentOpens.filter(name => name.includes('.wyrd-stage-')).length, 0);
+            } else {
+                assert.equal(contentOpens.length, 0, variant);
+                assert.equal(reads, 0, variant);
+            }
+            assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+        }
+    } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('SR8-detector-startup-bound — a blocked helper fails closed before open', async t => {
+    arm('SR8-detector-startup-bound');
+    if (process.platform !== 'win32') {
+        t.diagnostic('PowerShell startup bound requires Windows');
+        return;
+    }
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-slow-helper-'));
+    try {
+        fs.writeFileSync(path.join(base, 'note.md'), 'local');
+        const fake = path.join(base, 'powershell.exe');
+        const source = 'public class DelayedPowerShell { public static void Main(string[] args) { System.Threading.Thread.Sleep(30000); } }';
+        const compile = spawnSync('powershell.exe',
+            ['-NoProfile', '-NonInteractive', '-Command',
+                `Add-Type -TypeDefinition '${source}' -OutputAssembly '${fake.replaceAll("'", "''")}' -OutputType ConsoleApplication`],
+            { encoding: 'utf8', timeout: 15000, windowsHide: true });
+        assert.equal(compile.status, 0, compile.stderr);
+        const program = `
+            import { createFsGate } from ${JSON.stringify(new URL('../dist/fsgate.js', import.meta.url).href)};
+            let opened = 0;
+            const gate = createFsGate({ rawGrant: ${JSON.stringify(base)}, primitives: {
+                open: () => { opened++; throw new Error('content opened before detector answered'); }
+            } });
+            const started = Date.now();
+            const result = await gate.readFileInGrant('note.md', 0, 16);
+            console.log(JSON.stringify({ reason: result.reason, elapsed: Date.now() - started, opened }));
+        `;
+        const child = spawnSync(process.execPath, ['--input-type=module', '-e', program], {
+            encoding: 'utf8', timeout: 9000, windowsHide: true,
+            env: { ...process.env, PATH: base + path.delimiter + process.env.PATH }
+        });
+        assert.equal(child.status, 0, child.stderr);
+        const answer = JSON.parse(child.stdout.trim());
+        assert.equal(answer.reason, 'IO_ERROR');
+        assert.equal(answer.opened, 0);
+        assert.ok(answer.elapsed >= 4500 && answer.elapsed < 8000, `startup elapsed ${answer.elapsed} ms`);
+    } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('SR22-walk-batch-fail-closed — native batch excludes a failed probe', async t => {
+    arm('SR22-walk-batch-fail-closed');
+    if (process.platform !== 'win32') { t.diagnostic('native batch is Windows-only'); return; }
+    const grant = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-batch-arm-'));
+    try {
+        for (let i = 0; i < 40; i++)
+            fs.writeFileSync(path.join(grant, `${String(i).padStart(2, '0')}.md`), 'note');
+        const lost = path.join(grant, '00.md');
+        let seen = 0;
+        const gate = createFsGate({ rawGrant: grant, primitives: {
+            lstat: target => {
+                const stat = fs.lstatSync(target);
+                if (target === lost && ++seen === 2) fs.unlinkSync(lost);
+                return stat;
+            }
+        } });
+        assert.ok(!isRefusal(gate));
+        const walk = await gate.walkGrant();
+        assert.ok(!isRefusal(walk));
+        assert.equal(seen, 2, 'the file vanished after its walk stat');
+        assert.equal(walk.files.length, 39);
+        assert.equal(walk.files.some(file => file.rel === '00.md'), false);
+        assert.equal(walk.inaccessible_count, 1);
+        assert.equal(walk.placeholder_count, null, 'one failed probe makes the count unmeasured');
+        assert.ok(walk.files.every(file => file.dehydrated === false));
+    } finally { fs.rmSync(grant, { recursive: true, force: true }); }
+});
+
+test('SR9-write-post-open-placeholder — detector flips before verification or append', async () => {
+    arm('SR9-write-post-open-placeholder');
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-write-postopen-'));
+    const target = path.join(base, 'note.md');
+    try {
+        fs.writeFileSync(target, 'old');
+        const digest = createHash('sha256').update('old').digest('hex');
+        for (const variant of ['overwrite', 'stage', 'append']) {
+            const calls = new Map();
+            const opened = new Map();
+            let blockedReads = 0;
+            let appends = 0;
+            const gate = createFsGate({ rawGrant: base, primitives: {
+                placeholderAttributes: async name => {
+                    const key = name.includes('.wyrd-stage-') ? 'stage' : 'target';
+                    const count = (calls.get(key) ?? 0) + 1;
+                    calls.set(key, count);
+                    const flip = variant === 'stage' ? key === 'stage' : key === 'target';
+                    return { attributes: flip && count >= 2 ? 0x1000 : 0, reparseTag: 0 };
+                },
+                open: (name, flags) => {
+                    const fd = fs.openSync(name, flags);
+                    opened.set(fd, name);
+                    return fd;
+                },
+                read: (fd, ...args) => {
+                    const name = opened.get(fd);
+                    if (variant === 'stage' ? name?.includes('.wyrd-stage-') : name === target) blockedReads++;
+                    return fs.readSync(fd, ...args);
+                },
+                appendOnce: (fd, bytes) => { appends++; return fs.writeSync(fd, bytes); }
+            } });
+            assert.equal(isRefusal(gate), false);
+            const result = variant === 'append'
+                ? await gate.appendLineInGrant('note.md', Buffer.from('new\n'))
+                : await gate.overwriteFileInGrant('note.md', digest, Buffer.from('new'));
+            assert.equal(result.reason, 'PLACEHOLDER', variant);
+            assert.equal(blockedReads, 0, variant);
+            assert.equal(appends, 0, variant);
+            assert.equal(fs.readFileSync(target, 'utf8'), 'old');
+        }
+    } finally { fs.rmSync(base, { recursive: true, force: true }); }
 });

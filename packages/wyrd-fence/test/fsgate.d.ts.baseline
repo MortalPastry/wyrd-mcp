@@ -1,5 +1,10 @@
 import fs from 'node:fs';
-export type RequestRefusalReason = 'BAD_INPUT' | 'CLAMPED' | 'IS_ROOT' | 'ESCAPES' | 'ELOOP' | 'MISSING' | 'NOT_A_DIRECTORY' | 'NOT_A_FILE' | 'DENIED' | 'NAME_TOO_LONG' | 'ROOT_MOVED' | 'IO_ERROR' | 'STREAM_SYNTAX' | 'RESERVED_NAME' | 'EXISTS' | 'TARGET_CHANGED' | 'PARENT_ALIAS';
+export interface PlaceholderAttributes {
+    readonly attributes: number;
+    readonly reparseTag: number;
+}
+export type PlaceholderProbe = (target: string) => Promise<PlaceholderAttributes | null>;
+export type RequestRefusalReason = 'BAD_INPUT' | 'CLAMPED' | 'IS_ROOT' | 'ESCAPES' | 'ELOOP' | 'MISSING' | 'NOT_A_DIRECTORY' | 'NOT_A_FILE' | 'DENIED' | 'NAME_TOO_LONG' | 'ROOT_MOVED' | 'IO_ERROR' | 'PLACEHOLDER' | 'STREAM_SYNTAX' | 'RESERVED_NAME' | 'EXISTS' | 'TARGET_CHANGED' | 'DIGEST_MISMATCH' | 'PARENT_ALIAS';
 export type ConfigRefusalReason = 'CONFIG_EMPTY' | 'CONFIG_NULL_BYTE' | 'CONFIG_CONTROL_CHAR' | 'CONFIG_TOO_LONG' | 'CONFIG_RELATIVE' | 'CONFIG_DRIVE_RELATIVE' | 'CONFIG_NAMESPACED' | 'CONFIG_MALFORMED' | 'GRANT_MISSING' | 'GRANT_NOT_A_DIRECTORY';
 export type FenceReason = RequestRefusalReason | ConfigRefusalReason;
 export interface FenceRefusal {
@@ -15,6 +20,29 @@ export interface Slice {
     readonly nextOffset: number;
     readonly truncated: boolean;
     readonly size: number;
+    readonly dehydrated: boolean | null;
+    readonly placeholder_detection: 'available' | 'unavailable';
+}
+export interface FileMetadata {
+    readonly ok: true;
+    readonly rel: string;
+    readonly size: number;
+    readonly mtimeMs: number;
+    readonly dehydrated: boolean | null;
+    readonly placeholder_detection: 'available' | 'unavailable';
+}
+export interface GrantPlaceholderSummary {
+    readonly placeholder_detection: 'available' | 'unavailable';
+    readonly placeholder_count: number | null;
+    readonly file_count: number | null;
+    readonly placeholder_fraction: number | null;
+    readonly warning?: string;
+}
+export interface GrantWalk {
+    readonly files: readonly FileMetadata[];
+    readonly inaccessible_count: number;
+    readonly placeholder_detection: 'available' | 'unavailable';
+    readonly placeholder_count: number | null;
 }
 export interface Entry {
     readonly name: string;
@@ -35,6 +63,22 @@ export interface Appended {
     readonly rel: string;
     readonly bytes: number;
 }
+export type OverwriteEffect = {
+    readonly target: 'not_replaced' | 'replaced' | 'indeterminate';
+    readonly stage: { readonly state: 'none'; } | { readonly state: 'retained' | 'indeterminate'; readonly relHint: string; };
+}
+;
+export interface Overwritten {
+    readonly ok: true;
+    readonly rel: string;
+    readonly bytes: number;
+    readonly previousSha256: string;
+    readonly sha256: string;
+    readonly effect: OverwriteEffect & { readonly target: 'replaced'; };
+}
+export interface OverwriteRefusal extends FenceRefusal {
+    readonly effect: OverwriteEffect;
+}
 export interface Retained {
     readonly rel: string;
     readonly state: 'indeterminate';
@@ -50,12 +94,17 @@ export interface Hashed {
     readonly size: number;
 }
 export interface FsGate {
-    readFileInGrant(request: string, offset: number, limit: number): Promise<Slice | FenceRefusal>;
+    readFileInGrant(request: string, offset: number, limit: number, hydrate?: boolean): Promise<Slice | FenceRefusal>;
+    fileMetadataInGrant(request: string): Promise<FileMetadata | FenceRefusal>;
+    placeholderDetection(): 'available' | 'unavailable';
+    grantPlaceholderSummary(): Promise<GrantPlaceholderSummary>;
+    walkGrant(): Promise<GrantWalk | FenceRefusal>;
     listDirInGrant(request: string): Promise<Entry[] | FenceRefusal>;
     listGrantRoot(): Promise<Entry[] | FenceRefusal>;
     probeInGrant(request: string): Promise<Probe | FenceRefusal>;
     disclosedRoot(): string;
     createFileInGrant(request: string, bytes: Buffer): Promise<Created | WriteRefusal>;
+    overwriteFileInGrant(request: string, expectedSha256: string, bytes: Buffer): Promise<Overwritten | OverwriteRefusal>;
     appendLineInGrant(request: string, line: Buffer): Promise<Appended | WriteRefusal>;
     hashInGrant(request: string): Promise<Hashed | FenceRefusal>;
 }
@@ -65,11 +114,16 @@ export interface Primitives {
     read(fd: number, buffer: Uint8Array, offset: number, length: number, position: number): number;
     fstat(fd: number): fs.Stats;
     lstat(target: string): fs.Stats;
+    lstatBigint?(target: string): fs.BigIntStats;
+    fstatBigint?(fd: number): fs.BigIntStats;
     readlink(target: string): string;
     realpathNative(target: string): string;
     readdir(target: string): fs.Dirent[];
+    placeholderAttributes?(target: string): Promise<PlaceholderAttributes | null>;
     openExclusive(target: string): number;
     writeAll(fd: number, buffer: Buffer): number;
+    stageFlush(fd: number): void;
+    replaceStaged(stage: string, target: string): void;
     openAppend(target: string, mode: 'existing' | 'exclusive-create'): number;
     appendOnce(fd: number, buffer: Buffer): number;
 }

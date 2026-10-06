@@ -7,12 +7,12 @@
     "source": "github",
     "subfolder": "packages/wyrd-scribe"
   },
-  "version": "0.1.1",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "wyrd-scribe",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "transport": {
         "type": "stdio"
       },
@@ -36,7 +36,7 @@
         },
         {
           "name": "WYRD_SCRIBE_TIER",
-          "description": "Selects tier A by default. Tiers B and C are recognized but this build refuses to start with either.",
+          "description": "Selects tier A by default. Tier B adds guarded page overwrites. Tier C is recognized but this build refuses to start with it.",
           "isRequired": false,
           "isSecret": false
         }

@@ -202,14 +202,15 @@ async function entryExists(filename: string): Promise<boolean> {
     }
 }
 
+/** Exact bigint identity: numeric NTFS ids round (ULP 4), and a same-name recreation receives the next id. */
 interface CreatedEntry {
     readonly filename: string;
-    readonly dev: number;
-    readonly ino: number;
+    readonly dev: bigint;
+    readonly ino: bigint;
 }
 
 async function removeCreatedEntry(entry: CreatedEntry): Promise<void> {
-    const current = await fs.lstat(entry.filename);
+    const current = await fs.lstat(entry.filename, { bigint: true });
     if (current.dev !== entry.dev || current.ino !== entry.ino) {
         throw new Error(`${entry.filename} changed identity before rollback`);
     }
@@ -251,7 +252,7 @@ export async function createCertificateFiles(
             fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
             0o644
         );
-        const certificateStat = await activeHandle.stat();
+        const certificateStat = await activeHandle.stat({ bigint: true });
         created.push({ filename: certificatePath, dev: certificateStat.dev, ino: certificateStat.ino });
         await activeHandle.writeFile(generated.certificatePem, 'utf8');
         await activeHandle.close();
@@ -262,11 +263,11 @@ export async function createCertificateFiles(
             fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
             0o600
         );
-        const keyStat = await activeHandle.stat();
+        const keyStat = await activeHandle.stat({ bigint: true });
         created.push({ filename: privateKeyPath, dev: keyStat.dev, ino: keyStat.ino });
         await activeHandle.writeFile(generated.privateKeyPem, 'utf8');
-        if ((deps.platform ?? process.platform) !== 'win32' && (keyStat.mode & 0o077) !== 0) {
-            throw new Error(`private key permissions are too broad: ${(keyStat.mode & 0o777).toString(8)}`);
+        if ((deps.platform ?? process.platform) !== 'win32' && (keyStat.mode & 0o077n) !== 0n) {
+            throw new Error(`private key permissions are too broad: ${(keyStat.mode & 0o777n).toString(8)}`);
         }
         await activeHandle.close();
         activeHandle = null;

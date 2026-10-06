@@ -91,7 +91,7 @@ test('grant — a grant link that dangles, or that resolves to a FILE, each refu
 test('grant — EVERY separator spelling of one folder is accepted and lands on one root', () => {
     arm('S12-separator-spellings');
     // ⚠ THE PASS HALF IS THE POINT, and its absence shipped a defect. MCP client configs are
-    // JSON, where a native Windows path needs every separator doubled — so `C:/Users/joe/notes`
+    // JSON, where a native Windows path needs every separator doubled — so `C:/Users/alex/notes`
     // is how people actually write it. Refusing that is fail-closed behaviour on a legitimate
     // input, wearing a config error's clothes.
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-seps-'));

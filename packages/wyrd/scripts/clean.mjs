@@ -28,3 +28,6 @@ for (const target of ['dist', 'tsconfig.tsbuildinfo']) {
  * is already structurally handled by the line above.
  */
 rmSync(path.join(repoRoot, '..', 'wyrd-fence', 'dist', 'tsconfig.tsbuildinfo'), { force: true });
+
+// Rebuild the referenced HTTP primitives after an interrupted mutation of their dist output.
+rmSync(path.join(repoRoot, '..', 'wyrd-http', 'dist', 'tsconfig.tsbuildinfo'), { force: true });

@@ -44,15 +44,30 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { assertInternalDependencyVersions }
+    from '../../wyrd-fence/scripts/internal-dependency-preflight.mjs';
 import { ALL_ARMS, PORTABLE_ARMS } from '../test/arms.mjs';
+import { guardBattery, batteryLockFixture } from '../../wyrd-fence/scripts/battery-lock.mjs';
 
 const pkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+guardBattery('scribe suite');
+batteryLockFixture();
 const portable = process.argv.slice(2).includes('--portable');
+
+try {
+    assertInternalDependencyVersions(pkg);
+} catch (error) {
+    console.error(`\n\u26d4 SUITE GATE REFUSED TO RUN\n   \u00b7 ${error.message}`);
+    process.exit(1);
+}
 
 const FILES = [
     'test/span.test.js',
     'test/stamp.test.js',
+    'test/mutate.test.js',
     'test/server.test.js',
+    'test/http-preparation.test.js',
+    'test/http-listener.test.js',
     'test/package.test.js',
     'test/manifest-schema.test.js',
     'test/v1-baseline.test.js'
@@ -72,8 +87,10 @@ if (absent.length || FILES.length === 0) {
 }
 
 const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-scribe-arms-'));
+process.once('exit', () => fs.rmSync(logDir, { recursive: true, force: true }));
 
-const child = spawn(process.execPath, ['--test', ...FILES], {
+const child = spawn(process.execPath, [fileURLToPath(new URL('../../wyrd-fence/scripts/battery-lock.mjs', import.meta.url)),
+    'exec', 'scribe test subprocess', '--', process.execPath, '--test', ...FILES], {
     cwd: pkg,
     env: {
         ...process.env,
@@ -148,6 +165,11 @@ child.on('close', code => {
         for (const failure of failures) console.error(`   · ${failure}`);
         process.exit(1);
     }
+
+    const record = process.env.WYRD_EXECUTED_OUT;
+    if (record) fs.writeFileSync(record, JSON.stringify({
+        package: 'scribe', declared, executed: [...executed], skipped: []
+    }));
 
     // ⚠ THE DENOMINATOR IS STATED EVEN WHEN IT IS THE WHOLE SET, so a reader never has to infer it.
     if (portable) {

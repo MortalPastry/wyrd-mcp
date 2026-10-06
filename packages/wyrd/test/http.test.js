@@ -34,6 +34,18 @@ import { loadTlsConfiguration, readTlsArgs } from '../dist/tls-config.js';
 import { assertMinimalDerIntegers, certificateSerialNumber } from './der.mjs';
 import { declare as arm } from './manifest.mjs';
 
+const temporaryBases = new Set();
+process.once('exit', () => {
+    for (const base of temporaryBases) fs.rmSync(base, { recursive: true, force: true });
+});
+
+function temporaryDirectory(prefix) {
+    const base = fs.mkdtempSync(prefix);
+    temporaryBases.add(base);
+    return base;
+}
+
+
 const CONFIGURED_TOKEN = Buffer.alloc(32, 0x11).toString('base64url');
 
 function authenticated(token = 'test-token') {
@@ -354,6 +366,7 @@ function finalResponse(raw) {
     }
     return {
         status: Number(last[1]),
+        headers,
         body
     };
 }
@@ -979,7 +992,7 @@ test('H11-disconnect-propagation — a hangup aborts the exact Fetch signal the 
  */
 test('H12-concurrent-signal-shutdown — SIGINT and SIGTERM share one orderly close', async () => {
     arm('H12-concurrent-signal-shutdown');
-    const grant = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-http-signals-'));
+    const grant = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-http-signals-'));
     // ⚠ Resolve from THIS FILE, never the process CWD. `path.resolve('dist/index.js')` pointed at
     // the workspace root when the suite ran from there, and the release gate's `references` phase
     // correctly refused it as naming a target outside the public package roots.
@@ -1036,8 +1049,10 @@ test('H12-concurrent-signal-shutdown — SIGINT and SIGTERM share one orderly cl
     let client;
     try {
         const bootstrap = fs.readFileSync(indexPath, 'utf8');
-        assert.doesNotMatch(bootstrap, /\bprocess\.exit\s*\(/,
-            'signal shutdown must not force process exit before the ordered close settles');
+        assert.ok(bootstrap.indexOf('await Promise.all(') >= 0 &&
+            bootstrap.indexOf('await Promise.all(') < bootstrap.indexOf('if (backendFailed)'),
+            'signal shutdown must await ordered close before forcing an unsuccessful exit');
+        assert.match(bootstrap, /if \(backendFailed\)\s+process\.exit\(\)/);
         const port = await bounded(listening.promise, 5_000, 'child HTTP listener');
         client = await rawClient({ port });
         client.socket.write(rawHead({ address: `127.0.0.1:${port}` }, 200, {
@@ -1300,7 +1315,7 @@ test('H17-no-query-token-or-leak — query-bearing /mcp is refused before the ve
 
 test('H18-no-token-refuses-before-listen — every invalid source refuses before startHttp', async () => {
     arm('H18-no-token-refuses-before-listen');
-    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-read-token-'));
+    const temporary = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-read-token-'));
     const validFile = path.join(temporary, 'reader-token');
     const invalidFile = path.join(temporary, 'invalid-token');
     const missingFile = path.join(temporary, 'missing-token');
@@ -1426,6 +1441,197 @@ test('H18-no-token-refuses-before-listen — every invalid source refuses before
     }
 });
 
+test('H34-token-source-diagnostics — every Reader token refusal has exact stderr and exit code', async t => {
+    arm('H34-token-source-diagnostics');
+    const temporary = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-token-diagnostics-'));
+    const validFile = path.join(temporary, 'valid');
+    const malformedFile = path.join(temporary, 'malformed');
+    const shortFile = path.join(temporary, 'short');
+    const overlongFile = path.join(temporary, 'overlong');
+    const invalidUtf8File = path.join(temporary, 'invalid-utf8');
+    const missingFile = path.join(temporary, 'missing');
+    const token = Buffer.alloc(32, 0x51).toString('base64url');
+    const indexPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'index.js');
+    const { WYRD_READ_TOKEN: _inheritedToken, WYRD_GRANT: _inheritedGrant,
+        WYRD_OBSERVE: _inheritedObserve, ...cleanEnv } = process.env;
+    try {
+        fs.writeFileSync(validFile, token);
+        fs.writeFileSync(malformedFile, `${'A'.repeat(42)}B`);
+        fs.writeFileSync(shortFile, 'short');
+        fs.writeFileSync(overlongFile, `${token}\nextra`);
+        fs.writeFileSync(invalidUtf8File, Buffer.concat([
+            Buffer.from('A'.repeat(42)), Buffer.from([0xff])
+        ]));
+        if (process.platform !== 'win32') {
+            for (const file of [validFile, malformedFile, shortFile, overlongFile, invalidUtf8File]) {
+                fs.chmodSync(file, 0o600);
+            }
+        }
+        const cases = [
+            { name: 'command-line value', argv: ['--read-token', token], env: {}, detail: 'Reader token values are not accepted on the command line' },
+            { name: 'equals command-line value', argv: [`--read-token=${token}`], env: {}, detail: 'Reader token values are not accepted on the command line' },
+            { name: 'equals file flag', argv: [`--read-token-file=${validFile}`], env: {}, detail: '--read-token-file requires a separate absolute path' },
+            { name: 'repeated file flag', argv: ['--read-token-file', validFile, '--read-token-file', validFile], env: {}, detail: '--read-token-file may be supplied only once' },
+            { name: 'both sources', argv: ['--read-token-file', validFile], env: { WYRD_READ_TOKEN: token }, detail: 'configure exactly one Reader token source, not both WYRD_READ_TOKEN and --read-token-file' },
+            { name: 'no source', argv: [], env: {}, detail: 'HTTP requires a Reader token from WYRD_READ_TOKEN or --read-token-file' },
+            { name: 'malformed environment', argv: [], env: { WYRD_READ_TOKEN: 'bad' }, detail: 'WYRD_READ_TOKEN is not one canonical 32-byte base64url token' },
+            { name: 'empty environment', argv: [], env: { WYRD_READ_TOKEN: '' }, detail: 'WYRD_READ_TOKEN is not one canonical 32-byte base64url token' },
+            { name: 'missing file argument', argv: ['--read-token-file'], env: {}, detail: '--read-token-file requires a separate absolute path' },
+            { name: 'flag instead of file argument', argv: ['--read-token-file', '--unused'], env: {}, detail: '--read-token-file requires a separate absolute path' },
+            { name: 'relative file argument', argv: ['--read-token-file', 'relative-token'], env: {}, detail: '--read-token-file requires an absolute path' },
+            { name: 'noncanonical file', argv: ['--read-token-file', malformedFile], env: {}, detail: 'the Reader token file does not contain one canonical token' },
+            { name: 'short file', argv: ['--read-token-file', shortFile], env: {}, detail: 'the Reader token file does not contain one canonical token' },
+            { name: 'overlong file', argv: ['--read-token-file', overlongFile], env: {}, detail: 'the Reader token file does not contain one canonical token' },
+            { name: 'invalid UTF-8 file', argv: ['--read-token-file', invalidUtf8File], env: {}, detail: 'the Reader token file does not contain one canonical token' },
+            { name: 'unreadable file', argv: ['--read-token-file', missingFile], env: {}, detail: 'the Reader token file could not be read' },
+            { name: 'nonregular file', argv: ['--read-token-file', temporary], env: {}, detail: 'the Reader token file is not a regular file' }
+        ];
+        if (process.platform !== 'win32') {
+            for (const [name, mode] of [['group-readable', 0o640], ['world-readable', 0o604]]) {
+                const insecureFile = path.join(temporary, name);
+                fs.writeFileSync(insecureFile, token, { mode });
+                fs.chmodSync(insecureFile, mode);
+                cases.push({ name: `${name} file`, argv: ['--read-token-file', insecureFile], env: {}, detail: 'the Reader token file permits group or world access' });
+            }
+        } else {
+            for (const name of ['group-readable', 'world-readable']) {
+                t.diagnostic(`${name} token file did not run: POSIX permission bits are not enforced on Windows`);
+            }
+        }
+        for (const { name, argv, env, detail } of cases) {
+            const lines = [];
+            const codes = [];
+            const result = await main(mainDeps({
+                argv: ['--grant', 'C:\\granted', '--http', '127.0.0.1:0', ...argv],
+                env,
+                stderr: line => lines.push(line),
+                setExitCode: code => codes.push(code),
+                startHttp: () => assert.fail(`${name}: refused source reached listener`)
+            }));
+            assert.deepEqual(result, { started: false, reason: 'READ_TOKEN', http: null, closeSearchBackend: null }, name);
+            assert.deepEqual(lines, [`wyrd: refusing to start — ${detail}`], name);
+            assert.deepEqual(codes, [2], name);
+            const child = spawn(process.execPath, [
+                indexPath, '--grant', temporary, '--http', '127.0.0.1:0', ...argv
+            ], { env: { ...cleanEnv, ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
+            const stderrChunks = [];
+            child.stderr.on('data', chunk => stderrChunks.push(chunk));
+            const exited = new Promise((resolve, reject) => {
+                child.once('error', reject);
+                child.once('exit', (code, signal) => resolve({ code, signal }));
+            });
+            let exit;
+            try {
+                exit = await bounded(exited, 5_000, `${name} process exit`);
+            } finally {
+                if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+                await bounded(exited, 3_000, `${name} process cleanup`);
+            }
+            assert.deepEqual(exit, { code: 2, signal: null }, name);
+            assert.deepEqual(Buffer.concat(stderrChunks),
+                Buffer.from(`wyrd: refusing to start — ${detail}\n`, 'utf8'), name);
+        }
+    } finally {
+        fs.rmSync(temporary, { recursive: true, force: true });
+    }
+});
+
+test('H35-http-refusal-envelopes — all listener refusals pin raw status, headers and body bytes', async () => {
+    arm('H35-http-refusal-envelopes');
+    assert.equal(MAX_HTTP_REQUEST_BYTES, 1048576, 'HTTP request cap');
+    const checkRaw = (label, raw, statusLine, body, extras = []) => {
+        const separator = raw.indexOf(Buffer.from('\r\n\r\n'));
+        assert.notEqual(separator, -1, `${label}: complete headers`);
+        const lines = raw.subarray(0, separator).toString('latin1').split('\r\n');
+        const dates = lines.filter(line => line.startsWith('Date: '));
+        assert.equal(dates.length, 1, `${label}: one Date header`);
+        assert.ok(Number.isFinite(Date.parse(dates[0].slice(6))), `${label}: valid Date header`);
+        // Only the Date value varies; its spelling and position remain part of the envelope.
+        assert.deepEqual(lines.map(line => line.startsWith('Date: ') ? 'Date: <variable>' : line), [
+            statusLine, 'content-type: text/plain; charset=utf-8', 'connection: close',
+            ...extras, 'Date: <variable>', 'Transfer-Encoding: chunked'
+        ], `${label}: raw header lines`);
+        assert.deepEqual(raw.subarray(separator + 4),
+            Buffer.from(`${Buffer.byteLength(body).toString(16)}\r\n${body}\r\n0\r\n\r\n`),
+            `${label}: raw body bytes`);
+    };
+    const rawResponse = async (handle, request, label) => {
+        const client = await rawClient(handle);
+        try {
+            client.socket.write(request);
+            await bounded(client.closed, 5_000, `${label}: response close`);
+            return client.bytes();
+        } finally {
+            client.socket.destroy();
+        }
+    };
+    const handle = await listeningServer(() => ({ kind: 'unauthenticated' }));
+    try {
+        checkRaw('wrong route', await rawResponse(handle,
+            rawHead(handle, 0).replace('POST /mcp HTTP/1.1', 'POST /else HTTP/1.1'),
+            'wrong route'), 'HTTP/1.1 404 Not Found', 'Not Found\n');
+        checkRaw('wrong method', await rawResponse(handle,
+            rawHead(handle, 0).replace('POST /mcp HTTP/1.1', 'GET /mcp HTTP/1.1'),
+            'wrong method'), 'HTTP/1.1 405 Method Not Allowed', 'Method Not Allowed\n',
+            ['allow: POST']);
+        checkRaw('wrong Origin', await rawResponse(handle,
+            rawHead(handle, 0, { Origin: 'https://invalid.example' }), 'wrong Origin'),
+            'HTTP/1.1 403 Forbidden', 'Forbidden\n');
+        checkRaw('declared body cap', await rawResponse(handle,
+            rawHead(handle, MAX_HTTP_REQUEST_BYTES + 1), 'declared body cap'),
+            'HTTP/1.1 413 Payload Too Large', 'Payload Too Large\n');
+        checkRaw('missing bearer', await rawResponse(handle, rawHead(handle, 0), 'missing bearer'),
+            'HTTP/1.1 401 Unauthorized',
+            'Authentication required. Send Authorization: Bearer <Reader token>.\n',
+            ['www-authenticate: Bearer realm="wyrd"', 'cache-control: no-store']);
+    } finally {
+        await handle.close();
+    }
+    const unavailable = await listeningServer(() => ({ kind: 'unavailable' }));
+    try {
+        checkRaw('verifier unavailable', await rawResponse(unavailable, rawHead(unavailable, 0),
+            'verifier unavailable'), 'HTTP/1.1 503 Service Unavailable',
+            'Authentication service unavailable.\n', ['cache-control: no-store']);
+    } finally {
+        await unavailable.close();
+    }
+    const failing = await startHttp({
+        kind: 'loopback', host: '127.0.0.1', port: 0,
+        readAuthInfo: () => authenticated(), makeServer: () => stubServer()
+    }, { makeHandler: () => ({ fetch: async () => { throw new Error('injected handler failure'); }, close: async () => {} }) });
+    try {
+        const body = discoverBody();
+        checkRaw('handler failure', await rawResponse(failing,
+            Buffer.concat([Buffer.from(rawHead(failing, Buffer.byteLength(body))), Buffer.from(body)]),
+            'handler failure'), 'HTTP/1.1 500 Internal Server Error', 'Internal Server Error\n');
+    } finally {
+        await failing.close();
+    }
+    const streaming = await listeningServer(() => authenticated());
+    try {
+        const overLimit = Buffer.alloc(MAX_HTTP_REQUEST_BYTES + 1, 0x20);
+        checkRaw('streaming body cap', await rawResponse(streaming, Buffer.concat([
+            Buffer.from(rawHead(streaming, null, { 'Transfer-Encoding': 'chunked' })),
+            Buffer.from(`${overLimit.length.toString(16)}\r\n`), overLimit,
+            Buffer.from('\r\n0\r\n\r\n')
+        ]), 'streaming body cap'), 'HTTP/1.1 413 Payload Too Large', 'Payload Too Large\n');
+        // Whitespace is invalid JSON-RPC; a full-size body should reach the SDK and get 400.
+        const atLimit = Buffer.alloc(1048576, 0x20);
+        const declared = await rawResponse(streaming, Buffer.concat([
+            Buffer.from(rawHead(streaming, atLimit.length)), atLimit
+        ]), 'declared at cap');
+        assert.equal(finalResponse(declared).status, 400, 'declared at cap reaches JSON-RPC refusal, not 413');
+        const streamed = await rawResponse(streaming, Buffer.concat([
+            Buffer.from(rawHead(streaming, null, { 'Transfer-Encoding': 'chunked' })),
+            Buffer.from(`${atLimit.length.toString(16)}\r\n`), atLimit,
+            Buffer.from('\r\n0\r\n\r\n')
+        ]), 'streamed at cap');
+        assert.equal(finalResponse(streamed).status, 400, 'streamed at cap reaches JSON-RPC refusal, not 413');
+    } finally {
+        await streaming.close();
+    }
+});
+
 /**
  * Criterion 16, STRUCTURAL ONLY.
  *
@@ -1442,7 +1648,7 @@ test('H18-no-token-refuses-before-listen — every invalid source refuses before
  */
 test('H19-response-stream — a real maximum-window read streams before source EOF', async () => {
     arm('H19-response-stream');
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-http-stream-'));
+    const base = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-http-stream-'));
     const file = path.join(base, 'page.md');
     const payload = Buffer.alloc(MAX_WINDOW_BYTES, 0x61);
     const payloadText = payload.toString('utf8');
@@ -1548,7 +1754,7 @@ test('H19-response-stream — a real maximum-window read streams before source E
  */
 test('H20-localhost-read-budget — 1 MiB is four explicit maximum-window calls under 400 ms', async () => {
     arm('H20-localhost-read-budget');
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-http-budget-'));
+    const base = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-http-budget-'));
     const file = path.join(base, 'one-mib.md');
     const fileBytes = 1_048_576;
     assert.equal(MAX_WINDOW_BYTES, 262_144, 'this cost criterion explicitly requests 262,144 bytes');
@@ -1953,8 +2159,8 @@ test('H23-network-disclosure-honesty — fixed-port network warning is exact and
             '    changes networks, wyrd will not re-check it and will not print this again.',
             '  · TLS is off, so the bearer token travels in the clear and can be replayed by',
             '    anyone who captures it.',
-            '  · A hard link that already exists inside the granted folder serves the file it',
-            '    points at, even when that file lives outside the folder.'
+            '  · A hard link that already exists inside the granted folder makes the file it',
+            '    points at readable and searchable, even when that file lives outside the folder.'
         ];
         const expectedNetwork = [
             `wyrd Reader is listening on the network interface at ${interfaceAddress}, port ${networkPort}.`,
@@ -1967,7 +2173,7 @@ test('H23-network-disclosure-honesty — fixed-port network warning is exact and
             `Allowed Origin values: ${origin}. An absent Origin proceeds.`,
             'Bearer authentication is required to use POST /mcp.',
             'The one canonical grant is: C:\\canonical-grant',
-            'Its only tool is `read`; the tool surface is read-only.'
+            'Its tools are `read` and `search`; both are read-only.'
         ].join('\n');
         assert.deepEqual(networkLines, [expectedNetwork]);
 
@@ -1989,7 +2195,7 @@ test('H23-network-disclosure-honesty — fixed-port network warning is exact and
                 `Allowed Origin values: http://127.0.0.1:${loopbackPort}, http://localhost:${loopbackPort}. An absent Origin proceeds.`,
                 'Bearer authentication is required to use POST /mcp.',
                 'The one canonical grant is: C:\\canonical-grant',
-                'Its only tool is `read`; the tool surface is read-only.'
+                'Its tools are `read` and `search`; both are read-only.'
             ].join('\n');
             assert.deepEqual(loopbackLines, [expectedLoopback]);
             for (const networkOnlyLine of networkOnlyLines) {
@@ -2100,7 +2306,7 @@ test('H25-cert-host-grammar — the exact command accepts canonical hosts and re
     }
 
     const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-cert-grammar-'));
+    const temporary = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-cert-grammar-'));
     try {
         const result = await runCertCommand(
             path.join(packageRoot, 'dist', 'index.js'),
@@ -2129,7 +2335,7 @@ test('H25-cert-host-grammar — the exact command accepts canonical hosts and re
  */
 test('H26-cert-exclusive-write — existing entries and races never overwrite either destination', async () => {
     arm('H26-cert-exclusive-write');
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-cert-exclusive-'));
+    const base = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-cert-exclusive-'));
     const generated = await generateSelfSignedCertificate(parseCertificateHost('localhost'));
     try {
         for (const existingName of [CERTIFICATE_FILENAME, PRIVATE_KEY_FILENAME]) {
@@ -2213,7 +2419,7 @@ test('H26-cert-exclusive-write — existing entries and races never overwrite ei
 test('H27-cert-content-and-freshness — generated parameters, printed facts, serial and key are live', async () => {
     arm('H27-cert-content-and-freshness');
     const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-cert-content-'));
+    const base = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-cert-content-'));
     const firstDirectory = path.join(base, 'first');
     const secondDirectory = path.join(base, 'second');
     fs.mkdirSync(firstDirectory);
@@ -2362,7 +2568,7 @@ test('H33-certificate-der-minimal-integers — directed serial boundaries keep e
  */
 test('H28-generated-cert-trust-control — trusted handshake succeeds and the untrusted control fails', async () => {
     arm('H28-generated-cert-trust-control');
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-cert-handshake-'));
+    const directory = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-cert-handshake-'));
     let handle;
     try {
         const created = await createCertificateFiles('localhost', directory);
@@ -2415,7 +2621,7 @@ test('H29-tls-startup-validation — incomplete, malformed, mismatched, early an
         assert.equal(readTlsArgs(argv).ok, false, argv.join(' '));
     }
 
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-tls-validation-'));
+    const base = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-tls-validation-'));
     const firstDirectory = path.join(base, 'first');
     const secondDirectory = path.join(base, 'second');
     fs.mkdirSync(firstDirectory);
@@ -2495,7 +2701,7 @@ test('H29-tls-startup-validation — incomplete, malformed, mismatched, early an
 test('H30-tls-disclosure — HTTPS facts print and the clear-text warning is absent', async () => {
     arm('H30-tls-disclosure');
     const fixture = networkFixture();
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-tls-disclosure-'));
+    const directory = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-tls-disclosure-'));
     let result;
     try {
         const created = await createCertificateFiles(fixture.address, directory);
@@ -2555,7 +2761,7 @@ test('H30-tls-disclosure — HTTPS facts print and the clear-text warning is abs
  */
 test('H31-tls-handshake-shutdown — a stalled pre-handshake socket cannot hold close open', async () => {
     arm('H31-tls-handshake-shutdown');
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-tls-shutdown-'));
+    const directory = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-tls-shutdown-'));
     let handle;
     let socket;
     try {
@@ -2590,7 +2796,7 @@ test('H31-tls-handshake-shutdown — a stalled pre-handshake socket cannot hold 
 
 test('H32-network-instructions-truth — HTTP discovery receives transport-true instructions', async () => {
     arm('H32-network-instructions-truth');
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-http-instructions-'));
+    const directory = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-http-instructions-'));
     let result;
     try {
         result = await main(mainDeps({

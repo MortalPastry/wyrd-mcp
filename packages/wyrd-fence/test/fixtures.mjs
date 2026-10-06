@@ -4,6 +4,11 @@ import path from 'node:path';
 
 import { PORTABLE } from './manifest.mjs';
 
+const temporaryBases = new Set();
+process.once('exit', () => {
+    for (const base of temporaryBases) teardown(base);
+});
+
 /**
  * Fixture trees for the fence arms.
  *
@@ -66,6 +71,7 @@ function junction(target, link) {
  */
 export function buildFixture() {
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-fence-'));
+    temporaryBases.add(base);
     const grant = path.join(base, 'vault');
     const outside = path.join(base, 'outside');
 

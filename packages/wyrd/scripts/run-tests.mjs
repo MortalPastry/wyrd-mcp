@@ -20,10 +20,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ALL_ARMS, SYMLINK_PRIVILEGE_ARMS, PORTABLE_ARMS } from '../test/arms.mjs';
+import { isInsideRealDirectory, isSameRealPath } from './path-identity.mjs';
 import { preflightJunctionSupport, preflightSymlinkPrivilege } from './preflight.mjs';
 import { loadContract, verifyArmInventory, refuse } from './verify-relocation-contract.mjs';
+import { guardBattery, batteryLockFixture } from '../../wyrd-fence/scripts/battery-lock.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+guardBattery('reader suite');
+batteryLockFixture();
 
 /**
  * ⚠⚠ THE RELOCATION CONTRACT, AND IT RUNS BEFORE EVERYTHING ELSE IN THIS FILE.
@@ -231,7 +235,7 @@ function fenceVersionGate() {
     //     manifest here that stopped declaring it is the original silent-resolution defect. This
     //     replaces the old literal row for this file's own package, with no name written down.
     //   · at least one package declares the fence. Otherwise the loop above ran zero times.
-    const self = workspace.find(entry => path.resolve(entry.directory) === path.resolve(repo));
+    const self = workspace.find(entry => isSameRealPath(entry.directory, repo));
     if (!self) {
         problems.push(`the workspace declaration at ${rel(root.rootDir)}/package.json does not enumerate ${rel(repo)}, which is this package — the derived set is not this workspace's`);
     } else if (self.manifest.dependencies?.[FENCE] === undefined) {
@@ -242,12 +246,11 @@ function fenceVersionGate() {
     }
 
     // The resolved module must be the LOCAL package, not a registry copy that happens to match.
-    // ⚠ The separator is appended AFTER `realpathSync`, which strips a trailing one — comparing the
+    // ⚠ The helper appends the separator AFTER `realpathSync.native`, which strips a trailing one — comparing the
     // bare prefix would accept a sibling directory whose name merely starts with the fence's.
     try {
         const resolved = createRequire(import.meta.url).resolve(FENCE);
-        const local = fs.realpathSync(fence.directory) + path.sep;
-        if (!fs.realpathSync(resolved).startsWith(local)) {
+        if (!isInsideRealDirectory(resolved, fence.directory)) {
             problems.push(`${FENCE} resolves to ${resolved}, which is not this workspace's package`);
         }
     } catch (error) {
@@ -369,8 +372,10 @@ if (preflight) {
  */
 const FILES = [
     'test/handshake.test.js',
+    'test/search.test.js',
     'test/http.test.js',
     'test/manifest-schema.test.js',
+    'test/suite-gate.test.js',
     'test/startup.test.js',
     'test/v1-baseline.test.js'
 ];
@@ -390,8 +395,10 @@ if (absentFiles.length || FILES.length === 0) {
 }
 
 const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-arms-'));
+process.once('exit', () => fs.rmSync(logDir, { recursive: true, force: true }));
 
-const child = spawn(process.execPath, ['--test', ...FILES], {
+const child = spawn(process.execPath, [fileURLToPath(new URL('../../wyrd-fence/scripts/battery-lock.mjs', import.meta.url)),
+    'exec', 'reader test subprocess', '--', process.execPath, '--test', ...FILES], {
     cwd: repo,
     env: {
         ...process.env,

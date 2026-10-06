@@ -1,6 +1,6 @@
 {
   "name": "wyrd-fence",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "license": "MIT",
   "type": "module",
@@ -45,9 +45,9 @@
     "clean": "node scripts/clean.mjs",
     "prebuild": "node scripts/clean.mjs",
     "build": "tsc -b",
-    "test": "npm run build && node scripts/run-tests.mjs",
-    "test:portable": "npm run build && node scripts/run-tests.mjs --portable",
-    "mutate": "npm run build && node scripts/mutate.mjs"
+    "test": "node scripts/battery-lock.mjs run test -- \"npm run build && node scripts/run-tests.mjs\"",
+    "test:portable": "node scripts/battery-lock.mjs run test:portable -- \"npm run build && node scripts/run-tests.mjs --portable\"",
+    "mutate": "node scripts/battery-lock.mjs run mutate -- \"npm run build && node scripts/mutate.mjs\""
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

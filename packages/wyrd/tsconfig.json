@@ -1,7 +1,8 @@
 {
   "//references": "⚠⚠ THIS IS THE BUILD ORDER, AND IT IS THE REASON `build` IS `tsc -b`. npm does NOT build a workspace dependency as a side effect of building this one, and `scripts/clean.mjs` removes only THIS package's `dist` — so before the reference existed, a stale `wyrd-fence/dist` survived every clean, and `npm test`, `npm run mutate` and the release gate all measured it. The clean-checkout case fails loudly (TS2307); the dirty case is silent, and the dirty case is what everyone actually runs. In build mode the compiler checks the referenced project's inputs against its outputs and rebuilds it first, so the ordering is a property of the graph rather than of whoever remembered to chain two scripts.",
   "references": [
-    { "path": "../wyrd-fence" }
+    { "path": "../wyrd-fence" },
+    { "path": "../wyrd-http" }
   ],
   "compilerOptions": {
     "target": "ES2022",

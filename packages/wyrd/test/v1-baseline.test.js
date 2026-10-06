@@ -19,6 +19,7 @@ import {
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const entrypoint = path.join(packageRoot, 'dist', 'index.js');
 const goldenPath = path.join(packageRoot, 'test', 'v1-reader.golden.json');
+const twoToolGoldenPath = path.join(packageRoot, 'test', 'v2-reader.golden.json');
 
 function makeDirectory(parent, name) {
     const target = path.join(parent, name);
@@ -36,6 +37,7 @@ function session(options) {
 
 test('E17-v1-raw-baseline — SDK-free JSON-RPC pins Reader wire, lifecycle and tool behavior', { timeout: 120_000 }, async () => {
     arm('E17-v1-raw-baseline');
+    arm('SR27-two-tool-raw-baseline');
     const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-v1-reader-'));
     const pathTokens = tempPathTokens(temporary);
     const processes = [];
@@ -130,7 +132,7 @@ test('E17-v1-raw-baseline — SDK-free JSON-RPC pins Reader wire, lifecycle and 
         const exchange = await exchangeProcess.finish();
         const after = treeSnapshot(temporary);
 
-        captureOrCompare(goldenPath, {
+        const corpus = {
             captured: true,
             protocolVersion: V1_PROTOCOL_VERSION,
             cases: {
@@ -146,7 +148,14 @@ test('E17-v1-raw-baseline — SDK-free JSON-RPC pins Reader wire, lifecycle and 
                     filesystemAfter: after
                 }
             }
-        });
+        };
+        if (process.env['WYRD_CAPTURE_V2_GOLDEN'] === '1') {
+            if (fs.existsSync(twoToolGoldenPath)) throw new Error('two-tool golden already exists');
+            fs.writeFileSync(twoToolGoldenPath, JSON.stringify(corpus, null, 2) + '\n');
+        } else {
+            assert.deepStrictEqual(corpus, JSON.parse(fs.readFileSync(twoToolGoldenPath, 'utf8')));
+        }
+        captureOrCompare(goldenPath, corpus);
     } finally {
         await Promise.allSettled(processes.map(child => child.dispose()));
         fs.rmSync(temporary, { recursive: true, force: true });

@@ -34,7 +34,9 @@ export type ScribeReason =
     | 'FRONTMATTER_INVALID'
     | 'FRONTMATTER_CONFLICT'
     | 'LINEAGE_LINE_TOO_LARGE'
-    | 'PAGE_WRITTEN_LEDGER_FAILED';
+    | 'PAGE_WRITTEN_LEDGER_FAILED'
+    | 'OVERWRITE_INTERNAL_PATH'
+    | 'OVERWRITE_LEDGER_FAILED';
 
 /**
  * ⚠ NO `resolvedPath`, DELIBERATELY. The fence carries that field because a CONFIG refusal names

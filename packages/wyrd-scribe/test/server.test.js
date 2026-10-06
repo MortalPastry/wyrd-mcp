@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { createFsGate } from 'wyrd-fence';
+
 import { main } from '../dist/main.js';
+import { planTier } from '../dist/server.js';
 import { declare as arm } from './manifest.mjs';
 import { RawMcpClient } from '../../wyrd/test/raw-stdio.mjs';
 
@@ -36,6 +40,41 @@ function vault() {
     fs.writeFileSync(path.join(grant, 'Arc', 'source.md'), 'A source with a precise quotation.');
     fs.writeFileSync(path.join(outside, 'outside.md'), 'OUTSIDE');
     return { base, grant, outside };
+}
+
+function treeSnapshot(root) {
+    const rows = [];
+    const visit = (directory, relativeDirectory) => {
+        const entries = fs.readdirSync(directory, { withFileTypes: true })
+            .sort((left, right) => Buffer.compare(Buffer.from(left.name), Buffer.from(right.name)));
+        for (const entry of entries) {
+            const absolute = path.join(directory, entry.name);
+            const relative = path.join(relativeDirectory, entry.name).replaceAll('\\', '/');
+            const stats = fs.lstatSync(absolute, { bigint: true });
+            const common = {
+                path: relative,
+                size: stats.size,
+                mtimeNs: stats.mtimeNs,
+                ctimeNs: stats.ctimeNs
+            };
+            if (entry.isDirectory()) {
+                rows.push({ ...common, type: 'directory' });
+                visit(absolute, relative);
+            } else if (entry.isFile()) {
+                rows.push({
+                    ...common,
+                    type: 'file',
+                    sha256: crypto.createHash('sha256').update(fs.readFileSync(absolute)).digest('hex')
+                });
+            } else if (entry.isSymbolicLink()) {
+                rows.push({ ...common, type: 'symlink', target: fs.readlinkSync(absolute) });
+            } else {
+                rows.push({ ...common, type: 'other' });
+            }
+        }
+    };
+    visit(root, '');
+    return rows;
 }
 
 function childEnv(extra = {}, withoutTier = false) {
@@ -149,9 +188,9 @@ test('SV5-invalid-tier-no-open — every raw invalid value is named before facto
     }
 });
 
-test('SV6-known-tier-unavailable — production B and C refuse instead of capping to A', async () => {
+test('SV6-known-tier-unavailable — production C refuses instead of capping to A', async () => {
     arm('SV6-known-tier-unavailable');
-    for (const tier of ['B', 'C']) {
+    for (const tier of ['C']) {
         let gates = 0;
         let transports = 0;
         const stderr = [];
@@ -168,6 +207,91 @@ test('SV6-known-tier-unavailable — production B and C refuse instead of cappin
         assert.equal(transports, 0);
         assert.equal(stderr[0], `TIER_UNAVAILABLE: tier ${tier} is recognised but unavailable in this build`);
     }
+});
+
+test('SV16-factory-validates-once — repeated construction does not repeat startup work', async () => {
+    arm('SV16-factory-validates-once');
+    const world = vault();
+    let tierPlans = 0;
+    let gates = 0;
+    let scribes = 0;
+    let transports = 0;
+    const servers = [];
+    const result = await main({
+        argv: [],
+        env: { WYRD_GRANT: world.grant, WYRD_SCRIBE_TIER: 'A' },
+        planTier: (rawTier, layers) => {
+            tierPlans += 1;
+            return planTier(rawTier, layers);
+        },
+        makeFsGate: options => {
+            gates += 1;
+            return createFsGate(options);
+        },
+        makeScribe: () => {
+            scribes += 1;
+            return Object.freeze({ writePage: async () => { throw new Error('not called'); } });
+        },
+        makeTransport: () => { transports += 1; throw new Error('transport must not open'); },
+        serveStdio: async makeServer => {
+            servers.push(makeServer(), makeServer(), makeServer());
+        },
+        stderr: () => {},
+        setExitCode: () => {}
+    });
+
+    assert.deepEqual(result, { started: true, reason: null });
+    assert.equal(tierPlans, 1, 'tier parsing and validation run once');
+    assert.equal(gates, 1, 'grant validation runs once');
+    assert.equal(scribes, 1, 'the validated Scribe context is captured once');
+    assert.equal(transports, 0, 'the injected factory consumer owns transport work');
+    assert.equal(new Set(servers).size, 3, 'each factory call returns a new server');
+});
+
+test('SV17-factory-writes-nothing — construction leaves the grant untouched', async () => {
+    arm('SV17-factory-writes-nothing');
+    const world = vault();
+    fs.writeFileSync(path.join(world.grant, '.wyrd', 'marker'), 'untouched');
+    const before = treeSnapshot(world.grant);
+
+    await main({
+        argv: [],
+        env: { WYRD_GRANT: world.grant, WYRD_SCRIBE_TIER: 'A' },
+        makeFsGate: createFsGate,
+        serveStdio: async makeServer => {
+            makeServer();
+            makeServer();
+            makeServer();
+        },
+        stderr: () => {},
+        setExitCode: () => {}
+    });
+
+    assert.deepEqual(treeSnapshot(world.grant), before);
+});
+
+test('SV18-invalid-tier-before-factory-work — refusal precedes every world-facing seam', async () => {
+    arm('SV18-invalid-tier-before-factory-work');
+    const touched = [];
+    const stderr = [];
+    let exitCode = null;
+    const result = await main({
+        argv: [],
+        env: { WYRD_GRANT: 'must not open', WYRD_SCRIBE_TIER: 'tier-z' },
+        makeFsGate: () => { touched.push('grant'); throw new Error('grant must not open'); },
+        makeScribe: () => { touched.push('scribe'); throw new Error('scribe must not open'); },
+        makeTransport: () => { touched.push('transport'); throw new Error('transport must not open'); },
+        serveStdio: async () => { touched.push('serve'); },
+        stderr: line => stderr.push(line),
+        setExitCode: code => { exitCode = code; }
+    });
+
+    assert.deepEqual(result, { started: false, reason: 'UNRECOGNISED_TIER' });
+    assert.deepEqual(touched, []);
+    assert.equal(exitCode, 2);
+    assert.deepEqual(stderr, [
+        'UNRECOGNISED_TIER: wyrd-scribe does not recognise tier "tier-z"'
+    ]);
 });
 
 test('SV7-disclosure-as-received — instructions carry the canonical grant, tier and tool set', { timeout: TEST_TIMEOUT_MS }, async () => {
@@ -400,16 +524,64 @@ test('SV14-fence-claims-are-the-fences — both disclosures point to the authori
     });
 });
 
-test('SV11-reader-unchanged — both configured servers leave the Reader at exactly read', { timeout: TEST_TIMEOUT_MS }, async () => {
+test('SV11-reader-unchanged — both configured servers expose the Reader read and search', { timeout: TEST_TIMEOUT_MS }, async () => {
     arm('SV11-reader-unchanged');
     assert.equal(fs.existsSync(readerEntrypoint), true, 'build the Reader before running this arm');
     const world = vault();
     const reader = await openClient(readerEntrypoint, childEnv({ WYRD_GRANT: world.grant }, true));
     const scribe = await openClient(scribeEntrypoint, childEnv({ WYRD_GRANT: world.grant, WYRD_SCRIBE_TIER: 'A' }));
     try {
-        assert.deepEqual(names((await reader.listTools()).tools), ['read']);
+        assert.deepEqual(names((await reader.listTools()).tools), ['read', 'search']);
         assert.deepEqual(names((await scribe.listTools()).tools), ['write_page']);
     } finally {
         await Promise.all([reader.close(), scribe.close()]);
     }
+});
+
+test('SV19-production-b-list ? real tier lists match availability', { timeout: TEST_TIMEOUT_MS }, async () => {
+    arm('SV19-production-b-list');
+    const world = vault();
+    for (const [tier, expected] of [['A', ['write_page']], ['B', ['write_page', 'overwrite_page']]]) {
+        await withClient(scribeEntrypoint, childEnv({ WYRD_GRANT: world.grant, WYRD_SCRIBE_TIER: tier }), async client => {
+            const tools = (await client.listTools()).tools;
+            assert.deepEqual(names(tools), expected);
+            if (tier === 'B') {
+                const schema = tools[1].inputSchema;
+                assert.deepEqual(schema.required, ['path', 'content', 'derived_from', 'expected_sha256']);
+                assert.equal(schema.additionalProperties, false);
+                assert.equal(schema.properties.expected_sha256.pattern, '^[0-9a-f]{64}$');
+                const target = path.join(world.grant, 'Mage', 'existing.md');
+                fs.writeFileSync(target, 'old');
+                const expected_sha256 = crypto.createHash('sha256').update('old').digest('hex');
+                const refusal = await client.callTool({ name: 'overwrite_page', arguments: {
+                    path: 'Mage/existing.md', content: 'new', derived_from: [],
+                    expected_sha256: '0'.repeat(64)
+                } });
+                assert.equal(refusal.isError, true);
+                const refusalBody = resultJson(refusal, 'wyrd-scribe refused overwrite_page; inspect effect when present.');
+                assert.equal(refusalBody.reason, 'DIGEST_MISMATCH');
+                assert.deepEqual(refusalBody.effect, { target: 'not_replaced', stage: { state: 'none' } });
+                const success = await client.callTool({ name: 'overwrite_page', arguments: {
+                    path: 'Mage/existing.md', content: 'new', derived_from: [], expected_sha256
+                } });
+                assert.equal(success.isError, undefined);
+                const body = resultJson(success, 'wyrd-scribe completed overwrite_page.');
+                assert.equal(body.overwritten.effect.target, 'replaced');
+                assert.equal(body.record.event, 'page_overwritten');
+                const installed = fs.readFileSync(target);
+                assert.deepEqual(installed, Buffer.from('new'));
+                const ledgerLines = fs.readFileSync(path.join(world.grant, '.wyrd', 'lineage.jsonl'), 'utf8')
+                    .trimEnd().split('\n');
+                assert.equal(ledgerLines.length, 1);
+                const ledgerRecord = JSON.parse(ledgerLines[0]);
+                assert.equal(ledgerRecord.event, 'page_overwritten');
+                assert.equal(ledgerRecord.page.content.digest,
+                    crypto.createHash('sha256').update(installed).digest('hex'));
+                assert.equal(ledgerRecord.page.content.bytes, installed.length);
+            }
+        });
+    }
+    const refused = await main({ argv: [], env: { WYRD_SCRIBE_TIER: 'C' },
+        makeFsGate: () => { throw Error('gate opened'); }, stderr: () => {}, setExitCode: () => {} });
+    assert.deepEqual(refused, { started: false, reason: 'TIER_UNAVAILABLE' });
 });

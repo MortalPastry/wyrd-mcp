@@ -63,6 +63,11 @@ const SCRIBE_SERVER_VERSION_LEAVES = [
         label: 'fixture-C initialize response',
         path: ['cases', 'fixtureC', 'normalizedEvents', 1,
             'message', 'result', 'serverInfo', 'version']
+    },
+    {
+        label: 'production-B initialize response',
+        path: ['cases', 'tierRefusals', 'available-b', 'normalizedEvents', 1,
+            'message', 'result', 'serverInfo', 'version']
     }
 ];
 
@@ -499,7 +504,14 @@ test('SV15-v1-raw-baseline — SDK-free JSON-RPC pins Scribe wire, lifecycle and
             });
             tierRefusals[label] = await child.waitForExit();
         }
-        for (const tier of ['B', 'C']) {
+        const bWorld = makeVault(temporary, 'production-b');
+        const bChild = openProduction({
+            env: { WYRD_GRANT: bWorld.grant, WYRD_SCRIBE_TIER: 'B' }, pathTokens
+        });
+        await bChild.initialise();
+        await bChild.listTools();
+        tierRefusals['available-b'] = await bChild.finish();
+        for (const tier of ['C']) {
             const child = openProduction({
                 env: { WYRD_GRANT: 'must-not-open', WYRD_SCRIBE_TIER: tier },
                 pathTokens

@@ -98,7 +98,12 @@ export function productionInstructions(root: string, tier: Tier, names: readonly
         'the imported `wyrd-fence` operations. Tier A creates files exclusively; an occupied leaf refuses',
         'EXISTS. A successful write_page creates the page and appends one lineage line, and the',
         'vault configuration may also project lineage into frontmatter. If the ledger fails after',
-        'the page is created, the page stays in place and the refusal reports that outcome.'
+        'the page is created, the page stays in place and the refusal reports that outcome.',
+        ...(tier === 'B' ? [
+            'Tier B also registers overwrite_page. It requires the existing page SHA-256, stages',
+            'replacement through the fence, and appends one page_overwritten lineage line after',
+            'replacement. Inspect effect on a fence refusal and cause on a ledger failure.'
+        ] : [])
     ].join('\n');
 }
 

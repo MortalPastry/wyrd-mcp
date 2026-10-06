@@ -1,0 +1,39 @@
+{
+  "name": "wyrd-http",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "type": "module",
+  "description": "Shared HTTP transport primitives for Wyrd MCP servers.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "!dist/*.tsbuildinfo",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "prebuild": "node scripts/clean.mjs",
+    "build": "tsc -b",
+    "test": "node ../wyrd-fence/scripts/battery-lock.mjs run test -- \"npm run build && npm --workspace wyrd-mcp run build && node scripts/run-tests.mjs\"",
+    "test:portable": "node ../wyrd-fence/scripts/battery-lock.mjs run test:portable -- \"npm run build && npm --workspace wyrd-mcp run build && node scripts/run-tests.mjs --portable\"",
+    "mutate": "node ../wyrd-fence/scripts/battery-lock.mjs run mutate -- \"node scripts/mutate.mjs\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "7.0.2"
+  }
+}

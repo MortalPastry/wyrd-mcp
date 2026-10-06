@@ -22,9 +22,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { lineEndingOf, withLineEnding } from '../../wyrd-fence/scripts/mutation-text.mjs';
+import { guardBattery, batteryLockFixture, registerBatteryTargets, recordBatteryMutant, restoreBatteryTarget, assertNoBatteryLockRefusal } from '../../wyrd-fence/scripts/battery-lock.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.resolve(HERE, '..');
+if (!process.argv.some(arg => ['--eol-fixture', '--restore-fixture'].includes(arg))) guardBattery('scribe mutation');
+batteryLockFixture();
 const RUNNER = path.join('scripts', 'run-tests.mjs');
 
 /**
@@ -548,17 +552,17 @@ const MUTANTS = [
         id: 'M37-generated-version-disagrees',
         file: 'version.js',
         note: 'the generated runtime version diverges from package.json, including provenance consumers',
-        measurementPending: true,
-        from: 'export const SERVER_VERSION = "0.0.0";',
+        killedBy: ['PK3-version-single-source', 'SV1-default-a-handshake', 'SV15-v1-raw-baseline'],
+        from: 'export const SERVER_VERSION = "0.2.0";',
         to: 'export const SERVER_VERSION = "0.0.1";'
     },
     {
         id: 'M38-manifest-private-disabled',
         file: '../package.json',
-        note: 'the dormant package loses the private publication stop',
-        measurementPending: true,
-        from: '  "private": true,',
-        to: '  "private": false,'
+        note: 'the active package is incorrectly withheld from publication',
+        killedBy: ['PK1-manifest-surface'],
+        from: '  "private": false,',
+        to: '  "private": true,'
     },
     {
         id: 'M39-pack-admits-source',
@@ -567,11 +571,232 @@ const MUTANTS = [
         measurementPending: true,
         from: `    "LICENSE"${NL}  ],`,
         to: `    "LICENSE",${NL}    "src"${NL}  ],`
+    },
+    {
+        id: 'M40-overwrite-arc-screen', file: 'mutate.js',
+        note: 'directly addressed Arc pages must refuse before config or source IO',
+        killedBy: ['ST46-overwrite-arc-immutable'],
+        from: 'if (/^arc$/i.test(firstComponent(path))) {',
+        to: 'if (false) {'
+    },
+    {
+        id: 'M41-overwrite-internal-screen', file: 'mutate.js',
+        note: 'the internal subtree must be excluded before config or source IO',
+        killedBy: ['ST49-overwrite-internal-subtree'],
+        from: 'if (/^\\.wyrd$/i.test(firstComponent(path))) {',
+        to: 'if (false) {'
+    },
+    {
+        id: 'M42-overwrite-frontmatter-replace', file: 'frontmatter.js',
+        note: 'a generated lineage line must be replaced rather than rejected as a conflict',
+        killedBy: ['ST48-overwrite-frontmatter'],
+        from: 'if (matches.length === 0)\n        return stamp(content, projection);',
+        to: 'if (matches.length >= 0)\n        return stamp(content, projection);'
+    },
+    {
+        id: 'M43-overwrite-precondition', file: 'mutate.js',
+        note: 'a known mismatch must refuse before config creation',
+        killedBy: ['ST50-overwrite-refusal-disk-invariance'],
+        from: 'if (previous.digest !== expectedSha256) {',
+        to: 'if (false) {'
+    },
+    {
+        id: 'M44-overwrite-event-kind', file: 'mutate.js',
+        note: 'the ledger event must name a replacement',
+        killedBy: ['ST44-overwrite-success-lineage'],
+        from: "event: 'page_overwritten', event_id: eventId,",
+        to: "event: 'page_written', event_id: eventId,"
+    },
+    {
+        id: 'M45-overwrite-ledger-cause', file: 'mutate.js',
+        note: 'a failed append must carry its actual cause',
+        killedBy: ['ST47-overwrite-ledger-failure'],
+        from: 'overwritten, cause, config_created: created',
+        to: "overwritten, cause: scribeRefuse('BAD_INPUT', 'fabricated'), config_created: created"
+    },
+    {
+        id: 'M46-overwrite-production-registration', file: 'main.js',
+        note: 'the production B layer must register overwrite_page',
+        killedBy: ['SV19-production-b-list'],
+        from: "name: 'overwrite_page',",
+        to: "name: 'write_page',"
+    },
+    {
+        id: 'M47-overwrite-resolved-arc-screen', file: 'mutate.js',
+        note: 'a parent alias resolving into Arc must refuse before config creation',
+        killedBy: ['ST51-overwrite-resolved-protected-namespaces'],
+        from: "if (/^arc$/i.test(first))\n            return 'arc';",
+        to: "if (false)\n            return 'arc';"
+    },
+    {
+        id: 'M48-overwrite-resolved-internal-screen', file: 'mutate.js',
+        note: 'a parent alias resolving into .wyrd must refuse before config creation',
+        killedBy: ['ST51-overwrite-resolved-protected-namespaces'],
+        from: "if (/^\\.wyrd$/i.test(first))\n            return 'internal';",
+        to: "if (false)\n            return 'internal';"
+    },
+    {
+        id: 'M49-overwrite-win32-name-normalization', file: 'mutate.js',
+        note: 'Win32 trailing dots and spaces are included in the protected lexical screen',
+        killedBy: ['ST51-overwrite-resolved-protected-namespaces'],
+        from: "first.replace(/[. ]+$/g, '') : first",
+        to: 'first : first'
+    },
+    {
+        id: 'M50-overwrite-installed-byte-digest', file: 'mutate.js',
+        note: 'frontmatter replacement ledger bytes describe the installed page',
+        killedBy: ['ST48-overwrite-frontmatter'],
+        from: 'hashText(pageBytes), pageBytes.length',
+        to: "hashText(Buffer.from(content, 'utf8')), Buffer.byteLength(content, 'utf8')"
+    },
+    {
+        id: 'M51-overwrite-wire-success-must-be-real', file: 'main.js',
+        note: 'a success envelope without a replacement or ledger line must fail the production arm',
+        killedBy: ['SV19-production-b-list'],
+        from: 'context.scribe.overwritePage({',
+        to: "(async () => ({ ok: true, overwritten: { effect: { target: 'replaced' } }, record: { event: 'page_overwritten' } }))({"
+    },
+    {
+        id: 'M52-production-b-startup-available', file: 'main.js',
+        note: 'the golden production B leg must initialise and list real tools',
+        killedBy: ['SV15-v1-raw-baseline'],
+        from: "    B: (context, activeTier) => Object.freeze([\n"
+            + '        overwritePageRegistration(context, activeTier)\n'
+            + '    ]),',
+        to: '    B: null,'
+    },
+    {
+        id: 'M168-scribe-close-skips-admitted-write', file: 'write-completion.js',
+        note: 'close must await every write registered at admission',
+        killedBy: ['SH4-disconnect-drain'],
+        from: 'pending.add(settled);',
+        to: 'void settled;'
+    },
+    {
+        id: 'M169-scribe-abort-cancels-admitted-write', file: 'write-completion.js',
+        note: 'socket abort must not cancel an already admitted Scribe mutation',
+        killedBy: ['SH4-disconnect-drain'],
+        from: 'const result = Promise.resolve().then(operation);',
+        to: 'const result = Promise.resolve().then(() => _signal?.aborted ? undefined : operation());'
+    },
+    {
+        id: 'M170-scribe-network-tls-before-listen', file: 'main.js',
+        note: 'non-loopback Scribe writes must refuse without TLS before listener construction',
+        killedBy: ['SH6-http-refusals-no-disk-effects'],
+        from: "if (httpArg.bind.kind === 'network' && tlsArg.paths === null) {",
+        to: 'if (false) {'
+    },
+    {
+        id: 'M171-scribe-auth-refusal', file: 'http-policy.js',
+        note: 'wrong Scribe bearer tokens must refuse before a write reaches the vault',
+        killedBy: ['SH6-http-refusals-no-disk-effects'],
+        from: 'if (!bearerTokenMatches(bytes, authorization))',
+        to: 'if (false)'
+    },
+    {
+        id: 'M172-scribe-http-close-skips-tracker', file: 'http.js',
+        note: 'HTTP shutdown must wait for the Scribe write tracker',
+        killedBy: ['SH9-http-close-awaits-tracker'],
+        from: 'closing ??= runtimeShutdown ?? handle.close().finally(() => writes.close());',
+        to: 'closing ??= runtimeShutdown ?? handle.close();'
+    },
+    {
+        id: 'M174-scribe-runtime-error-skip-write-drain', file: 'http.js',
+        note: 'the runtime server error path must wait for admitted Scribe writes',
+        killedBy: ['SH10-runtime-server-error-drain'],
+        from: 'closing ?? listenerShutdown.finally(() => writes.close())',
+        to: 'closing ?? listenerShutdown'
+    },
+    {
+        id: 'M176-scribe-tls-shutdown-tracks-raw-socket', file: '../../wyrd-http/dist/http.js',
+        note: 'HTTPS shutdown must preserve the TLS socket of an admitted write',
+        killedBy: ['SH11-https-admitted-write-response-during-close'],
+        from: '        trackSocket(secureSocket);',
+        to: '        if (raw !== undefined) sockets.add(raw);'
     }
 ];
 
+function prepareMutationRows(rows, baselineFor) {
+    for (const m of rows) {
+        const { text, ending } = baselineFor(m);
+        const from = withLineEnding(m.from, ending);
+        const hits = text.split(from).length - 1;
+        if (hits !== 1) throw new Error(`${m.id}: anchor matched ${hits} times before mutation`);
+    }
+}
+
+function applyMutationRow(m, source, ending) {
+    return source.replace(withLineEnding(m.from, ending),
+        () => withLineEnding(m.to, ending));
+}
+
+if (process.argv.includes('--check-anchors')) {
+    const problems = [];
+    for (const row of MUTANTS) {
+        const target = distOf(row.file);
+        if (!fs.existsSync(target)) {
+            problems.push(`${row.id}: ${row.file} (${target}) does not exist`);
+            continue;
+        }
+        const source = fs.readFileSync(target, 'utf8');
+        const ending = lineEndingOf(source, target);
+        const hits = source.split(withLineEnding(row.from, ending)).length - 1;
+        if (hits !== 1) problems.push(`${row.id}: ${row.file} (${target}) anchor matched ${hits} times: ${JSON.stringify(row.from)}`);
+    }
+    if (problems.length) throw new Error(`mutation anchors are not applicable:\n${problems.join('\n')}`);
+    console.log(`✔ Scribe mutation anchors: ${MUTANTS.length} rows apply to their registered targets.`);
+    process.exit(0);
+}
+
+const onlyArg = process.argv.find((value, index) => process.argv[index - 1] === '--only');
+const SELECTED_MUTANTS = onlyArg === undefined ? MUTANTS : MUTANTS.filter(row => onlyArg.split(',').includes(row.id));
+if (SELECTED_MUTANTS.length === 0 || (onlyArg !== undefined && SELECTED_MUTANTS.length !== onlyArg.split(',').length)) {
+    throw new Error('--only must name existing Scribe mutation rows exactly once');
+}
+
+if (process.argv[2] === '--eol-fixture') {
+    const [arm, target] = process.argv.slice(3);
+    const bytes = fs.readFileSync(target);
+    const source = bytes.toString('utf8');
+    try {
+        if (arm === 'BH2-eol-mixed') {
+            let refused = false;
+            try { lineEndingOf(source, target); } catch (error) {
+                refused = /mixed or unsupported line endings/.test(error.message);
+            }
+            if (!refused) throw new Error('mixed-ending target was accepted');
+        } else {
+            const ending = lineEndingOf(source, target);
+            if (arm === 'BH1-eol-crlf') {
+                const row = { id: 'fixture', from: 'alpha\nbeta', to: 'alpha\ndelta' };
+                prepareMutationRows([row], () => ({ text: source, ending }));
+                fs.writeFileSync(target, applyMutationRow(row, source, ending));
+                if (fs.readFileSync(target, 'utf8') !== 'alpha\r\ndelta\r\ngamma\r\n') throw new Error('CRLF edit did not land');
+            } else if (arm === 'BH3-eol-all-edits') {
+                const rows = [{ id: 'first', from: 'alpha', to: 'delta' },
+                    { id: 'second', from: 'absent\nsecond', to: 'nope' }];
+                let refused = false;
+                try { prepareMutationRows(rows, () => ({ text: source, ending })); }
+                catch (error) { refused = /second: anchor matched 0 times/.test(error.message); }
+                if (!refused) throw new Error('second row was not refused before mutation');
+            } else throw new Error('unknown EOL fixture arm');
+        }
+    } finally {
+        fs.writeFileSync(target, bytes);
+        if (!fs.readFileSync(target).equals(bytes)) throw new Error('fixture restore changed bytes');
+    }
+    console.log(`fixture ${arm}: scribe PASS`);
+    process.exit(0);
+}
+
 const sha = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
-const runSuite = () => spawnSync(process.execPath, [RUNNER], { cwd: PKG, encoding: 'utf8' });
+const runSuite = (executable = process.execPath) => spawnSync(executable, [RUNNER], { cwd: PKG, encoding: 'utf8' });
+if (process.argv.includes('--bh6-spawn-fixture')) {
+    const result = runSuite(path.join(PKG, 'missing-executable'));
+    if (!result.error || result.status !== null) throw new Error('spawn failure received a mutation verdict');
+    console.log('INFRASTRUCTURE: suite did not start');
+    process.exit(0);
+}
 
 /**
  * Build ONCE, before anything is patched. Never between rows.
@@ -616,16 +841,19 @@ if (generated.status !== 0) {
  * makes that impossible rather than unlikely.
  */
 const BASELINES = new Map();
-for (const m of MUTANTS) {
+for (const m of SELECTED_MUTANTS) {
     if (BASELINES.has(m.file)) continue;
     const target = distOf(m.file);
     if (!fs.existsSync(target)) {
         console.error(`⛔ ${m.id} targets dist/${m.file}, which the build did not produce`);
         process.exit(1);
     }
-    const text = fs.readFileSync(target, 'utf8');
-    BASELINES.set(m.file, { text, hash: sha(text) });
+    const bytes = fs.readFileSync(target);
+    const text = bytes.toString('utf8');
+    BASELINES.set(m.file, { bytes, text, ending: lineEndingOf(text, target), hash: sha(bytes) });
 }
+prepareMutationRows(SELECTED_MUTANTS, m => BASELINES.get(m.file));
+registerBatteryTargets([...BASELINES.keys()].map(distOf));
 
 /**
  * ⚠⚠ EVERY ROW MUST DECLARE HOW IT IS ATTRIBUTED, AND THIS REFUSES BEFORE ANY MUTANT RUNS.
@@ -638,7 +866,7 @@ for (const m of MUTANTS) {
  * ⚠ IT FAILS AT LOAD RATHER THAN PER-ROW: a new row that forgets this should stop the run, not
  * pass quietly inside it.
  */
-const undeclared = MUTANTS.filter(
+const undeclared = SELECTED_MUTANTS.filter(
     (m) => !Array.isArray(m.killedBy) && typeof m.killedByAll !== 'number'
         && m.measurementPending !== true
 );
@@ -656,29 +884,44 @@ if (control.status !== 0) {
     console.error((control.stdout || '').slice(-2000));
     process.exit(1);
 }
-console.log(`✔ unmutated control green — ${MUTANTS.length} mutants to run\n`);
+console.log(`✔ unmutated control green — ${SELECTED_MUTANTS.length} mutants to run\n`);
 
 let survived = 0;
 let unanchored = 0;
 let misattributed = 0;
 let measurementsPending = 0;
 
-for (const m of MUTANTS) {
+for (const m of SELECTED_MUTANTS) {
     const target = distOf(m.file);
-    const { text: original, hash: baseline } = BASELINES.get(m.file);
+    const { bytes, text: original, ending, hash: baseline } = BASELINES.get(m.file);
+    const from = withLineEnding(m.from, ending);
 
-    const hits = original.split(m.from).length - 1;
+    const hits = original.split(from).length - 1;
     if (hits !== 1) {
         console.log(`⛔ ${m.id} — ANCHOR MATCHED ${hits} TIMES in dist/${m.file}, not 1. BROKEN INSTRUMENT, not a survivor.`);
         unanchored += 1;
         continue;
     }
-    const mutated = original.replace(m.from, m.to);
+    const mutated = applyMutationRow(m, original, ending);
     assert.notEqual(mutated, original, `${m.id}: mutant is identical to the original`);
+    recordBatteryMutant(target, Buffer.from(mutated));
     fs.writeFileSync(target, mutated, 'utf8');
     assert.equal(fs.readFileSync(target, 'utf8'), mutated, `${m.id}: mutant did not land on disk`);
 
     const result = runSuite();
+    const output = `${result.stdout || ''}${result.stderr || ''}`;
+    try { assertNoBatteryLockRefusal(output); }
+    catch (error) {
+        restoreBatteryTarget(target);
+        assert.ok(fs.readFileSync(target).equals(bytes), `${m.id}: restore failed after lock refusal`);
+        throw error;
+    }
+    if (result.signal || result.error ||
+        (result.status !== 0 && !/(?:not ok \d+ - |✖ )\s*[A-Z]+\d+[\w-]*/.test(output))) {
+        restoreBatteryTarget(target);
+        assert.ok(fs.readFileSync(target).equals(bytes), `${m.id}: restore failed after infrastructure error`);
+        throw new Error(`${m.id}: suite infrastructure error: ${output.slice(-1000)}`);
+    }
     const killed = result.status !== 0;
     if (!killed) survived += 1;
 
@@ -690,7 +933,6 @@ for (const m of MUTANTS) {
      */
     let attributed = true;
     let attributionNote = '';
-    const output = `${result.stdout || ''}${result.stderr || ''}`;
     if (m.measurementPending === true) {
         measurementsPending += 1;
         const observed = [...new Set(
@@ -731,14 +973,14 @@ for (const m of MUTANTS) {
     console.log(`${verdict} ${m.id}  — ${m.note}`);
     if (!attributed) console.log(`           ${attributionNote}`);
 
-    fs.writeFileSync(target, original, 'utf8');
-    assert.equal(sha(fs.readFileSync(target, 'utf8')), baseline, `${m.id}: RESTORE FAILED — dist/${m.file} is not back at baseline`);
+    restoreBatteryTarget(target);
+    assert.ok(fs.readFileSync(target).equals(bytes), `${m.id}: RESTORE FAILED — dist/${m.file} is not back at baseline (${baseline})`);
 }
 
 const after = runSuite();
 console.log(`\nrestored, hash verified; post-restore suite ${after.status === 0 ? 'GREEN' : 'RED'}`);
 console.log(
-    `${MUTANTS.length - survived - unanchored - misattributed}/${MUTANTS.length} killed by the arms they name`
+    `${SELECTED_MUTANTS.length - survived - unanchored - misattributed}/${SELECTED_MUTANTS.length} killed by the arms they name`
     + ` · ${survived} survived · ${unanchored} unanchored · ${misattributed} killed by the wrong arm`
 );
 

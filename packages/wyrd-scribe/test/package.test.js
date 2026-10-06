@@ -6,7 +6,21 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { assertInternalDependencyVersions, inspectInternalDependencyVersions }
+    from '../../wyrd-fence/scripts/internal-dependency-preflight.mjs';
 import { declare as arm } from './manifest.mjs';
+
+const temporaryBases = new Set();
+process.once('exit', () => {
+    for (const base of temporaryBases) fs.rmSync(base, { recursive: true, force: true });
+});
+
+function temporaryDirectory(prefix) {
+    const base = fs.mkdtempSync(prefix);
+    temporaryBases.add(base);
+    return base;
+}
+
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = path.resolve(packageRoot, '..', '..');
@@ -14,6 +28,9 @@ const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json
 const fenceManifest = JSON.parse(fs.readFileSync(
     path.join(workspaceRoot, 'packages', 'wyrd-fence', 'package.json'),
     'utf8'
+));
+const httpManifest = JSON.parse(fs.readFileSync(
+    path.join(workspaceRoot, 'packages', 'wyrd-http', 'package.json'), 'utf8'
 ));
 const readme = fs.readFileSync(path.join(packageRoot, 'README.md'), 'utf8');
 
@@ -33,7 +50,7 @@ function npmCli() {
 
 function packedFiles() {
     let raw;
-    const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-scribe-npm-cache-'));
+    const cache = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-scribe-npm-cache-'));
     try {
         raw = execFileSync(process.execPath, [
             npmCli(), 'pack', '--dry-run', '--json', '--ignore-scripts', packageRoot
@@ -59,7 +76,7 @@ function packedFiles() {
 test('PK1-manifest-surface — the published package has its exact binary surface and metadata', () => {
     arm('PK1-manifest-surface');
     assert.equal(manifest.name, 'wyrd-scribe');
-    assert.equal(manifest.version, '0.1.1');
+    assert.equal(manifest.version, '0.2.0');
     assert.equal(manifest.private, false);
     assert.equal(typeof manifest.private, 'boolean');
     assert.equal(manifest.license, 'Apache-2.0');
@@ -85,12 +102,19 @@ test('PK1-manifest-surface — the published package has its exact binary surfac
     assert.equal(manifest.bugs?.url, 'https://github.com/MortalPastry/wyrd-mcp/issues');
     assert.deepEqual(manifest.engines, { node: '>=20' });
     assert.equal(manifest.dependencies?.['wyrd-fence'], fenceManifest.version);
+    assert.equal(manifest.dependencies?.['wyrd-http'], httpManifest.version);
     assert.equal(manifest.dependencies?.['@modelcontextprotocol/server'], '2.0.0');
     assert.equal(manifest.dependencies?.['@modelcontextprotocol/sdk'], undefined);
     assert.equal(manifest.scripts?.build, 'tsc -b && node scripts/generate-version.mjs');
     assert.equal(manifest.scripts?.prepack, 'npm run build');
-    assert.equal(manifest.scripts?.pretest, 'npm --prefix ../wyrd run build');
-    assert.equal(manifest.scripts?.['pretest:portable'], 'npm --prefix ../wyrd run build');
+    assert.equal(manifest.scripts?.pretest, undefined);
+    assert.equal(manifest.scripts?.['pretest:portable'], undefined);
+    assert.equal(manifest.scripts?.test,
+        'node ../wyrd-fence/scripts/battery-lock.mjs run test -- "node ../wyrd-fence/scripts/internal-dependency-preflight.mjs . && npm --prefix ../wyrd run build && npm run build && node scripts/run-tests.mjs"');
+    assert.equal(manifest.scripts?.['test:portable'],
+        'node ../wyrd-fence/scripts/battery-lock.mjs run test:portable -- "node ../wyrd-fence/scripts/internal-dependency-preflight.mjs . && npm --prefix ../wyrd run build && npm run build && node scripts/run-tests.mjs --portable"');
+    assert.equal(manifest.scripts?.mutate,
+        'node ../wyrd-fence/scripts/battery-lock.mjs run mutate -- "node scripts/mutate.mjs"');
     assert.equal(manifest.scripts?.publish, undefined);
     assert.equal(manifest.publishConfig, undefined);
     assert.equal(manifest.mcpName, 'com.wyrdmcp/wyrd-scribe');
@@ -101,8 +125,8 @@ test('PK2-packed-files — npm derives only the documented package payload', () 
     arm('PK2-packed-files');
     const actual = packedFiles();
     const modules = [
-        'config', 'frontmatter', 'index', 'ledger', 'lineage', 'main',
-        'refusal', 'server', 'source', 'span', 'stamp'
+        'config', 'frontmatter', 'http', 'http-policy', 'index', 'ledger', 'lineage', 'main', 'mutate',
+        'refusal', 'server', 'source', 'span', 'stamp', 'write-completion'
     ];
     const expected = new Set(['package.json', 'README.md', 'LICENSE', 'dist/version.js', 'dist/version.d.ts']);
     for (const module of modules) {
@@ -139,7 +163,7 @@ test('PK4-readme-contract — the package account is complete without copying th
         /npm install -g wyrd-scribe/,
         /--grant[\s\S]*precedence over `WYRD_GRANT`/i,
         /WYRD_SCRIBE_TIER[\s\S]*defaults to `A`/i,
-        /tiers B and C[\s\S]*refuses/i,
+        /Tier B adds `overwrite_page`[\s\S]*tier C is recognised but unavailable/i,
         /write_page/,
         /derived_from/,
         /\.wyrd\/scribe\.json/,
@@ -172,4 +196,93 @@ test('PK4-readme-contract — the package account is complete without copying th
     assert.doesNotMatch(readme, /\]\(\.\.\//, 'no monorepo-relative link may reach the npm-rendered README');
     assert.doesNotMatch(readme, /before the single write, the file can be renamed out/i);
     assert.doesNotMatch(readme, /hard link created after the pre-open/i);
+});
+
+test('PK5-internal-dependency-preflight — local and registry dependency contracts cannot split', () => {
+    arm('PK5-internal-dependency-preflight');
+    const fixture = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-dependency-preflight-'));
+    const consumerRoot = path.join(fixture, 'packages', 'fixture-consumer');
+    const siblingRoot = path.join(fixture, 'packages', 'fixture-sibling');
+    fs.mkdirSync(consumerRoot, { recursive: true });
+    fs.mkdirSync(siblingRoot, { recursive: true });
+    fs.writeFileSync(path.join(fixture, 'package.json'), JSON.stringify({
+        name: 'fixture-workspace', private: true, workspaces: ['packages/*']
+    }));
+    fs.writeFileSync(path.join(siblingRoot, 'package.json'), JSON.stringify({
+        name: 'fixture-sibling', version: '1.2.3', private: false
+    }));
+
+    const writeConsumer = spec => fs.writeFileSync(
+        path.join(consumerRoot, 'package.json'),
+        JSON.stringify({
+            name: 'fixture-consumer', version: '4.5.6', private: false,
+            dependencies: { 'fixture-sibling': spec }
+        })
+    );
+    try {
+        // Failure cases come first: a permissive implementation must not reach the passing control.
+        for (const spec of ['9.9.9', 'workspace:*', 'file:../fixture-sibling', 'link:../fixture-sibling']) {
+            writeConsumer(spec);
+            assert.throws(
+                () => assertInternalDependencyVersions(consumerRoot, { workspaceRoot: fixture }),
+                error => {
+                    assert.match(error.message, /fixture-consumer/);
+                    assert.match(error.message, /fixture-sibling/);
+                    assert.ok(error.message.includes(JSON.stringify(spec)),
+                        `the refusal did not name declared spec ${JSON.stringify(spec)}: ${error.message}`);
+                    assert.ok(error.message.includes('"1.2.3"'),
+                        `the refusal did not name local version 1.2.3: ${error.message}`);
+                    return true;
+                }
+            );
+        }
+
+        fs.writeFileSync(path.join(consumerRoot, 'package.json'), JSON.stringify({
+            name: 'fixture-consumer', version: '4.5.6', private: false,
+            dependencies: { 'fixture-sibling': '1.2.3' },
+            devDependencies: { 'fixture-sibling': '1.2.3' },
+            optionalDependencies: { 'fixture-sibling': '1.2.3' },
+            peerDependencies: { 'fixture-sibling': '1.2.3' }
+        }));
+        const result = assertInternalDependencyVersions(consumerRoot, { workspaceRoot: fixture });
+        assert.equal(result.checked, 4, 'every standard dependency section must be inspected');
+        assert.deepEqual(result.problems, []);
+    } finally {
+        fs.rmSync(fixture, { recursive: true, force: true });
+    }
+});
+
+test('PK6-internal-dependency-identity — workspace membership uses filesystem identity', () => {
+    arm('PK6-internal-dependency-identity');
+    const fixture = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-dependency-identity-'));
+    const consumerRoot = path.join(fixture, 'packages', 'fixture-consumer');
+    const outsiderRoot = path.join(fixture, 'not-a-workspace-package');
+    fs.mkdirSync(consumerRoot, { recursive: true });
+    fs.mkdirSync(outsiderRoot, { recursive: true });
+    fs.writeFileSync(path.join(fixture, 'package.json'), JSON.stringify({
+        name: 'fixture-workspace', private: true, workspaces: ['packages/*']
+    }));
+    const consumerManifest = JSON.stringify({
+        name: 'fixture-consumer', version: '4.5.6', private: false
+    });
+    fs.writeFileSync(path.join(consumerRoot, 'package.json'), consumerManifest);
+    fs.writeFileSync(path.join(outsiderRoot, 'package.json'), consumerManifest);
+
+    try {
+        if (process.platform === 'win32') {
+            const differentlyCased = consumerRoot.replace(/[A-Za-z]/, letter =>
+                letter === letter.toUpperCase() ? letter.toLowerCase() : letter.toUpperCase());
+            assert.notEqual(differentlyCased, consumerRoot);
+            assert.deepEqual(
+                inspectInternalDependencyVersions(differentlyCased, { workspaceRoot: fixture }),
+                { packageName: 'fixture-consumer', checked: 0, problems: [] }
+            );
+        }
+        assert.throws(
+            () => inspectInternalDependencyVersions(outsiderRoot, { workspaceRoot: fixture }),
+            /is not a package in/
+        );
+    } finally {
+        fs.rmSync(fixture, { recursive: true, force: true });
+    }
 });

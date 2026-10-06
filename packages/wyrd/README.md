@@ -11,8 +11,11 @@ way; vault structure is a detected bonus, never a requirement.
 
 ## What it can reach
 
-**Wyrd serves the folder you name.** The only tool it registers is `read`. There is no tool that
-writes, moves, renames or deletes, and the test suite asserts the tool list is exactly `read`.
+**Wyrd serves the folder you name.** It registers `read` and `search`. Neither tool
+writes, moves, renames or deletes, and the test suite asserts both tools are listed.
+The current two-tool wire surface is recorded in `test/v2-reader.golden.json`; the v1 golden
+remains a historical record. One startup option changes who answers `search`; see
+*An additional search backend module* below before you use it.
 
 ⚠ **Grant a subfolder containing only what you mean to share.** There is no extension filter and
 no ignore-file support, hidden entries are not excluded, and there is no cap on how much may be
@@ -45,7 +48,13 @@ fired rather than pretending the file is absent.
 
 ### Known limits
 
-- ⚠ **A hard link inside the granted folder makes the file it points at readable, wherever on the
+- The search path caches normalized terms using a file's modification time and
+  logical size. A same-size edit that preserves modification time can stay stale indefinitely;
+  another change to either value causes a fresh scan.
+
+- `npm run measure:search` measures the core engine; `--end-to-end` includes MCP stdio dispatch.
+
+- ⚠ **A hard link inside the granted folder makes the file it points at readable and searchable, wherever on the
   disk that file lives.** The link has to be there already; wyrd creates none. **Ordinary folder
   inspection will not show it as a link**: it looks like a normal file in Explorer, in Finder and
   in `ls`, with the ordinary size and the ordinary icon. Two practical answers:
@@ -73,6 +82,11 @@ This list is what is known, not a proof that nothing else exists. The limits wer
 Windows; behaviour on macOS and Linux is reasoned but unmeasured, and the package declares no OS
 restriction.
 
+Cloud placeholders are detected on Windows before the `read` tool opens content. A placeholder
+read refuses by default and names the download it would trigger; `hydrate: true` permits that
+one call to download it. Every `read` result includes `placeholder_detection`, a count and
+fraction when measured, and a warning if the grant contains a known placeholder. Unsupported
+platforms report `unavailable` with null counts rather than claiming none were found.
 ## Install
 
 ```
@@ -224,11 +238,35 @@ link is not a way to narrow a grant: the fence sees the real folder, whole.
 **To revoke it**, stop the server *and* remove wyrd from your client's MCP configuration. Stopping
 it alone may not be enough: a client that still has wyrd configured can start it again.
 
-**Wyrd keeps nothing it read.** There is no cache, no index and no database; each request opens
-the file on demand and hands back the bytes. Outside the explicit `cert` command, **the one thing
+**Search uses a lazy in-memory cache of normalized terms and anchors.** It holds no raw text,
+writes no search data to disk, and reopens a file when it needs an excerpt. Outside the explicit `cert` command, **the one thing
 that can persist on your disk is the optional observation log** below; the generator separately
 leaves the certificate pair you asked it to create. What your AI client retains of the content it
 received is that client's business, governed by its policy rather than by wyrd.
+
+## An additional search backend module (optional)
+
+**By default wyrd answers `search` itself, and everything else on this page describes that.** You
+can instead name one module file at startup, and wyrd will ask it to answer `search`:
+
+```
+npx wyrd-mcp --grant /absolute/path/to/notes --search-backend /absolute/path/to/module.mjs
+```
+
+`WYRD_SEARCH_BACKEND` does the same from the environment; the command line wins. The value must be
+an absolute path to a file. If the module cannot be loaded or answers with the wrong shape, wyrd
+refuses to start. It never falls back silently.
+
+⚠ **A module you name runs inside the wyrd process with that process's permissions. It is not
+confined to the granted folder.** Wyrd hands it only bounded reads of the granted folder and checks
+every result it returns against that folder before showing it, but wyrd cannot stop the module from
+opening other files, writing to disk, holding your text in memory or using the network. The
+statements on this page about what search keeps, what is written and what leaves your machine are
+statements about wyrd's built-in search only. Load a module only if you trust it the way you trust
+wyrd itself, and read what it says about itself: wyrd prints the module's own statement at startup,
+marked as the module's, next to its own.
+
+Wyrd ships no such module and needs none.
 
 ## What leaves your machine
 

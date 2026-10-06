@@ -81,7 +81,9 @@ export const LOCKED = Object.freeze({
 
 const FENCE = 'wyrd-fence';
 const READER = 'wyrd';
-const PACKAGES = [READER, FENCE];
+const HTTP = 'wyrd-http';
+const SCRIBE = 'scribe';
+const PACKAGES = [READER, FENCE, HTTP, SCRIBE, 'hygiene'];
 const DESTINATIONS = [...PACKAGES, 'undecided'];
 
 /**
@@ -103,15 +105,19 @@ const FILE_OWNER = Object.freeze({
     // baseline, so the fence matrix owns the mutation that proves that pin is active.
     attributes: FENCE,
     auth: READER,
-    http: READER,
+    bind: HTTP,
+    http: HTTP,
+    // The Scribe matrix also mutates the shared HTTP output to grade its HTTPS write response.
+    '../../wyrd-http/dist/http.js': HTTP,
     main: READER,
     index: READER,
     server: READER,
+    search: READER,
+    serverdts: READER,
     /**
-     * ⚠ TWO READER-OWNED TLS TARGETS. `cert` reaches the built certificate implementation behind
-     * H25–H28, while `tlsconfig` reaches the built validation and metadata implementation behind
-     * H28–H30. Naming their owners explicitly keeps a future row from routing either Reader file by
-     * contract assertion alone; both keys refer to disposable `dist` output rebuilt from `src/`.
+     * The certificate target remains Reader-owned. The TLS validation target is HTTP-owned;
+     * H29 still detects its mutations through the Reader runner. Both keys name built output,
+     * and their explicit owners prevent a contract row from routing either by assertion alone.
      *
      * ⚠⚠ THESE TWO WERE ADDED WITH NO ROW USING THEM, AND THAT EXPOSED A REAL GAP IN THE CHECK
      * ABOVE — measured 2026-09-15 by a build lane told to prove the coupling and finding there was
@@ -125,7 +131,8 @@ const FILE_OWNER = Object.freeze({
      * wrote it.
      */
     cert: READER,
-    tlsconfig: READER,
+    // Validation now builds in HTTP; Reader H29 still grades it through the direct runner.
+    tlsconfig: HTTP,
     /**
      * ⚠ TWO KEYS THAT ARE NOT BUILT OUTPUT, ADDED 2026-09-02 WITH `M94`/`M95`. The note above says
      * "anything patching this package's `dist`", and these two are the case that sentence did not
@@ -139,10 +146,15 @@ const FILE_OWNER = Object.freeze({
      * fence has its own pair and would need its own keys.
      */
     serverjson: READER,
-    pkgjson: READER
+    pkgjson: READER,
+    writecompletion: SCRIBE,
+    scribemain: SCRIBE,
+    scribehttppolicy: SCRIBE,
+    scribehttp: SCRIBE
 });
 
 const READER_MUTATE_PATH = path.join(here, 'mutate.mjs');
+const HTTP_MUTATE_PATH = path.join(here, '..', '..', 'wyrd-http', 'scripts', 'mutate.mjs');
 
 /**
  * Read the Reader harness's `FILES` keys without importing it. Importing `mutate.mjs` executes the
@@ -151,19 +163,19 @@ const READER_MUTATE_PATH = path.join(here, 'mutate.mjs');
  * commented-out target is not a target. If that declaration changes shape, the scan refuses rather
  * than silently returning an incomplete key set.
  */
-function readerMutationFileKeys() {
+function readerMutationFileKeys(mutatePath = mutatePath) {
     let source;
     try {
-        source = fs.readFileSync(READER_MUTATE_PATH, 'utf8');
+        source = fs.readFileSync(mutatePath, 'utf8');
     } catch (error) {
-        return { keys: null, problem: `${READER_MUTATE_PATH} could not be read — ${error.message}` };
+        return { keys: null, problem: `${mutatePath} could not be read — ${error.message}` };
     }
 
     const declarations = [...source.matchAll(/^\s*const\s+FILES\s*=\s*\{/gm)];
     if (declarations.length !== 1) {
         return {
             keys: null,
-            problem: `${READER_MUTATE_PATH} must contain exactly one plain \`const FILES = { ... }\` declaration so mutation-target ownership can be checked; found ${declarations.length}`
+            problem: `${mutatePath} must contain exactly one plain \`const FILES = { ... }\` declaration so mutation-target ownership can be checked; found ${declarations.length}`
         };
     }
 
@@ -174,7 +186,7 @@ function readerMutationFileKeys() {
 
     const fail = detail => ({
         keys: null,
-        problem: `${READER_MUTATE_PATH} has a FILES declaration this checker cannot read (${detail}) — keep it a plain identifier-keyed object literal so no mutation target can escape an ownership decision`
+        problem: `${mutatePath} has a FILES declaration this checker cannot read (${detail}) — keep it a plain identifier-keyed object literal so no mutation target can escape an ownership decision`
     });
     const skipTrivia = () => {
         while (at < source.length) {
@@ -526,13 +538,21 @@ export function loadContract() {
         return { contract: null, problems: [`${CONTRACT_PATH} could not be read as JSON — ${error.message}`] };
     }
 
-    const fileRegistration = readerMutationFileKeys();
-    if (fileRegistration.problem) {
-        problems.push(fileRegistration.problem);
-    } else {
-        for (const key of fileRegistration.keys) {
-            if (!Object.hasOwn(FILE_OWNER, key)) {
-                problems.push(`the Reader mutation harness's FILES key ${JSON.stringify(key)} has no FILE_OWNER entry — this is a new mutation target whose ownership has to be decided when it is registered, not deferred until a row uses it`);
+    for (const [label, mutationPath] of [['Reader', READER_MUTATE_PATH], ['HTTP', HTTP_MUTATE_PATH]]) {
+        const fileRegistration = readerMutationFileKeys(mutationPath);
+        if (fileRegistration.problem) {
+            problems.push(fileRegistration.problem);
+        } else {
+            for (const key of fileRegistration.keys) {
+                if (!Object.hasOwn(FILE_OWNER, key)) {
+                    problems.push(`the ${label} mutation harness's FILES key ${JSON.stringify(key)} has no FILE_OWNER entry ? this is a new mutation target whose ownership has to be decided when it is registered, not deferred until a row uses it`);
+                }
+                if (label === 'Reader' && FILE_OWNER[key] === HTTP) {
+                    problems.push(`the Reader mutation harness still registers HTTP-owned FILES key ${JSON.stringify(key)}`);
+                }
+                if (label === 'HTTP' && FILE_OWNER[key] !== HTTP) {
+                    problems.push(`the HTTP mutation harness registers non-HTTP FILES key ${JSON.stringify(key)}`);
+                }
             }
         }
     }
@@ -1192,11 +1212,18 @@ const RED_SET_DIRECTION = [
  * `ANCHOR-NOT-FOUND` fails it for added rows exactly as for locked ones — an added row whose anchor
  * a refactor moved is a disarmed detector, which is the state the additions exist to prevent.
  */
+export const NON_VERDICT_STATUSES = Object.freeze(['ANCHOR-NOT-FOUND', 'TIMEOUT', 'SIGNAL', 'NONZERO_NO_ARM', 'INFRASTRUCTURE']);
+
 export function verifyMutationResults(contract, pkg, results, { full, restored }) {
     const problems = [];
     const notes = [];
     const expected = allContractedMutations(contract).filter(row => currentHome(row) === pkg);
     const byId = new Map(results.map(result => [result.id, result]));
+    for (const result of results) {
+        if (!['KILLED', 'SURVIVED', ...NON_VERDICT_STATUSES].includes(result.status)) {
+            problems.push(`mutation "${result.id}" reported unrecognized status ${JSON.stringify(result.status)}`);
+        }
+    }
 
     if (restored === false) {
         problems.push('the harness did not restore the built files byte-for-byte — the tree is now carrying a mutant');
@@ -1224,7 +1251,9 @@ export function verifyMutationResults(contract, pkg, results, { full, restored }
         const result = byId.get(row.id);
         if (!result) continue;
         let graded = true;
-        if (['TIMEOUT', 'SIGNAL', 'NONZERO_NO_ARM'].includes(result.status)) {
+        if (!['KILLED', 'SURVIVED', ...NON_VERDICT_STATUSES].includes(result.status)) {
+            graded = false;
+        } else if (NON_VERDICT_STATUSES.includes(result.status) && result.status !== 'ANCHOR-NOT-FOUND') {
             problems.push(`mutation "${row.id}" ended in instrument error ${result.status} — this is neither a kill nor a survivor verdict`);
             graded = false;
         } else if (result.status === 'ANCHOR-NOT-FOUND') {

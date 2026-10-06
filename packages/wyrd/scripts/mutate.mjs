@@ -49,9 +49,13 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { ALL_ARMS } from '../test/arms.mjs';
+import { lineEndingOf, withLineEnding } from '../../wyrd-fence/scripts/mutation-text.mjs';
+import { guardBattery, batteryLockFixture, registerBatteryTargets, recordBatteryMutant, assertNoBatteryLockRefusal } from '../../wyrd-fence/scripts/battery-lock.mjs';
 import { loadContract, verifyMutationRows, verifyMutationResults, refuse } from './verify-relocation-contract.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+if (!process.argv.some(arg => ['--selftest', '--eol-fixture', '--restore-fixture'].includes(arg))) guardBattery('reader mutation');
+batteryLockFixture();
 const args = process.argv.slice(2);
 const selftestMode = args.includes('--selftest');
 const restoreMode = args.includes('--restore');
@@ -60,39 +64,26 @@ const onlyArg = args.find(a => a.startsWith('--only'));
 const only = onlyArg ? (onlyArg.includes('=') ? onlyArg.split('=')[1] : args[args.indexOf(onlyArg) + 1]) : null;
 
 /**
- * ⚠⚠ `fsgate` IS GONE FROM THIS MAP AS OF 2026-09-01, AND ITS ABSENCE IS THE MOVE.
- *
- * It used to resolve `wyrd-fence` by package name and patch a SIBLING PACKAGE'S built output from
- * here — 66 of this file's 69 rows measured that package's adequacy, not this one's. Those rows and
- * that entry are now in `wyrd-fence/scripts/mutate.mjs`, where the mutated file and the arms that
- * kill it live together.
- *
- * ⚠ DO NOT ADD IT BACK "for coverage". The fence's matrix is run by root `mutate`, which now drives
- * both packages; a second copy here would measure the same guards twice and inflate a denominator
- * that exists precisely to be honest.
- *
- * ⚠ Every value below is read inside `runMatrix()` after its mandatory build, OUTSIDE the
- * try/finally — a wrong path does not fail one row, it throws ENOENT before a single row runs.
+ * The shared fence slice is a target for Reader response integration arms. Fence-only arms and
+ * their mutations remain in the fence matrix. Every target is read after the mandatory build;
+ * an absent target refuses before any mutation is applied.
  */
 const FILES = {
+    fsgate: path.join(repo, '..', 'wyrd-fence', 'dist', 'fsgate.js'),
     auth: path.join(repo, 'dist', 'auth.js'),
-    http: path.join(repo, 'dist', 'http.js'),
     main: path.join(repo, 'dist', 'main.js'),
     index: path.join(repo, 'dist', 'index.js'),
     /**
-     * ⚠ TWO BUILT TLS TARGETS. `cert.js` is the certificate grammar, generation and write
-     * implementation exercised by H25–H28; `tls-config.js` is the TLS argument, material-validation
-     * and metadata implementation exercised by H28–H30. Without these keys, rows for those claims
-     * cannot reach the code they are meant to grade. Both files come from `src/` through `tsc`, so a
-     * rebuild recovers them; adding them to `NON_BUILT` would incorrectly treat disposable output as
-     * an irreplaceable product file.
+     * The built certificate target stays in Reader for H25-H28. TLS argument and material
+     * validation moved to HTTP with M133/M134; that matrix patches its own built output.
      */
     cert: path.join(repo, 'dist', 'cert.js'),
-    tlsconfig: path.join(repo, 'dist', 'tls-config.js'),
     // Added 2026-08-29 with M44. `server.js` was outside the matrix entirely, so the layer-detection
     // arms were unmeasured — E7-layers had been green since it was written without anything ever
     // showing it could go red. An arm nothing can kill is a claim.
     server: path.join(repo, 'dist', 'server.js'),
+    search: path.join(repo, 'dist', 'search.js'),
+    serverdts: path.join(repo, 'dist', 'server.d.ts'),
     /**
      * ⚠⚠ TWO NON-BUILT TARGETS, ADDED 2026-09-02, AND THE EXTENSION IS THE MAP ENTRY AND NOTHING
      * ELSE. Every mechanism below — the post-build read, the exact-once anchor preflight, the
@@ -209,9 +200,9 @@ const ROWS = [
     // would have gone quietly wrong.
     { id: 'M27', file: 'index', what: 'instrument AFTER importing the app modules', plan: 'import-time-touch arm',
         anchors: ['installObserver();', "const { createFsGate } = await import('wyrd-fence');"],
-        replace: s => s.replace('installObserver();', '')
+        replace: (s, ending) => s.replace('installObserver();', '')
             .replace("const { createFsGate } = await import('wyrd-fence');",
-                "const { createFsGate } = await import('wyrd-fence');\ninstallObserver();") },
+                withLineEnding("const { createFsGate } = await import('wyrd-fence');\ninstallObserver();", ending)) },
     // M44 stays on the same Reader-owned layer decision after the listing was removed. Dropping the
     // conservative link case makes an unusual still-classified reparse point disappear from the
     // warning, which is the same wrong-direction disclosure failure this row has always graded.
@@ -270,7 +261,7 @@ const ROWS = [
     { id: 'M90-no-grant-hardlink-warning', file: 'main',
         what: 'delete the outside-reaching hard-link warning from the no-grant refusal message',
         plan: 'S14-no-grant-claims, E14-surface-claims',
-        from: "'Known limits: a hard link that already exists inside the folder makes the file it points at',\n    'readable wherever on the disk that file lives, and ordinary folder inspection will not show',\n    'it as a link. A path component swapped between validation and opening may be read instead of',",
+        from: "'Known limits: a hard link that already exists inside the folder makes the file it points at',\n    'readable and searchable wherever on the disk that file lives, and ordinary folder inspection will not show',\n    'it as a link. A path component swapped between validation and opening may be read instead of',",
         to: "'Known limits: a path component swapped between validation and opening may be read instead of'," },
     // ⚠⚠ RETARGETED 2026-09-02 AFTER A COLD LENS FOUND IT PROVING STRING MATCHING. It used to drop
     // only the bytes-not-extension QUALIFIER, and under that mutant the description still said the
@@ -310,8 +301,8 @@ const ROWS = [
     { id: 'M93-undocumented-refusal-reason', file: 'server',
         what: 'return a refusal reason no disclosure surface accounts for',
         plan: 'E15-refusal-vocabulary',
-        from: "content: [{ type: 'text', text: refusalText('BAD_INPUT', '`path` must be a string.') }]",
-        to: "content: [{ type: 'text', text: refusalText('PATH_NOT_A_STRING', '`path` must be a string.') }]" },
+        from: "content: [{ type: 'text', text: readRefusal('BAD_INPUT', '`path` must be a string.') }]",
+        to: "content: [{ type: 'text', text: readRefusal('PATH_NOT_A_STRING', '`path` must be a string.') }]" },
     // ⚠⚠ THIS COMMENT'S PREMISE WENT STALE ON 2026-09-14 AND THE MEASUREMENT SAYS SO. It read:
     // "THE TRANSPORT IS CHOSEN BECAUSE `MF2` NEVER READS IT." MF2 reads it now — the Reader gaining
     // HTTP is exactly when that could start drifting, so `manifest-schema.test.js:177` asserts the
@@ -353,42 +344,23 @@ const ROWS = [
     { id: 'M109-layer-root-listing-restored', file: 'main',
         what: 'restore a grant-root listing before the three layer probes',
         plan: 'S16-layer-probes',
-        from: 'const { layers, listingFailed } = await detectLayers(name => gate.probeInGrant(name));',
-        to: 'await gate.listGrantRoot();\n    const { layers, listingFailed } = await detectLayers(name => gate.probeInGrant(name));' },
+        from: 'const { layers, listingFailed } = await detectLayers(name => gate.probeInGrant(name), backendPath === \'\' ? undefined : () => gate.listGrantRoot());',
+        to: 'await gate.listGrantRoot();\n    const { layers, listingFailed } = await detectLayers(name => gate.probeInGrant(name), backendPath === \'\' ? undefined : () => gate.listGrantRoot());' },
 
-    { id: 'M110-auth-denial-bypassed', file: 'http',
-        what: 'bypass the unauthenticated decision and continue to body collection and handler.fetch',
-        plan: 'H15-auth-401-no-tool, H24-network-plain-http-auth',
-        from: "if (authDecision.kind === 'unauthenticated') {\n        incoming.pause();",
-        to: "if (false && authDecision.kind === 'unauthenticated') {\n        incoming.pause();" },
-    { id: 'M111-auth-denial-is-403', file: 'http',
-        what: 'map unauthenticated to 403 instead of the fixed 401',
-        plan: 'H15-auth-401-no-tool, H24-network-plain-http-auth',
-        // ⚠ The anchor is the BUILT output, not the source. The first version of this row carried
-        // the four-space-indented multi-line source shape and came back ANCHOR-NOT-FOUND: `tsc`
-        // emits this call on one line. A row that cannot find its anchor measures nothing, and the
-        // runner reports that rather than a false KILLED — which is the only reason it was caught.
-        from: "sendStatus(outgoing, 401, 'Authentication required. Send Authorization: Bearer <Reader token>.\\n'",
-        to: "sendStatus(outgoing, 403, 'Authentication required. Send Authorization: Bearer <Reader token>.\\n'" },
     { id: 'M112-verifier-injection-ignored', file: 'main',
         what: 'ignore the injected verifier factory and install the production verifier directly',
         plan: 'H16-verifier-injection-real-socket',
         from: 'const makeReadAuthInfo = deps.makeReadAuthInfo ?? createReadTokenVerifier;',
         to: 'const makeReadAuthInfo = createReadTokenVerifier;' },
-    { id: 'M113-query-routed-by-pathname', file: 'http',
-        what: 'route by pathname and accept a query string on /mcp',
-        plan: 'H17-no-query-token-or-leak',
-        from: "if (incoming.url !== '/mcp') {",
-        to: "if (new URL(incoming.url ?? '/', 'http://localhost').pathname !== '/mcp') {" },
     { id: 'M114-token-appended-to-disclosure', file: 'main',
         what: 'append the configured Reader token to the HTTP startup disclosure',
         plan: 'H17-no-query-token-or-leak',
-        from: 'deps.stderr(httpDisclosure(handle, gate.disclosedRoot()));',
-        to: "deps.stderr(`${httpDisclosure(handle, gate.disclosedRoot())}\\n${readToken.token.toString('base64url')}`);" },
+        from: 'deps.stderr(httpDisclosure(handle, gate.disclosedRoot(), searchBackendDisclosure));',
+        to: "deps.stderr(`${httpDisclosure(handle, gate.disclosedRoot(), searchBackendDisclosure)}\\n${readToken.token.toString('base64url')}`);" },
     { id: 'M115-missing-token-listens', file: 'main',
         what: 'replace missing-token startup refusal with an unauthenticated listener',
         plan: 'H18-no-token-refuses-before-listen',
-        from: "if (!readToken.ok) {\n            deps.stderr(`wyrd: refusing to start — ${readToken.detail}`);\n            deps.setExitCode(2);\n            return { started: false, reason: 'READ_TOKEN', http: null };\n        }\n        const makeReadAuthInfo = deps.makeReadAuthInfo ?? createReadTokenVerifier;\n        const readAuthInfo = makeReadAuthInfo(readToken.token);",
+        from: "if (!readToken.ok) {\n            deps.stderr(`wyrd: refusing to start — ${readToken.detail}`);\n            deps.setExitCode(2);\n            return { started: false, reason: 'READ_TOKEN', http: null, closeSearchBackend };\n        }\n        const makeReadAuthInfo = deps.makeReadAuthInfo ?? createReadTokenVerifier;\n        const readAuthInfo = makeReadAuthInfo(readToken.token);",
         to: "const readAuthInfo = readToken.ok\n            ? (deps.makeReadAuthInfo ?? createReadTokenVerifier)(readToken.token)\n            : () => ({\n                kind: 'authenticated',\n                authInfo: { token: '', clientId: 'unauthenticated', scopes: [] }\n            });" },
     { id: 'M116-cert-overwrite-not-exclusive', file: 'cert',
         what: 'open the certificate destinations for overwrite instead of exclusive creation',
@@ -408,31 +380,11 @@ const ROWS = [
         plan: 'H27-cert-content-and-freshness',
         from: "        { type: host.kind === 'dns' ? 2 : 7, value: host.canonical },\n",
         to: '' },
-    { id: 'M118-tls-selects-http-server', file: 'http',
-        what: 'select http.createServer while validated TLS material is present',
-        plan: 'H28-generated-cert-trust-control',
-        from: 'https.createServer(configuration.serverOptions, requestListener)',
-        to: 'http.createServer(requestListener)' },
-    { id: 'M119-tls-metadata-says-http', file: 'http',
-        what: 'emit http scheme metadata for a TLS listener',
-        plan: 'H30-tls-disclosure',
-        from: '            scheme: tls.scheme,',
-        to: "            scheme: 'http'," },
     { id: 'M120-cleartext-warning-unconditional', file: 'main',
         what: 'print the clear-text bearer-token warning unconditionally under TLS',
         plan: 'H30-tls-disclosure',
         from: '            `Certificate expires: ${handle.endpoint.certificate.validTo}.`',
         to: "            `Certificate expires: ${handle.endpoint.certificate.validTo}.`,\n            '  · TLS is off, so the bearer token travels in the clear and can be replayed by',\n            '    anyone who captures it.'" },
-    { id: 'M121-tls-handshake-socket-untracked', file: 'http',
-        what: 'skip listener-level tracking for sockets stalled during the TLS handshake',
-        plan: 'H31-tls-handshake-shutdown',
-        from: "    listener.on('connection', socket => {\n",
-        to: "    listener.on('connection', socket => {\n        if (tls !== null) return;\n" },
-    { id: 'M122-response-body-buffered', file: 'http',
-        what: 'buffer the complete fetch response body before ending the HTTP response',
-        plan: 'H19-response-stream',
-        from: 'await pipeline(Readable.fromWeb(source.body), target);',
-        to: 'target.end(await source.text());' },
     { id: 'M123-read-window-halved', file: 'server',
         what: 'halve the maximum read-window clamp',
         plan: 'H20-localhost-read-budget, H19-response-stream',
@@ -441,33 +393,8 @@ const ROWS = [
     { id: 'M124-read-offset-dropped', file: 'server',
         what: 'drop the requested offset forwarded to the fence read',
         plan: 'H20-localhost-read-budget, E17-v1-raw-baseline',
-        from: 'const slice = await fsgate.readFileInGrant(target, offset, limit);',
-        to: 'const slice = await fsgate.readFileInGrant(target, 0, limit);' },
-    { id: 'M125-origins-manually-serialized', file: 'http',
-        what: 'manually concatenate allowed origins instead of using URL serialization',
-        plan: 'H21-origin-serialization',
-        from: 'return Object.freeze(hosts.map(interfaceAddress => httpEndpointUrl(Object.freeze({ ...endpoint, interfaceAddress }), port).origin));',
-        to: "return Object.freeze(hosts.map(interfaceAddress => `${endpoint.scheme}://${urlHost(interfaceAddress)}:${port}`));" },
-    { id: 'M126-ipv6-url-host-unbracketed', file: 'http',
-        what: 'return a bare IPv6 address instead of bracketing it for URL serialization',
-        plan: 'H21-origin-serialization',
-        from: "return bare.includes(':') ? `[${bare}]` : bare;",
-        to: 'return bare;' },
-    { id: 'M127-network-consent-disabled', file: 'main',
-        what: 'disable refusal of a non-loopback HTTP address without public consent',
-        plan: 'H22-consent-and-guards, H1-transport-selection',
-        from: 'if (!publicRequested) {',
-        to: 'if (false && !publicRequested) {' },
-    { id: 'M128-bind-kind-host-mismatch-disabled', file: 'http',
-        what: 'disable the pre-handler bind kind and host mismatch guard',
-        plan: 'H22-consent-and-guards',
-        from: "if ((requestedKind === 'loopback') !== requestedLoopback) {",
-        to: "if (false && (requestedKind === 'loopback') !== requestedLoopback) {" },
-    { id: 'M129-reported-address-mismatch-dropped', file: 'http',
-        what: 'drop the reported-address mismatch from the post-bind guard',
-        plan: 'H22-consent-and-guards',
-        from: 'if (refusal !== null || reportedAddress !== requestedAddress) {',
-        to: 'if (refusal !== null) {' },
+        from: 'const slice = await fsgate.readFileInGrant(target, offset, limit, hydrate);',
+        to: 'const slice = await fsgate.readFileInGrant(target, 0, limit, hydrate);' },
     { id: 'M130-plain-http-disclosure-exposure-inverted', file: 'main',
         what: 'invert the loopback and network branches of the plain-HTTP disclosure',
         plan: 'H23-network-disclosure-honesty',
@@ -483,16 +410,6 @@ const ROWS = [
         plan: 'H25-cert-host-grammar',
         from: "if (host === '0.0.0.0')",
         to: "if (false && host === '0.0.0.0')" },
-    { id: 'M133-tls-key-match-check-disabled', file: 'tlsconfig',
-        what: 'disable the TLS certificate and private-key match check',
-        plan: 'H29-tls-startup-validation',
-        from: 'if (!certificate.checkPrivateKey(privateKey)) {',
-        to: 'if (false && !certificate.checkPrivateKey(privateKey)) {' },
-    { id: 'M134-tls-expiry-boundary-exclusive', file: 'tlsconfig',
-        what: 'accept a TLS certificate at its exact expiry boundary',
-        plan: 'H29-tls-startup-validation',
-        from: 'if (nowMs >= validToMs)',
-        to: 'if (nowMs > validToMs)' },
     { id: 'M135-cert-serial-fixed', file: 'cert',
         what: 'replace the generated certificate serial number with a fixed valid serial',
         plan: 'H27-cert-content-and-freshness',
@@ -510,7 +427,224 @@ const ROWS = [
         plan: 'H32-network-instructions-truth, H1-transport-selection',
         from: "const transport = httpArg.present ? 'http' : 'stdio';",
         to: "const transport = 'stdio';" },
+    { id: 'M137-transport-unaccounted-websocket', file: 'serverdts',
+        what: 'add an unaccounted websocket member to the ServerTransport declaration',
+        plan: 'E19-transport-network-accounting',
+        from: "export type ServerTransport = 'stdio' | 'http';",
+        to: "export type ServerTransport = 'stdio' | 'http' | 'websocket';" },    { id: 'M178-read-default-hydrates', file: 'server', what: 'treat an omitted opt-in as true', plan: 'SR3-read-opt-in',
+        from: "const hydrate = args['hydrate'] === true;", to: 'const hydrate = true;' },
+    { id: 'M179-unavailable-as-available', file: 'server', what: 'label an unmeasured platform available with zero placeholders', plan: 'SR4-unsupported-platform',
+        from: "placeholder_detection: 'unavailable', placeholder_count: null,", to: "placeholder_detection: 'available', placeholder_count: 0," },
+    { id: 'M184-search-stale-walk', file: 'search', what: 'reuse the first grant walk on later queries', plan: 'SR10-fresh-add-delete, SR14-zero-files-vs-no-match',
+        edits: [
+            ['return async (query) => {', 'let priorWalk;\n    return async (query) => {'],
+            ['const walk = await fsgate.walkGrant();', 'const walk = priorWalk ?? await fsgate.walkGrant();\n        priorWalk = walk;']
+        ] },
+    { id: 'M185-search-retain-source', file: 'search', what: 'retain raw source prefix in the lexical cache', plan: 'SR11-zero-maintenance-reads',
+        from: 'return { key: changeKey(file), terms, typed };',
+        to: 'return { key: changeKey(file), terms, typed, raw: prefix };' },
+    { id: 'M186-search-extra-excerpt', file: 'search', what: 'read a second excerpt window per selected hit', plan: 'SR11-zero-maintenance-reads',
+        from: 'const slice = await reads.read(candidate.path, candidate.excerpt_start, EXCERPT_BYTES);',
+        to: 'await reads.read(candidate.path, candidate.excerpt_start, EXCERPT_BYTES);\n            const slice = await reads.read(candidate.path, candidate.excerpt_start, EXCERPT_BYTES);' },
+    { id: 'M187-search-ten-truncated', file: 'search', what: 'infer truncation from exactly ten returned candidates', plan: 'SR13-large-file-utf8',
+        from: 'let truncated = response.hasMore;',
+        to: 'let truncated = response.hasMore || response.candidates.length === HIT_LIMIT;' },
+    { id: 'M188-search-empty-states', file: 'search', what: 'collapse zero scope and zero searchable files into no matches', plan: 'SR10-fresh-add-delete, SR14-zero-files-vs-no-match',
+        from: "state: filesInScope === 0 ? 'zero_files_in_scope' : filesInScope === null ? 'scope_unavailable' :\n                searchable === 0 ? 'zero_searchable_files' :",
+        to: "state: filesInScope === null ? 'scope_unavailable' : searchable === 0 ? 'no_matches' :" },
+    { id: 'M189-search-long-match-context', file: 'search', what: 'spend the excerpt window on leading context before a long match', plan: 'SR18-long-match-excerpt',
+        from: 'const context = Math.min(leadingCount, Math.max(0, 200 - tokenCodepoints));',
+        to: 'const context = leadingCount;' },
+    { id: 'M190-search-prevalidated-truncation', file: 'search', what: 'declare truncation from candidate count before revalidation', plan: 'SR19-revalidated-truncation',
+        from: 'let truncated = response.hasMore;',
+        to: 'let truncated = response.hasMore || response.candidates.length > HIT_LIMIT;' },
+    { id: 'M200-search-empty-query-accepted', file: 'server', what: 'allow an empty search query on the wire', plan: 'SR23-search-wire-shape',
+        from: '[...query].length < 1', to: '[...query].length < 0' },
+    { id: 'M201-search-wire-cap-bypassed', file: 'server', what: 'send duplicate hits beyond the ten-hit wire cap', plan: 'SR24-cap-and-truncation',
+        from: 'const payload = { ...result, warnings };',
+        to: 'const payload = { ...result, hits: [...result.hits, ...result.hits], warnings };' },
+    { id: 'M202-search-cache-disclosure-false', file: 'server', what: 'claim search retains no cache in the model-facing disclosure', plan: 'SR26-disclosure, E14-surface-claims',
+        from: 'Search builds a lazy in-memory cache of normalized terms and anchors; it holds no raw',
+        to: 'Search keeps no cache of terms or anchors; it holds no raw' },
+    { id: "M297-search-version-kind", file: 'search', what: "accept malformed version declarations", plan: "SR37-malformed-version",
+        from: "(version.kind !== 'stat' && version.kind !== 'sha256')",
+        to: "false" },
+    { id: "M298-search-sha256-format", file: 'search', what: "accept malformed lowercase SHA-256 values", plan: "SR37-malformed-version",
+        from: "if (version.kind === 'sha256' && !/^[a-f0-9]{64}(?![\\s\\S])/.test(version.value))",
+        to: "if (false)" },
+    { id: "M299-search-range-integer", file: 'search', what: "accept an unsafe integer passage end", plan: "SR38-source-range",
+        from: "if (!Number.isSafeInteger(candidate.source_range_end))",
+        to: "if (false)" },
+    { id: "M300-search-range-order", file: 'search', what: "accept a passage end at or before its anchor", plan: "SR38-source-range",
+        from: "if (!(candidate.byte_offset < candidate.source_range_end))",
+        to: "if (false)" },
+    { id: "M301-search-range-size", file: 'search', what: "accept a passage end beyond file size", plan: "SR38-source-range",
+        from: "if (!(candidate.source_range_end <= file.size))",
+        to: "if (false)" },
+    { id: "M302-search-range-excerpt", file: 'search', what: "accept an excerpt starting after the passage", plan: "SR38-source-range",
+        from: "candidate.excerpt_start <= candidate.byte_offset",
+        to: "true" },
+    { id: "M303-search-sha256-compare", file: 'search', what: "accept a candidate without comparing its digest", plan: "SR34-sha256-mismatch",
+        from: "if (digests.get(candidate.path) !== version.value)",
+        to: "if (false)" },
+    { id: "M304-search-sha256-once", file: 'search', what: "rehash a file for every candidate", plan: "SR36-sha256-one-pass",
+        from: "if (!digests.has(candidate.path))",
+        to: "if (true)" },
+    { id: "M305-search-sha256-window", file: 'search', what: "accept hash windows with invalid size or progress", plan: "SR39-sha256-window-refusal",
+        edits: [
+            ["if (!window || window.size !== file.size || window.nextOffset <= position)\n                    return null;", "if (!window)\n                    return null;"],
+            ["position = window.nextOffset;", "position += window.bytes.length;"]
+        ] },
+    { id: "M306-search-sha256-before", file: 'search', what: "ignore SHA-256 candidate metadata changes before reading", plan: "SR35-sha256-backend-change",
+        from: "changeKey(before) !== expectedKey",
+        to: "(version.kind === 'stat' && changeKey(before) !== expectedKey)" },
+    { id: "M307-search-sha256-after", file: 'search', what: "ignore SHA-256 candidate metadata changes after capturing the excerpt", plan: "SR40-sha256-read-change",
+        from: "changeKey(after) !== expectedKey",
+        to: "(version.kind === 'stat' && changeKey(after) !== expectedKey)" },
+    { id: "M308-search-sha256-after-hash", file: 'search', what: "ignore post-hash metadata changes before truncation", plan: "SR43-sha256-withheld-change",
+        from: "if (!afterHash || changeKey(afterHash) !== changeKey(file) || !maySearch(afterHash))",
+        to: "if (false)" },
+    {"id":"M309-search-sha256-separate-excerpt","file":"search","what":"read SHA-256 excerpts separately from the hashing pass","plan":"SR44-sha256-same-stat-swap","from":"excerptBytes = window.bytes.subarray(0, kept);","to":"excerptBytes = (await reads.read(candidate.path, candidate.excerpt_start, EXCERPT_BYTES)).bytes;"} ,
+    {"id":"M310-search-byte-anchor","file":"search","what":"accept invalid byte offsets regardless of range presence","plan":"SR45-candidate-anchors","edits":[["Number.isSafeInteger(candidate.byte_offset) && Number.isSafeInteger(candidate.excerpt_start) &&","Number.isSafeInteger(candidate.excerpt_start) &&"],["0 <= candidate.byte_offset && candidate.byte_offset < size","true"],["candidate.excerpt_start <= candidate.byte_offset","true"]]} ,
+    {"id":"M311-search-excerpt-anchor","file":"search","what":"accept unsafe excerpt offsets","plan":"SR45-candidate-anchors","edits":[["Number.isSafeInteger(candidate.excerpt_start)","true"],["0 <= candidate.excerpt_start","true"]]} ,
+    {"id":"M312-search-sha256-early-limit","file":"search","what":"declare hash truncation before establishing a captured decodable excerpt","plan":"SR46-sha256-withheld-excerpt","from":"if (version.kind === 'stat' && hits.length === HIT_LIMIT)","to":"if (hits.length === HIT_LIMIT)"} ,
+    {"id":"M313-search-sha256-cap","file":"search","what":"capture more than sixteen excerpt windows per file","plan":"SR47-sha256-window-cap","from":"windows.size < HASH_WINDOW_LIMIT","to":"true"} ,
+    {"id": "M358-backend-result-copy", "file": "search", "what": "copy module candidates before asynchronous revalidation", "plan": "SR71-backend-retained-results", "from": "const response = { ...answer, candidates: answer.candidates.map(candidate => ({\n                ...candidate, version: candidate.version && { ...candidate.version }\n            })) };", "to": "const response = answer;"},
+    {"id": "M359-backend-search-capture", "file": "main", "what": "capture selected search function at startup", "plan": "SR71-backend-retained-results", "from": "searchBackend = Object.freeze({ search: selectedBackend.search.bind(selectedBackend) });", "to": "searchBackend = selectedBackend;"},
+    {"id": "M360-backend-close-force-exit", "file": "index", "what": "deadline shutdown terminates retained native handles", "plan": "SR67-backend-close-deadline", "from": "if (backendFailed)\n            process.exit();", "to": "if (backendFailed)\n            process.stdin.destroy();"},
+    {"id": "M351-backend-private-inputs", "file": "search", "what": "keep backend references separate from revalidation", "plan": "SR65-backend-private-inputs", "from": "backend.search(backendSnapshot, query, backendReads)", "to": "backend.search(snapshot, query, reads)"},
+    {"id": "M352-backend-stdio-close", "file": "index", "what": "stdio stream closure invokes module close", "plan": "SR66-backend-stdio-close SR67-backend-close-deadline", "from": "if (result.http === null) {", "to": "if (false) {"},
+    {"id": "M353-backend-close-deadline", "file": "main", "what": "bound an unsettled module close", "plan": "SR67-backend-close-deadline", "from": "reject(new Error('deadline exceeded (10 seconds)'))", "to": "undefined"},
+    {"id": "M354-backend-disclosure-copy", "file": "main", "what": "copy disclosure values once before validation", "plan": "SR68-backend-disclosure-copy", "from": "searchBackendDisclosure = Object.freeze({ path: backendPath, lines });", "to": "searchBackendDisclosure = Object.freeze({ path: backendPath, lines: Object.freeze(Array.from({ length: suppliedLines.length }, (_, index) => suppliedLines[index])) });"},
+    {"id": "M355-backend-lexical-facade", "file": "main", "what": "hide mutable lexical backend behind frozen search facade", "plan": "SR69-backend-lexical-facade", "from": "lexical: Object.freeze({ search: lexical.search.bind(lexical) })", "to": "lexical"},
+    {"id": "M356-backend-host-fields", "file": "main", "what": "provide process UUID and engine read bound", "plan": "SR70-backend-host-fields", "from": "grantId, maxSliceBytes: SCAN_BYTES,", "to": ""},
+    {"id": "M357-backend-close-await", "file": "index", "what": "await module close before allowing process exit", "plan": "SR66-backend-stdio-close SR67-backend-close-deadline", "from": "await result.closeSearchBackend();", "to": "void result.closeSearchBackend();"},
+    {"id": "M315-backend-absolute", "file": "main", "what": "absolute path guard", "plan": "SR53-backend-path", "from": "!isAbsolute(backendPath)", "to": "false"},
+    {"id": "M316-backend-file", "file": "main", "what": "file kind guard", "plan": "SR53-backend-path", "from": "!(await stat(backendPath)).isFile()", "to": "false"},
+    {"id": "M317-backend-export", "file": "main", "what": "factory export guard", "plan": "SR55-backend-export", "from": "typeof factory !== 'function'", "to": "false"},
+    {"id": "M318-backend-return", "file": "main", "what": "object result guard", "plan": "SR57-backend-return", "from": "result === null || typeof result !== 'object'", "to": "false"},
+    {"id": "M319-backend-search", "file": "main", "what": "search function guard", "plan": "SR58-backend-search-guard", "from": "typeof result.backend?.search !== 'function'", "to": "false"},
+    {"id": "M320-backend-array", "file": "main", "what": "disclosure array guard", "plan": "SR59-backend-lines-guard", "from": "!Array.isArray(suppliedLines)", "to": "false"},
+    {"id": "M321-backend-min-lines", "file": "main", "what": "disclosure minimum lines guard", "plan": "SR59-backend-lines-guard", "from": "suppliedLines.length < 1", "to": "false"},
+    {"id": "M322-backend-max-lines", "file": "main", "what": "disclosure maximum lines guard", "plan": "SR59-backend-lines-guard", "from": "suppliedLines.length > 40", "to": "false"},
+    {"id": "M323-backend-string-line", "file": "main", "what": "disclosure string guard", "plan": "SR60-backend-line-guard", "from": "typeof line !== 'string'", "to": "false"},
+    {"id": "M324-backend-empty-line", "file": "main", "what": "disclosure empty line guard", "plan": "SR60-backend-line-guard", "from": "line.trim().length === 0", "to": "false"},
+    {"id": "M325-backend-long-line", "file": "main", "what": "disclosure line length guard", "plan": "SR60-backend-line-guard", "from": "[...line].length > 200", "to": "false"},
+    {"id": "M326-backend-controls", "file": "main", "what": "disclosure control character guard", "plan": "SR60-backend-line-guard", "from": "/[\\x00-\\x1f\\x7f-\\x9f\\u2028\\u2029]/.test(line)", "to": "false"},
+    {"id": "M327-backend-close", "file": "main", "what": "optional close function guard", "plan": "SR61-backend-close-guard", "from": "result.close !== undefined && typeof result.close !== 'function'", "to": "false"},
+    {"id": "M328-backend-refusal", "file": "main", "what": "backend refusal returns before transports", "plan": "SR53-backend-path SR54-backend-import SR55-backend-export SR56-backend-factory SR57-backend-return SR58-backend-search-guard SR59-backend-lines-guard SR60-backend-line-guard SR61-backend-close-guard", "from": "return { started: false, reason: 'SEARCH_BACKEND', http: null, closeSearchBackend: null };", "to": "searchBackend = undefined;"},
+    {"id": "M329-backend-error-line", "file": "main", "what": "error diagnostics stay on one line", "plan": "SR54-backend-import", "from": "(error instanceof Error ? error.message : String(error)).replace(/[\\x00-\\x1f\\x7f-\\x9f\\u2028\\u2029]/g, ' ')", "to": "(error instanceof Error ? error.message : String(error))"},
+    {"id": "M330-backend-precedence", "file": "main", "what": "command line wins over environment", "plan": "SR49-backend-default SR50-backend-selection", "from": "backendArg !== null ? backendArg : (deps.env['WYRD_SEARCH_BACKEND'] ?? '')", "to": "deps.env['WYRD_SEARCH_BACKEND'] ?? backendArg ?? ''"},
+    {"id": "M331-backend-frozen-host", "file": "main", "what": "factory host is frozen", "plan": "SR51-backend-host", "from": "Object.freeze({ contractVersion: 1,", "to": "({ contractVersion: 1,"},
+    {"id": "M332-backend-frozen-layers", "file": "main", "what": "host layer names are frozen", "plan": "SR51-backend-host", "from": "layers: Object.freeze([...layers]), listingFailed", "to": "layers: [...layers], listingFailed"},
+    {"id": "M333-backend-layer-spelling", "file": "server", "what": "detected layer spelling follows disk", "plan": "SR51-backend-host", "from": "entries?.find(entry => entry.name.toLowerCase() === layer.toLowerCase())?.name ?? layer", "to": "layer"},
+    {"id": "M334-backend-wire", "file": "server", "what": "selected backend reaches search engine", "plan": "SR52-backend-shared-search", "from": "createSearchEngine(fsgate, options.searchBackend)", "to": "createSearchEngine(fsgate)"},
+    {"id": "M335-backend-model-disclosure", "file": "server", "what": "module disclosure reaches model", "plan": "SR62-backend-disclosure", "from": "disclosure(fsgate.disclosedRoot(), transport, layers, listingFailed, options.searchBackendDisclosure)", "to": "disclosure(fsgate.disclosedRoot(), transport, layers, listingFailed)"},
+    {"id": "M336-backend-human-disclosure", "file": "main", "what": "module disclosure reaches human", "plan": "SR62-backend-disclosure", "from": "disclosure(gate.disclosedRoot(), context.transport, layers, listingFailed, searchBackendDisclosure)", "to": "disclosure(gate.disclosedRoot(), context.transport, layers, listingFailed)"},
+    {"id": "M337-backend-http-disclosure", "file": "main", "what": "every HTTP disclosure branch includes module", "plan": "SR62-backend-disclosure", "from": "...searchBackendParagraph(module)", "to": "...searchBackendParagraph(undefined)"},
+    {"id": "M338-backend-cache-claim", "file": "server", "what": "cache claims are scoped to built-in backend", "plan": "SR62-backend-disclosure", "from": "module ? \"  · wyrd's built-in search backend builds a lazy in-memory cache of normalized terms and anchors; it holds no raw\" :", "to": "false ? \"unused\" :"},
+    {"id": "M339-backend-close-memo", "file": "main", "what": "module closes once under repeated signals", "plan": "SR63-backend-real-import-close SR64-backend-http-shutdown", "from": "closing ??= new Promise", "to": "closing = new Promise"},
+    {"id": "M340-backend-close-shutdown", "file": "index", "what": "HTTP signals invoke module close", "plan": "SR64-backend-http-shutdown", "from": "if (result.closeSearchBackend !== null)", "to": "if (false)"},
+    {"id": "M343-backend-production-wire", "file": "main", "what": "production server factory forwards the backend", "plan": "SR52-backend-shared-search SR62-backend-disclosure", "from": "{ searchBackend: configured.searchBackend }", "to": "{}"},
+    {"id": "M344-backend-production-disclosure", "file": "main", "what": "production server factory forwards module disclosure", "plan": "SR62-backend-disclosure", "from": "{ searchBackendDisclosure: configured.searchBackendDisclosure }", "to": "{}"},
+    {"id": "M345-backend-context-wire", "file": "main", "what": "process context retains the single backend", "plan": "SR52-backend-shared-search SR62-backend-disclosure", "from": "...(searchBackend === undefined ? {} : { searchBackend })", "to": "...{}"},
+    {"id": "M348-backend-detection-warning", "file": "server", "what": "failed module structure detection describes incomplete detection", "plan": "SR51-backend-host", "from": "module ? 'Vault structure detection did not finish at startup, so no structure warning appears below.' :", "to": "false ? \"unused\" :"},
+    {"id": "M350-backend-line-allocation-bound", "file": "main", "what": "iterate oversized disclosure before its codepoint limit", "plan": "SR60-backend-line-guard", "from": "line.length > 400", "to": "false"},
+    {"id": "M349-backend-detection-read-claim", "file": "server", "what": "module detection does not claim no metadata was read", "plan": "SR51-backend-host", "from": "module ? 'That is not a statement that the folder has no sensitive layers — detection was incomplete.' :", "to": "false ? \"unused\" :"},
+    {"id": "M347-backend-selection-guard", "file": "main", "what": "ignore a selected module and silently use the built-in backend", "plan": "SR50-backend-selection SR51-backend-host SR52-backend-shared-search SR53-backend-path SR54-backend-import SR55-backend-export SR56-backend-factory SR57-backend-return SR58-backend-search-guard SR59-backend-lines-guard SR60-backend-line-guard SR61-backend-close-guard SR62-backend-disclosure SR63-backend-real-import-close SR64-backend-http-shutdown", "from": "if (backendPath !== '')", "to": "if (false)"},
+    {"id": "M346-backend-context-disclosure", "file": "main", "what": "process context retains module disclosure", "plan": "SR62-backend-disclosure", "from": "...(searchBackendDisclosure === undefined ? {} : { searchBackendDisclosure })", "to": "...{}"},
+    {"id": "M342-backend-listing-failure", "file": "server", "what": "failed root listing stays unavailable", "plan": "SR51-backend-host", "from": "if (isRefusal(listed))", "to": "if (false)"},
+    {"id": "M341-backend-close-exit", "file": "index", "what": "close failure preserves nonzero exit code", "plan": "SR64-backend-http-shutdown", "from": "if (process.exitCode === 0)\n                        process.exitCode = 1;", "to": "if (true)\n                        process.exitCode = 1;"},
+    {"id":"M314-search-sha256-utf8-trim","file":"search","what":"decode a partial trailing codepoint in a captured window","plan":"SR48-sha256-utf8-window","from":"if (width > back)","to":"if (false)"} ,
+    { id: 'M295-read-pre-read-size', file: 'fsgate', what: 'report the opened file size measured before reading', plan: 'SR31-read-observed-size',
+        from: 'const observedSize = Math.max(prim.fstat(fd).size, nextOffset);',
+        to: 'const observedSize = Math.max(size, nextOffset);' },
+    { id: 'M296-read-forget-download', file: 'fsgate', what: 'replace the pre-open placeholder observation with the post-open state', plan: 'SR32-read-download-observation',
+        from: 'dehydrated = dehydrated === true || now === true ? true : now;',
+        to: 'dehydrated = now;' },
+    { id: 'M255-search-revalidation-state-guard', file: 'search', what: 'report no_matches after revalidation withheld a candidate', plan: 'SR30-revalidation-dropped-count',
+        from: "revalidationDropped > 0 || searchable === null ? 'search_coverage_unavailable' : 'no_matches'",
+        to: "searchable === null ? 'search_coverage_unavailable' : 'no_matches'" },
+    { id: 'M191-search-context-ring-off-by-one', file: 'search', what: 'move the saved excerpt context one codepoint forward', plan: 'SR21-mixed-anchor-parity',
+        from: 'recent[(leadingEnd - context) % recent.length]',
+        to: 'recent[(leadingEnd - context + 1) % recent.length]' },
 ];
+
+/** What a row promises its source contains. A `replace` callback is opaque, so it must declare. */
+function declaredAnchors(row) {
+    return row.anchors ?? (row.edits ? row.edits.map(([from]) => from) : row.from ? [row.from] : []);
+}
+
+function missingMutationAnchors(row, source, ending) {
+    return declaredAnchors(row).filter(anchor => !source.includes(withLineEnding(anchor, ending)));
+}
+
+function applyMutationRow(row, source, ending) {
+    if (row.replace) return row.replace(source, ending);
+    // Function replacers preserve JS source containing replacement-pattern characters.
+    if (row.edits) return row.edits.reduce((acc, [from, to]) =>
+        acc.replace(withLineEnding(from, ending), () => withLineEnding(to, ending)), source);
+    return source.replace(withLineEnding(row.from, ending),
+        () => withLineEnding(row.to, ending));
+}
+
+if (args.includes('--check-anchors')) {
+    const problems = [];
+    for (const row of ROWS) {
+        const key = row.file ?? 'fsgate';
+        const target = FILES[key];
+        if (!target) {
+            problems.push(`${row.id}: no mutation target is registered for file ${JSON.stringify(key)}`);
+            continue;
+        }
+        const source = fs.readFileSync(target, 'utf8');
+        const ending = lineEndingOf(source, target);
+        for (const anchor of declaredAnchors(row)) {
+            const hits = source.split(withLineEnding(anchor, ending)).length - 1;
+            if (hits !== 1) problems.push(`${row.id}: ${key} (${target}) anchor matched ${hits} times: ${JSON.stringify(anchor)}`);
+        }
+    }
+    if (problems.length) refuse(problems, 'mutation anchors are not applicable');
+    console.log(`✔ Reader mutation anchors: ${ROWS.length} rows apply to their registered targets.`);
+    process.exit(0);
+}
+
+if (args[0] === '--eol-fixture') {
+    const [arm, target] = args.slice(1);
+    const bytes = fs.readFileSync(target);
+    const source = bytes.toString('utf8');
+    try {
+        if (arm === 'BH2-eol-mixed') {
+            let refused = false;
+            try { lineEndingOf(source, target); } catch (error) {
+                refused = /mixed or unsupported line endings/.test(error.message);
+            }
+            if (!refused) throw new Error('mixed-ending target was accepted');
+        } else {
+            const ending = lineEndingOf(source, target);
+            if (arm === 'BH1-eol-crlf') {
+                const row = { edits: [['alpha\nbeta', 'alpha\ndelta']] };
+                if (missingMutationAnchors(row, source, ending).length) throw new Error('CRLF anchor missing');
+                fs.writeFileSync(target, applyMutationRow(row, source, ending));
+                if (fs.readFileSync(target, 'utf8') !== 'alpha\r\ndelta\r\ngamma\r\n') throw new Error('CRLF edit did not land');
+                const callback = ROWS.find(item => item.id === 'M27');
+                const callbackSource = "installObserver();\r\nconst { createFsGate } = await import('wyrd-fence');\r\n";
+                if (missingMutationAnchors(callback, callbackSource, ending).length) throw new Error('callback anchor missing');
+                const callbackResult = applyMutationRow(callback, callbackSource, ending);
+                if (!callbackResult.includes("import('wyrd-fence');\r\ninstallObserver();"))
+                    throw new Error('callback added a bare LF');
+            } else if (arm === 'BH3-eol-all-edits') {
+                const row = { edits: [['alpha', 'delta'], ['absent\nsecond', 'nope']] };
+                if (missingMutationAnchors(row, source, ending).length !== 1) throw new Error('second edit was not refused');
+            } else throw new Error('unknown EOL fixture arm');
+        }
+    } finally {
+        fs.writeFileSync(target, bytes);
+        if (!fs.readFileSync(target).equals(bytes)) throw new Error('fixture restore changed bytes');
+    }
+    console.log(`fixture ${arm}: reader PASS`);
+    process.exit(0);
+}
 
 /** Named registered arms that went red, as the runner printed them. */
 function redTests(out) {
@@ -584,6 +718,7 @@ function classifySuiteResult({ error = null, out = '' } = {}) {
         .filter(part => part !== undefined && part !== null)
         .map(part => typeof part === 'string' ? part : part.toString('utf8'))
         .join('');
+    assertNoBatteryLockRefusal(captured);
     if (error.code === 'ETIMEDOUT' || error.killed) {
         return { outcome: 'TIMEOUT', out: captured, red: [] };
     }
@@ -596,6 +731,14 @@ function classifySuiteResult({ error = null, out = '' } = {}) {
         red,
         redDetail: red.length > 0 ? redDetails(captured, red) : {}
     };
+}
+
+if (args.includes('--bh6-spawn-fixture')) {
+    const failed = spawnSync(path.join(repo, 'missing-executable'), [], { encoding: 'utf8' });
+    const verdict = classifySuiteResult({ error: failed.error });
+    if (verdict.outcome === 'GREEN' || verdict.outcome === 'ARM_RED') throw new Error('spawn failure received a mutation verdict');
+    console.log(`INFRASTRUCTURE: ${verdict.outcome}`);
+    process.exit(0);
 }
 
 function runClassifierSelfTest() {
@@ -802,6 +945,9 @@ const ORIGINAL = Object.fromEntries(Object.entries(FILES).map(([k, p]) => [k, fs
  * both read as a clean restore through `readFileSync(p, 'utf8')`. `Buffer#equals` cannot.
  */
 const ORIGINAL_BYTES = Object.fromEntries(Object.entries(FILES).map(([k, p]) => [k, fs.readFileSync(p)]));
+registerBatteryTargets(Object.values(FILES));
+const ENDINGS = Object.fromEntries(Object.entries(ORIGINAL).map(([key, source]) =>
+    [key, lineEndingOf(source, FILES[key])]));
 refuseBackupConflicts(ORIGINAL_BYTES);
 
 // ⚠ THE BACKUP, WRITTEN BEFORE ANY ROW RUNS AND PRINTED WHETHER OR NOT ANYTHING GOES WRONG.
@@ -812,11 +958,6 @@ refuseBackupConflicts(ORIGINAL_BYTES);
     for (const key of NON_BUILT) fs.writeFileSync(backupPathFor(key), ORIGINAL_BYTES[key]);
     console.log(`· pristine backup of ${NON_BUILT.map(k => path.basename(FILES[k])).join(' and ')}: ${BACKUP_DIR}`);
     console.log(`  If this run is killed, \`${RESTORE_COMMAND}\` puts them back; \`npm run build\` covers dist/.`);
-}
-
-/** What a row promises its source contains. A `replace` callback is opaque, so it must declare. */
-function declaredAnchors(row) {
-    return row.anchors ?? (row.edits ? row.edits.map(([from]) => from) : row.from ? [row.from] : []);
 }
 
 /**
@@ -839,9 +980,11 @@ function declaredAnchors(row) {
 {
     const ambiguous = [];
     for (const row of ROWS) {
-        const source = ORIGINAL[row.file ?? 'fsgate'];
+        const key = row.file ?? 'fsgate';
+        const source = ORIGINAL[key];
         for (const anchor of declaredAnchors(row)) {
-            const hits = source.split(anchor).length - 1;
+            const adapted = withLineEnding(anchor, ENDINGS[key]);
+            const hits = source.split(adapted).length - 1;
             if (hits > 1) ambiguous.push(`${row.id} anchors on text occurring ${hits} times in \`${row.file ?? 'fsgate'}\` — a string replace would mutate only the first, leaving a partial mutant: ${JSON.stringify(anchor.slice(0, 70))}`);
             /**
              * ⚠⚠ ABSENT IS CHECKED HERE TOO, AS OF 2026-09-15, AND THE OLD PREDICATE WAS `hits > 1`.
@@ -952,27 +1095,19 @@ try {
         // callback's substitutions are opaque from here. A row that declares none keeps the older,
         // weaker check — the whole-file no-op below — and that limit is real rather than closed.
         const declared = declaredAnchors(row);
-        const missing = declared.filter(a => !source.includes(a));
+        const missing = missingMutationAnchors(row, source, ENDINGS[key]);
         if (missing.length) {
             results.push({ ...meta(row), status: 'ANCHOR-NOT-FOUND', red: [] });
             continue;
         }
 
-        if (row.replace) {
-            mutated = row.replace(source);
-        } else if (row.edits) {
-            // ⚠ FUNCTION REPLACERS: a string `t` or `row.to` would expand `$&`, `$'`, `$n` and the backtick form,
-            // and mutation text is JS source. A corrupted patch still differs from `source`, so the
-            // ANCHOR-NOT-FOUND check below cannot see it.
-            mutated = row.edits.reduce((acc, [f, t]) => acc.replace(f, () => t), source);
-        } else {
-            mutated = source.replace(row.from, () => row.to);
-        }
+        mutated = applyMutationRow(row, source, ENDINGS[key]);
         if (mutated === source) {
             results.push({ ...meta(row), status: 'ANCHOR-NOT-FOUND', red: [] });
             continue;
         }
 
+        recordBatteryMutant(FILES[key], Buffer.from(mutated));
         fs.writeFileSync(FILES[key], mutated);
         const suite = runSuite();
         restoreAll();

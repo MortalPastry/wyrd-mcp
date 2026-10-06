@@ -1,7 +1,9 @@
 import { Server, type Tool } from '@modelcontextprotocol/server';
+import { channel } from 'node:diagnostics_channel';
 
 import { isRefusal, type FenceRefusal, type FsGate, type Probe } from 'wyrd-fence';
 import { SERVER_VERSION } from './version.js';
+import { createSearchEngine, type SearchBackend, type SearchBackendDisclosure } from './search.js';
 
 export { SERVER_VERSION } from './version.js';
 
@@ -14,6 +16,8 @@ export const DEFAULT_WINDOW_BYTES = 32_768;
 export const MAX_WINDOW_BYTES = 262_144;
 
 export interface CreateServerOptions {
+    readonly searchBackend?: SearchBackend;
+    readonly searchBackendDisclosure?: SearchBackendDisclosure;
     readonly fsgate: FsGate;
     readonly transport: ServerTransport;
     /**
@@ -65,18 +69,26 @@ export interface LayerDetection {
 }
 
 export async function detectLayers(
-    probe: (name: string) => Promise<Probe | FenceRefusal>
+    probe: (name: string) => Promise<Probe | FenceRefusal>,
+    listRoot?: () => Promise<import('wyrd-fence').Entry[] | FenceRefusal>
 ): Promise<LayerDetection> {
+    let entries: import('wyrd-fence').Entry[] | undefined;
+    if (listRoot !== undefined) {
+        const listed = await listRoot();
+        if (isRefusal(listed)) return Object.freeze({ layers: [], listingFailed: true });
+        entries = listed;
+    }
     const found: string[] = [];
     for (const layer of KNOWN_LAYERS) {
-        const result = await probe(layer);
+        const name = entries?.find(entry => entry.name.toLowerCase() === layer.toLowerCase())?.name ?? layer;
+        const result = await probe(name);
         if (isRefusal(result)) {
             if (result.reason === 'MISSING') continue;
             return Object.freeze({ layers: [], listingFailed: true });
         }
         // `resolveInGrant` normally turns a junctioned directory into `directory`; retaining
         // `link` here is conservative for reparse kinds the runtime does not fully classify.
-        if (result.kind === 'directory' || result.kind === 'link') found.push(layer);
+        if (result.kind === 'directory' || result.kind === 'link') found.push(name);
     }
     return Object.freeze({ layers: Object.freeze(found), listingFailed: false });
 }
@@ -102,6 +114,9 @@ const READ_DESCRIPTION = [
     'Paths are relative to the granted folder, for example `Mage/projects/legend.md`. Absolute',
     'paths, Windows drive-relative paths such as `C:notes`, and any path that climbs out with',
     '`..` are refused.',
+    '',
+    'A cloud placeholder is refused by default because reading it would download the file.',
+    'Set `hydrate: true` on this call only to permit that download.',
     '',
     'Reads are byte-oriented, never character-oriented. `offset` and `limit` are byte counts',
     "into the file's UTF-8 encoding. A returned slice may be up to 3 bytes shorter than `limit`",
@@ -135,8 +150,8 @@ const READ_DESCRIPTION = [
     '`.md` saved in Latin-1 is refused. Nothing here is a filter on what may be reached.',
     '',
     'KNOWN LIMITS of that restriction, stated because a containment claim without them would be',
-    'false: a hard link created inside the folder can reach a file outside it; a folder or path',
-    'component swapped after validation may be read instead of the one checked; and some',
+    'false: a hard link created inside the folder makes an outside file readable and searchable;',
+    'a folder or path component swapped after validation may be read instead of the one checked; and some',
     'filesystem reparse points cannot be classified by this runtime, where a path resolving',
     'through one is still checked against the folder but a refusal for a file outside it can',
     'distinguish missing from unreadable. That last one needs no attacker and can occur in an',
@@ -165,6 +180,10 @@ const READ_INPUT_SCHEMA = {
             minimum: 0,
             description: 'Byte offset to start at. Defaults to 0. Use the `next_offset` from a truncated response.'
         },
+        hydrate: {
+            type: 'boolean',
+            description: 'Allow this call to download a cloud placeholder before reading it. Defaults to false.'
+        },
         limit: {
             type: 'integer',
             minimum: 1,
@@ -192,15 +211,15 @@ const READ_INPUT_SCHEMA = {
  */
 const READ_INPUT_SCHEMA_FOR_TOOL = READ_INPUT_SCHEMA as unknown as Tool['inputSchema'];
 
-function refusalText(reason: string, detail: string): string {
-    return `wyrd refused this read.\nreason: ${reason}\n${detail}`;
+const SEARCH_DESCRIPTION = 'Search Markdown files in the granted folder. Returns up to 10 paths, byte sizes, Mage layer and canonicity, contextual excerpts with UTF-8 byte offsets, and a truncated flag. Cloud placeholders are excluded; detection and scope counts report when coverage is unavailable. Scope and placeholder counts describe the grant walk, searchable_files describes the backend scan, and revalidation_dropped_count counts candidates withheld during revalidation because they changed or became unreadable.';
+const SEARCH_INPUT_SCHEMA = { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 256, description: 'Search terms, 1 to 256 characters.' } }, required: ['query'], additionalProperties: false } as unknown as Tool['inputSchema'];
+
+function refusalText(reason: string, detail: string, tool: 'read' | 'search' = 'read'): string {
+    return `wyrd refused this ${tool}.\nreason: ${reason}\n${detail}`;
 }
 
 /**
- * The Wyrd MCP server.
- *
- * ⚠ ONE TOOL. `search` and `list` are specified (spec §3a) and deliberately absent: the fence
- * lands before any tool that widens the surface it fences.
+ * The Wyrd MCP server. Read and search share this handler for stdio and HTTP.
  */
 /**
  * The disclosure a driving model receives at connect time.
@@ -245,11 +264,23 @@ function refusalText(reason: string, detail: string): string {
  *     user their notes stay local when they do not, and that is the one sentence here that could
  *     actually hurt somebody.
  */
+export function searchBackendParagraph(module?: SearchBackendDisclosure): string[] {
+    return module === undefined ? [] : [
+        '',
+        `Search is answered by an additional search backend module the operator named, at ${module.path}.`,
+        "That module runs inside this process with this process's permissions and is not confined to the granted folder.",
+        'wyrd hands it only bounded reads of the granted folder but cannot prevent it opening other files or the network.',
+        'What the module says about itself follows:',
+        ...module.lines.map(line => `  Module: ${line}`)
+    ];
+}
+
 export function disclosure(
     root: string,
     transport: ServerTransport,
     layers: readonly string[] = [],
-    listingFailed = false
+    listingFailed = false,
+    module?: SearchBackendDisclosure
 ): string {
     // ⚠ NAMED ONLY WHEN PRESENT, AND THAT IS A PRODUCT DECISION, NOT A TIDINESS ONE.
     // The old text asserted these layers unconditionally, behind "if this folder is a Mage vault" —
@@ -264,8 +295,8 @@ export function disclosure(
     const vault = listingFailed
         ? [
               '',
-              'This folder could not be listed at startup, so no structure warning appears below.',
-              'That is not a statement that the folder has no sensitive layers — nothing was read.'
+              module ? 'Vault structure detection did not finish at startup, so no structure warning appears below.' : 'This folder could not be listed at startup, so no structure warning appears below.',
+              module ? 'That is not a statement that the folder has no sensitive layers — detection was incomplete.' : 'That is not a statement that the folder has no sensitive layers — nothing was read.'
           ]
         : layers.length === 0
             ? []
@@ -288,32 +319,33 @@ export function disclosure(
               '    connections of its own. That is NOT a promise your'
           ];
 
+    const builtIn = module === undefined ? 'this server' : "wyrd's built-in server code";
     return [
         `wyrd is serving exactly one folder: ${root}`,
-        'Its only tool is `read`, so the tool surface is read-only.',
+        module ? 'Its built-in read tool and search reads are read-only; the additional module has its own permissions.' : 'Its tools are `read` and `search`; both are read-only.',
         '',
-        'What that means:',
-        '  · Every request is checked against that folder before a file is opened. A path that',
+        module ? "What wyrd's built-in reads mean:" : 'What that means:',
+        module ? '  · Every read through wyrd is checked against that folder before a file is opened. A path that' : '  · Every request is checked against that folder before a file is opened. A path that',
         '    resolves outside it is refused, and the refusal names the rule that fired rather',
         '    than pretending the file is absent. The known limits below say where that check',
         '    does not hold.',
-        '  · No tool here writes, moves or deletes anything. There is none that can. The PROCESS',
+        module ? '  · The built-in read tool and search reads do not write, move or delete. The built-in code' : '  · No tool here writes, moves or deletes anything. There is none that can. The PROCESS',
         '    can write in exactly one case: with WYRD_OBSERVE set it ATTEMPTS, at exit, to log the',
         '    pathnames it touches, never file contents, to exactly the path that variable names,',
         '    which is not checked and may be a network share or a synchronised folder. The write',
         '    is attempted, not guaranteed — if it fails it fails silently.',
-        ...network,
+        ...network.map(line => module === undefined ? line : line.replace('this server', builtIn)),
         '    content stays local: what the client driving this conversation does with what it',
         '    reads is between you and that client, under its terms and not wyrd\'s. A client',
         '    talking to a hosted model will send your content there; one running a model locally,',
         '    or one that never forwards a particular result, will not. Wyrd cannot see which.',
-        '  · Nothing read here is retained. There is no cache, no index and no database, and the',
-        '    granted folder is fixed until this process is restarted.',
+        module ? "  · wyrd's built-in search backend builds a lazy in-memory cache of normalized terms and anchors; it holds no raw" : '  \u00b7 Search builds a lazy in-memory cache of normalized terms and anchors; it holds no raw',
+        '    text and writes no search data to disk. The grant is fixed until restart.',
         '',
         '',
         'What is in scope: ANY PATH INSIDE that folder can be requested, hidden entries included,',
         'such as .env and .git/config. There is no extension filter, no ignore-file support, and no',
-        'cap on how much may be read in total. The folder is the whole of the restriction: grant a',
+        module ? "cap on how much wyrd may read in total. The folder restricts wyrd's reads: grant a" : 'cap on how much may be read in total. The folder is the whole of the restriction: grant a',
         'subfolder containing only what you mean to share.',
         '',
         'A handful of NAME SPELLINGS are refused as input before anything is opened, so a file whose',
@@ -329,7 +361,7 @@ export function disclosure(
         '',
         'Known limits, each needing different conditions:',
         '  · A hard link that already exists inside this folder makes the file it points at',
-        '    readable, wherever on the disk that file lives, and ordinary folder inspection will',
+        '    readable and searchable, wherever on the disk that file lives, and ordinary folder inspection will',
         '    not show it as a link. Granting a folder the files were freshly COPIED into avoids',
         '    it, because copying makes new files rather than new links.',
         '  · A path component swapped between validation and opening may be read instead of the',
@@ -343,12 +375,16 @@ export function disclosure(
         '    caller one bit about whether a file outside this folder exists.',
         'This list is what is known, not a proof that nothing else exists. The limits were measured',
         'on Windows; behaviour on macOS and Linux is reasoned but unmeasured.',
-        ...vault
+        ...vault,
+        ...searchBackendParagraph(module)
     ].join('\n');
 }
 
 export function createServer(options: CreateServerOptions): Server {
     const { fsgate, transport, layers = [], listingFailed = false } = options;
+    const baseline = channel('wyrd.search.pre-engine');
+    if (baseline.hasSubscribers) baseline.publish(process.memoryUsage().rss);
+    const search = createSearchEngine(fsgate, options.searchBackend);
     const server = new Server(
         { name: SERVER_NAME, version: SERVER_VERSION },
         {
@@ -358,7 +394,7 @@ export function createServer(options: CreateServerOptions): Server {
             // folder" — so stderr warned that nothing could be listed while the model was told
             // nothing at all. Two lenses caught it independently. The whole point of the third
             // state is that "no layers" and "could not look" are different facts.
-            instructions: disclosure(fsgate.disclosedRoot(), transport, layers, listingFailed)
+            instructions: disclosure(fsgate.disclosedRoot(), transport, layers, listingFailed, options.searchBackendDisclosure)
         }
     );
 
@@ -380,14 +416,47 @@ export function createServer(options: CreateServerOptions): Server {
                 // this slice did not take, and an annotation asserted casually is the same defect as
                 // a prose claim nobody checked.
                 annotations: { readOnlyHint: true }
-            }
+            },
+            { name: 'search', title: 'Search Markdown in the granted folder', description: SEARCH_DESCRIPTION,
+                inputSchema: SEARCH_INPUT_SCHEMA, annotations: { readOnlyHint: options.searchBackend === undefined } }
         ]
     }));
 
     server.setRequestHandler('tools/call', async request => {
+        if (request.params.name === 'search') {
+            const args = (request.params.arguments ?? {}) as Record<string, unknown>;
+            const query = args['query'];
+            if (typeof query !== 'string' || [...query].length < 1 || [...query].length > 256 ||
+                Object.keys(args).some(key => key !== 'query')) {
+                return { isError: true, content: [{ type: 'text' as const,
+                    text: refusalText('BAD_INPUT', '`query` must be a string of 1 to 256 characters and the only argument.', 'search') }] };
+            }
+            try {
+                const result = await search(query);
+                const warnings = [
+                    ...(result.placeholder_detection === 'unavailable' ? ['Cloud placeholder detection unavailable; exclusion coverage cannot be confirmed.'] : []),
+                    ...(result.excluded_from_search !== null && result.excluded_from_search > 0 ? [`${result.excluded_from_search} cloud placeholder(s) excluded from search to avoid a download.`] : [])
+                ];
+                const payload = { ...result, warnings };
+                return { structuredContent: payload, content: [{ type: 'text' as const, text: JSON.stringify(payload) }] };
+            } catch {
+                return { isError: true, content: [{ type: 'text' as const,
+                    text: refusalText('IO_ERROR', 'the granted folder could not be searched.', 'search') }] };
+            }
+        }
+        const summary = await fsgate.grantPlaceholderSummary();
+        const status = () => summary.placeholder_detection === 'unavailable' ||
+            fsgate.placeholderDetection() === 'unavailable'
+            ? { placeholder_detection: 'unavailable' as const, placeholder_count: null,
+                file_count: null, placeholder_fraction: null,
+                ...(summary.warning ? { warning: summary.warning } : {}) }
+            : summary;
+        const readRefusal = (reason: string, detail: string) =>
+            refusalText(reason, detail) + (summary.warning ? `\nwarning: ${summary.warning}` : '');
         if (request.params.name !== 'read') {
             return {
                 isError: true,
+                structuredContent: status(),
                 content: [{ type: 'text' as const, text: `wyrd has no tool named ${request.params.name}.` }]
             };
         }
@@ -397,18 +466,22 @@ export function createServer(options: CreateServerOptions): Server {
         if (typeof target !== 'string') {
             return {
                 isError: true,
-                content: [{ type: 'text' as const, text: refusalText('BAD_INPUT', '`path` must be a string.') }]
+                structuredContent: status(),
+                content: [{ type: 'text' as const, text: readRefusal('BAD_INPUT', '`path` must be a string.') }]
             };
         }
         const offset = typeof args['offset'] === 'number' ? args['offset'] : 0;
         const requested = typeof args['limit'] === 'number' ? args['limit'] : DEFAULT_WINDOW_BYTES;
         const limit = Math.min(Math.max(requested, 1), MAX_WINDOW_BYTES);
 
-        const slice = await fsgate.readFileInGrant(target, offset, limit);
+        const hydrate = args['hydrate'] === true;
+        const slice = await fsgate.readFileInGrant(target, offset, limit, hydrate);
         if (isRefusal(slice)) {
             return {
                 isError: true,
-                content: [{ type: 'text' as const, text: refusalText(slice.reason, slice.detail) }]
+                structuredContent: { ...status(), ...(slice.reason === 'PLACEHOLDER' ? { dehydrated: true } : {}) },
+                content: [{ type: 'text' as const, text: refusalText(slice.reason, slice.detail) +
+                    (summary.warning ? `\nwarning: ${summary.warning}` : '') }]
             };
         }
 
@@ -432,10 +505,11 @@ export function createServer(options: CreateServerOptions): Server {
         if (slice.bytes.length === 0 && slice.truncated && slice.nextOffset <= slice.offset) {
             return {
                 isError: true,
+                structuredContent: status(),
                 content: [
                     {
                         type: 'text' as const,
-                        text: refusalText(
+                        text: readRefusal(
                             'LIMIT_TOO_SMALL',
                             `limit ${limit} is too small to return even one character at offset ` +
                                 `${slice.offset}, so the read cannot advance. Retry with a larger ` +
@@ -455,10 +529,11 @@ export function createServer(options: CreateServerOptions): Server {
         if (first !== undefined && (first & 0xc0) === 0x80) {
             return {
                 isError: true,
+                structuredContent: status(),
                 content: [
                     {
                         type: 'text' as const,
-                        text: refusalText(
+                        text: readRefusal(
                             'BAD_OFFSET',
                             `offset ${slice.offset} falls inside a multi-byte character, so the ` +
                                 `slice cannot be decoded. Use the \`next_offset\` from a previous ` +
@@ -473,10 +548,11 @@ export function createServer(options: CreateServerOptions): Server {
         if (Buffer.compare(slice.bytes, Buffer.from(decoded, 'utf8')) !== 0) {
             return {
                 isError: true,
+                structuredContent: status(),
                 content: [
                     {
                         type: 'text' as const,
-                        text: refusalText(
+                        text: readRefusal(
                             'NOT_TEXT',
                             `the requested slice of ${target} is not valid UTF-8, so it cannot be ` +
                                 `returned without altering it. wyrd refuses rather than returning ` +
@@ -492,13 +568,16 @@ export function createServer(options: CreateServerOptions): Server {
         const header =
             `wyrd read ${target} — bytes ${slice.offset}..${slice.nextOffset} of ${slice.size}` +
             ` · truncated: ${slice.truncated}` +
-            (slice.truncated ? ` · next_offset: ${slice.nextOffset}` : '');
+            (slice.truncated ? ` · next_offset: ${slice.nextOffset}` : '') +
+            (summary.warning ? ` · warning: ${summary.warning}` : '');
 
         return {
             content: [
                 { type: 'text' as const, text: header },
                 { type: 'text' as const, text: decoded }
-            ]
+            ],
+            structuredContent: { ...status(),
+                ...(slice.dehydrated ? { dehydrated: true, warning: `${summary.warning ?? ''} This read downloaded a cloud placeholder.`.trim() } : {}) }
         };
     });
 

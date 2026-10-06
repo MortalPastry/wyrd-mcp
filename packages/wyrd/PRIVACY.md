@@ -4,6 +4,12 @@
 
 This document describes what wyrd does with your data. It is short because wyrd does very little.
 
+⚠ **It describes wyrd as shipped.** If you start wyrd with `--search-backend` or
+`WYRD_SEARCH_BACKEND`, the module you name answers `search`, runs inside the wyrd process with that
+process's permissions, and is not confined to the granted folder. Nothing below about what is
+collected, transmitted, written or kept is a statement about that module. Wyrd prints the module's
+own statement at startup, marked as the module's. Wyrd ships no such module.
+
 ---
 
 ## What wyrd collects
@@ -73,13 +79,13 @@ still the whole of the restriction.
 
 The fence's known limits are listed in the README under *What it can reach*, and the running server
 discloses them to your client at startup. The sharpest one for a reader of this document: **a hard
-link that already exists inside the granted folder makes the file it points at readable, wherever
+link that already exists inside the granted folder makes the file it points at readable and searchable, wherever
 that file lives, and ordinary folder inspection will not show it as a link.**
 
 ## What wyrd writes
 
-**No tool writes, moves, renames or deletes. The server registers exactly one tool, `read`,** and
-the test suite asserts that the tool list is exactly `read`.
+**No tool writes, moves, renames or deletes. The server registers `read` and `search`,** and
+the test suite asserts that both appear in the tool list.
 
 Across all modes, the process can write in two explicit cases. The first is the separate generator
 command:
@@ -114,8 +120,8 @@ For `WYRD_OBSERVE`:
 
 ## What wyrd keeps
 
-**Nothing it read.** There is no cache, no index and no database; each request opens the file on
-demand and hands back the bytes. The granted folder is fixed for the life of the process, so
+**Search retains normalized terms and anchors in a lazy in-memory cache.** It retains no raw
+text and writes no search data to disk; excerpts are read from the file on demand. The granted folder is fixed for the life of the process, so
 changing it means stopping the server, editing the configuration and starting it again. Revoking it
 means stopping the server *and* removing wyrd from your client's MCP configuration, because a client
 that still has wyrd configured can start it again.

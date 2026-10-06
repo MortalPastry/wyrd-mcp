@@ -43,7 +43,7 @@
  * closing fence and insert above it" rule sound.
  */
 
-import type { LineageRecord } from './lineage.js';
+import type { AnyLineageRecord } from './lineage.js';
 import type { ScribeRefusal } from './refusal.js';
 import { scribeRefuse } from './refusal.js';
 
@@ -72,9 +72,9 @@ export interface FrontmatterProjection {
     readonly event: string;
     readonly event_id: string;
     readonly recorded_at: string;
-    readonly writer: LineageRecord['writer'];
-    readonly vault: LineageRecord['vault'];
-    readonly sources: LineageRecord['sources'];
+    readonly writer: AnyLineageRecord['writer'];
+    readonly vault: AnyLineageRecord['vault'];
+    readonly sources: AnyLineageRecord['sources'];
 }
 
 /**
@@ -84,7 +84,7 @@ export interface FrontmatterProjection {
  * because a timestamp does not distinguish two writes. It is server-minted per write, so it says
  * nothing about the path and cannot disagree with the fence about anything.
  */
-export function project(record: LineageRecord): FrontmatterProjection {
+export function project(record: AnyLineageRecord): FrontmatterProjection {
     return {
         schema: record.schema,
         event: record.event,
@@ -332,4 +332,57 @@ export function stamp(content: string, projection: FrontmatterProjection): strin
         'FRONTMATTER_INVALID',
         `the page opens a frontmatter block with no closing --- within ${MAX_FRONTMATTER_LINES} lines`
     );
+}
+
+/** Replace only a line in the form this server generates; leave every other byte alone. */
+export function stampOverwrite(content: string, projection: FrontmatterProjection): string | ScribeRefusal {
+    const lines = content.split('\n');
+    if (!isFence(lines[0] ?? '')) return stamp(content, projection);
+    const ceiling = Math.min(lines.length, MAX_FRONTMATTER_LINES);
+    let closing = -1;
+    for (let index = 1; index < ceiling; index += 1) {
+        if (isFence(lines[index] as string)) { closing = index; break; }
+    }
+    const matches: number[] = [];
+    for (let index = 1; index < (closing < 0 ? ceiling : closing); index += 1) {
+        const line = lines[index] as string;
+        const body = line.endsWith('\r') ? line.slice(0, -1) : line;
+        if (keyOf(line) === FRONTMATTER_KEY || /^wyrd_lineage(?:\s|$)/.test(body)) matches.push(index);
+    }
+    if (matches.length > 1) return scribeRefuse('FRONTMATTER_CONFLICT', 'the page carries duplicate top-level wyrd_lineage keys');
+    if (closing < 0 || !looksLikeMapping(lines, 1, closing)) {
+        if (matches.length > 0) return scribeRefuse('FRONTMATTER_INVALID', 'the existing wyrd_lineage block is malformed');
+        return stamp(content, projection);
+    }
+    if (matches.length === 0) return stamp(content, projection);
+
+    const index = matches[0] as number;
+    const old = lines[index] as string;
+    const body = old.endsWith('\r') ? old.slice(0, -1) : old;
+    if (!body.startsWith(`${FRONTMATTER_KEY}: `)) {
+        return scribeRefuse('FRONTMATTER_CONFLICT', 'the existing wyrd_lineage line is not in generated form');
+    }
+    let value: unknown;
+    try { value = JSON.parse(body.slice(FRONTMATTER_KEY.length + 2)); }
+    catch { return scribeRefuse('FRONTMATTER_INVALID', 'the existing wyrd_lineage value is malformed'); }
+    const candidate = value as Partial<FrontmatterProjection> | null;
+    const writer = candidate?.writer;
+    const vault = candidate?.vault;
+    if (typeof value !== 'object' || value === null || Array.isArray(value)
+        || Object.keys(value).join(',') !== 'schema,event,event_id,recorded_at,writer,vault,sources'
+        || candidate?.schema !== 'wyrd.lineage/v1'
+        || (candidate.event !== 'page_written' && candidate.event !== 'page_overwritten')
+        || typeof candidate.event_id !== 'string' || typeof candidate.recorded_at !== 'string'
+        || typeof writer !== 'object' || writer === null
+        || Object.keys(writer).join(',') !== 'server,version,tool'
+        || writer.server !== 'wyrd-scribe' || typeof writer.version !== 'string'
+        || (writer.tool !== 'write_page' && writer.tool !== 'overwrite_page')
+        || typeof vault !== 'object' || vault === null
+        || Object.keys(vault).join(',') !== 'kind,id'
+        || vault.kind !== 'uuid' || typeof vault.id !== 'string'
+        || !Array.isArray(candidate.sources)) {
+        return scribeRefuse('FRONTMATTER_CONFLICT', 'the existing wyrd_lineage value is not in generated form');
+    }
+    lines[index] = `${FRONTMATTER_KEY}: ${JSON.stringify(projection)}${endingOf(old)}`;
+    return lines.join('\n');
 }

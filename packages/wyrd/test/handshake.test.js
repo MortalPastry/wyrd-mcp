@@ -12,6 +12,18 @@ import { preflightJunctionSupport, preflightSymlinkPrivilege } from '../scripts/
 import { declare as arm, tier2 } from './manifest.mjs';
 import { RawMcpClient } from './raw-stdio.mjs';
 
+const temporaryBases = new Set();
+process.once('exit', () => {
+    for (const base of temporaryBases) fs.rmSync(base, { recursive: true, force: true });
+});
+
+function temporaryDirectory(prefix) {
+    const base = fs.mkdtempSync(prefix);
+    temporaryBases.add(base);
+    return base;
+}
+
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const entrypoint = path.join(repoRoot, 'dist', 'index.js');
 const packageManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
@@ -38,7 +50,7 @@ const packageManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.
 const TEST_TIMEOUT_MS = 20_000;
 
 function makeVault() {
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-e2e-'));
+    const base = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-e2e-'));
     fs.mkdirSync(path.join(base, 'vault', 'subdir'), { recursive: true });
     fs.writeFileSync(path.join(base, 'vault', 'subdir', 'note.md'), 'E2E-NOTE-CANARY');
     fs.mkdirSync(path.join(base, 'outside'), { recursive: true });
@@ -77,19 +89,23 @@ test('E1-handshake — the server starts on stdio and completes an initialize ha
     }
 });
 
-test('E2-one-tool — the server declares exactly one tool, `read`, with a real description', { timeout: TEST_TIMEOUT_MS }, async () => {
-    arm('E2-one-tool');
+test('E2-two-tools — the server declares read and search with real descriptions', { timeout: TEST_TIMEOUT_MS }, async () => {
+    arm('E2-two-tools');
     const vault = makeVault();
     try {
         await withClient(vault.grant, async client => {
             const { tools } = await client.listTools();
-            assert.equal(tools.length, 1);
+            assert.equal(tools.length, 2);
+            assert.deepEqual(tools.map(tool => tool.name), ['read', 'search']);
             assert.equal(tools[0].name, 'read');
             // The description is the product surface: it must state the unit and the
             // truncation contract, because the model's selection loop runs on it.
             assert.match(tools[0].description, /byte/i);
             assert.match(tools[0].description, /next_offset/);
             assert.match(tools[0].description, /truncated/);
+            assert.match(tools[1].description, /Markdown/);
+            assert.equal(tools[1].inputSchema.properties.query.maxLength, 256);
+            assert.equal(tools[1].annotations.readOnlyHint, true);
         });
     } finally {
         fs.rmSync(vault.base, { recursive: true, force: true });
@@ -99,7 +115,7 @@ test('E2-one-tool — the server declares exactly one tool, `read`, with a real 
 test('E13-read-description — the `read` description states the refusals and the limit, as the model receives it', { timeout: TEST_TIMEOUT_MS }, async () => {
     arm('E13-read-description');
     // ⚠⚠ THIS SURFACE HAD NO ARM UNTIL 2026-09-01, AND IT IS WHAT THE MODEL IS TOLD THE TOOL DOES.
-    // `E2-one-tool` checks `byte`, `next_offset` and `truncated` — the pagination contract — and
+    // `E2-two-tools` checks `byte`, `next_offset` and `truncated` — the pagination contract — and
     // `E5-disclosure` reads `initialize.instructions`, a different string entirely. Reverting this
     // description to its pre-correction wording ("EVERY file inside the granted folder can be
     // requested" / "What comes BACK is text") passed the whole battery.
@@ -125,7 +141,7 @@ test('E13-read-description — the `read` description states the refusals and th
 
             // The limit that reaches OUTSIDE the grant. Stopping at "a hard link can be followed"
             // would disclose nothing: the point is where the target may live.
-            assert.match(description, /hard link created inside the folder can reach a file outside it/i);
+            assert.match(description, /hard link created inside the folder makes an outside file readable and\s+searchable/i);
 
             // The refuted wordings, both false in the reassuring direction.
             // ⚠ `\s+` BETWEEN EVERY WORD — this string is hand-wrapped, and a negative pinned to
@@ -244,7 +260,7 @@ test('E5-disclosure — initialize.instructions discloses the canonical grant an
             // writes an observation log when WYRD_OBSERVE is set. The claim the code backs is
             // about the TOOL SURFACE, so the arm pins the scoping words beside the phrase rather
             // than the phrase alone.
-            assert.match(instructions, /only tool is `read`, so the tool surface is read-only/i);
+            assert.match(instructions, /tools are `read` and `search`; both are read-only/i);
             assert.match(instructions, /No tool here writes/i);
             assert.match(
                 instructions,
@@ -311,7 +327,7 @@ test('E5-disclosure — initialize.instructions discloses the canonical grant an
             // proves the server actually does. A review lens supplied the passing mutation.
             assert.match(
                 instructions,
-                /hard link that already exists inside this folder makes the file it points at\s+readable[\s,]+wherever on the disk that file lives/i
+                /hard link that already exists inside this folder makes the file it points at\s+readable and searchable[\s,]+wherever on the disk that file lives/i
             );
             assert.ok(
                 !/nothing leaves this machine/i.test(instructions),
@@ -333,7 +349,7 @@ test('E8-not-text — a file that is not valid UTF-8 is refused NOT_TEXT, never 
     // U+FFFD for invalid bytes, so a Latin-1 note came back ALTERED with `truncated: false`, no
     // error, and a header still reporting the original byte count — while the tool description
     // promised `next_offset` reconstruction "byte for byte" in the same breath.
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-nottext-'));
+    const base = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-nottext-'));
     try {
         fs.mkdirSync(path.join(base, 'vault'), { recursive: true });
         // 0xFF / 0xFE are invalid UTF-8 anywhere. Wrapped in ASCII so a naive "is it empty" check
@@ -396,7 +412,7 @@ test('E7-layers — Mage layers are named only when present, and a plain folder 
     // stranger with ordinary notes met three directories they do not have and a term they do not
     // know, inside a security disclosure. Detection is what makes the sentence true for BOTH
     // readers; an arm that only checked the vault case would let the noise back in.
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-layers-'));
+    const base = temporaryDirectory(path.join(os.tmpdir(), 'wyrd-layers-'));
     try {
         const plain = path.join(base, 'plain');
         fs.mkdirSync(path.join(plain, 'notes'), { recursive: true });
@@ -662,6 +678,7 @@ const CLAIMS = [
             'server.json': [/a directory is refused/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB
         }
     },
@@ -681,6 +698,7 @@ const CLAIMS = [
             'server.json': [/so are bytes that are not valid UTF-8/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB
         }
     },
@@ -697,6 +715,7 @@ const CLAIMS = [
             'tool:read':[/property of the BYTES, not the file extension/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'PRIVACY.md': 'states the coarser reachable/readable split and routes the reader to the README for the fence\'s limits; it makes no file-type claim to qualify',
             'NO_GRANT_MESSAGE': 'a pre-grant refusal with no room for the byte/extension distinction; it says only that non-UTF-8 bytes are refused, which is true as far as it goes',
@@ -706,20 +725,21 @@ const CLAIMS = [
     },
     {
         id: 'HARDLINK_REACHES_OUTSIDE',
-        says: 'a hard link already inside the grant makes its target readable wherever on the disk that target lives',
+        says: 'a hard link already inside the grant makes its target readable and searchable wherever on the disk that target lives',
         evidence: {
             grade: 'observed',
-            arms: ['A24-hardlink-limit'],
+            arms: ['A24-hardlink-limit', 'SR28-hardlink-search-limit'],
             limit: 'The exercised hard-link case is one filesystem arrangement on one platform, not every disk, mount, or permission regime.'
         },
         carried: {
-            'README.md': [/hard link inside the granted folder makes the file it points at readable, wherever on the disk that file lives/i],
-            'PRIVACY.md': [/hard link that already exists inside the granted folder makes the file it points at readable, wherever that file lives/i],
-            'NO_GRANT_MESSAGE': [/hard link that already exists inside the folder makes the file it points at readable wherever on the disk that file lives/i],
-            'initialize.instructions': [/hard link that already exists inside this folder makes the file it points at readable, wherever on the disk that file lives/i],
-            'tool:read':[/hard link created inside the folder can reach a file outside it/i]
+            'README.md': [/hard link inside the granted folder makes the file it points at readable and searchable, wherever on the disk that file lives/i],
+            'PRIVACY.md': [/hard link that already exists inside the granted folder makes the file it points at readable and searchable, wherever that file lives/i],
+            'NO_GRANT_MESSAGE': [/hard link that already exists inside the folder makes the file it points at readable and searchable wherever on the disk that file lives/i],
+            'initialize.instructions': [/hard link that already exists inside this folder makes the file it points at readable and searchable, wherever on the disk that file lives/i],
+            'tool:read':[/hard link created inside the folder makes an outside file readable and\s+searchable/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'server.json': 'the manifest states the scope of the grant and defers every fence limit to the README and to the running server\'s disclosure; it makes no containment promise for this to qualify'
         }
@@ -738,6 +758,7 @@ const CLAIMS = [
             'initialize.instructions': [/ordinary folder inspection will not show it as a link/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'tool:read':'addressed to the MODEL, which does not inspect the folder in a file manager; it carries the reach, which is the half that bears on what the model may request',
             'server.json': 'as above — no containment promise, no limits section'
@@ -757,23 +778,24 @@ const CLAIMS = [
         },
         carried: {
             'README.md': [
-                /The only tool it registers is `read`\. There is no tool that writes, moves, renames or deletes/i,
+                /It registers `read` and `search`\. Neither tool writes, moves, renames or deletes/i,
                 /The one thing that can persist on your disk is the optional observation log/i
             ],
             'PRIVACY.md': [
-                /No tool writes, moves, renames or deletes\. The server registers exactly one tool, `read`/i,
+                /No tool writes, moves, renames or deletes\. The server registers `read` and `search`/i,
                 /The process itself can write in exactly one case/i
             ],
             'NO_GRANT_MESSAGE': [
-                /The only tool it registers is `read`; none writes, moves or deletes/i,
+                /It registers `read` and `search`; neither writes, moves or deletes/i,
                 /makes the process itself ATTEMPT, at exit, to write/
             ],
             'initialize.instructions': [
-                /only tool is `read`, so the tool surface is read-only/i,
+                /tools are `read` and `search`; both are read-only/i,
                 /The PROCESS can write in exactly one case/
             ]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             // ⚠ NOT `NPM_BLURB` — this is the one claim the npm sentence brushes against, so it
             // gets its own judgement rather than the shared one. Same call as `server.json` below,
             // and the same discomfort with it.
@@ -796,6 +818,7 @@ const CLAIMS = [
             'initialize.instructions': [/to exactly the path that variable names, which is not checked and may be a network share/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'tool:read':'WYRD_OBSERVE is not a tool concern and the description never mentions it',
             'server.json': 'the manifest declares WYRD_GRANT only; it does not offer WYRD_OBSERVE as a configurable variable'
@@ -815,6 +838,7 @@ const CLAIMS = [
             'initialize.instructions': [/The write is attempted, not guaranteed/, /if it fails it fails silently/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'tool:read':'as above — not a tool concern',
             'server.json': 'as above — WYRD_OBSERVE is not declared there'
@@ -846,6 +870,7 @@ const CLAIMS = [
             'initialize.instructions': [/log the pathnames it touches, never file contents/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'tool:read':'as above — not a tool concern',
             'server.json': 'as above — WYRD_OBSERVE is not declared there'
@@ -902,6 +927,7 @@ const CLAIMS = [
             ]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB
         }
     },
@@ -920,6 +946,7 @@ const CLAIMS = [
             'tool:read':[/There is no extension filter, no ignore-file support/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'server.json': 'it makes the same point positively — any path, hidden entries included, .env and .git/config named — which is the operative half in 400 characters'
         }
@@ -940,22 +967,24 @@ const CLAIMS = [
             'server.json': [/That limits what is readable, not what is reachable/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB
         }
     },
     {
-        id: 'NOTHING_KEPT',
-        says: 'wyrd keeps nothing it read — no cache, no index, no database',
+        id: 'SEARCH_TERM_CACHE_NO_DISK',
+        says: 'search retains normalized terms and anchors in memory but no raw text and writes no search data to disk',
         evidence: {
-            grade: 'unverified',
-            limit: 'No mechanism here can establish a process-wide universal negative about caches, indexes, databases, or other retention.'
+            grade: 'derived',
+            limit: 'Source inspection and the bounded cache arm cover this search engine, not arbitrary dependencies or future backends.'
         },
         carried: {
-            'README.md': [/Wyrd keeps nothing it read\. There is no cache, no index and no database/i],
-            'PRIVACY.md': [/Nothing it read\. There is no cache, no index and no database/i],
-            'initialize.instructions': [/Nothing read here is retained\. There is no cache, no index and no database/i]
+            'README.md': [/Search uses a lazy in-memory cache of normalized terms and anchors.*It holds no raw text/i],
+            'PRIVACY.md': [/Search retains normalized terms and anchors in a lazy in-memory cache.*It retains no raw text/i],
+            'initialize.instructions': [/Search builds a lazy in-memory cache of normalized terms and anchors; it holds no raw/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'NO_GRANT_MESSAGE': 'printed BEFORE anything is granted, when nothing has been read; it is about whether to grant, not about retention',
             'tool:read':'a per-call contract; retention is a property of the server, and the instructions carry it to the same model in the same session',
@@ -976,6 +1005,7 @@ const CLAIMS = [
             'tool:read':[/This list is what is known, not a proof that nothing else exists/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'PRIVACY.md': 'it carries no list of its own to qualify — it names the sharpest limit and points at the README for the rest, which is where the completeness caveat sits',
             'server.json': 'no limits section, and no completeness claim to qualify'
@@ -1002,6 +1032,7 @@ const CLAIMS = [
             'tool:read':[/filesystem reparse points cannot be classified by this runtime/i, /still checked against the folder/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'PRIVACY.md': 'defers the limits list to the README, as above',
             'server.json': 'the manifest carries no known-limits section at all; the running server discloses every one of them to the client at startup'
@@ -1026,6 +1057,7 @@ const CLAIMS = [
             'tool:read':[/path component swapped after validation may be read instead of the one checked/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'PRIVACY.md': 'defers the limits list to the README, as above',
             'server.json': 'the manifest carries no known-limits section at all; the running server discloses every one of them to the client at startup'
@@ -1044,6 +1076,7 @@ const CLAIMS = [
             'initialize.instructions': [/In stdio mode, this server opens no network connection of its own\. That is NOT a promise your content stays local/i]
         },
         silent: {
+            'tool:search': 'search describes its own query and results; the shared instructions disclose server-wide limits and retention',
             'package.json': NPM_BLURB,
             'NO_GRANT_MESSAGE': 'printed before a grant exists and before any content can move; it makes no locality claim to qualify',
             'tool:read':'the model is the forwarding party, not a reader who could act on the warning; the instructions carry it in the same session',
@@ -1389,7 +1422,9 @@ function readerRefusalReasons() {
         'dist/server.js no longer defines `refusalText` — the scan below would find nothing and this arm would pass having derived an empty vocabulary');
     assert.ok(/refusalText\(\s*slice\.reason/.test(built),
         "dist/server.js no longer forwards the fence's own `slice.reason` to the caller — if the fence's refusals stop reaching the model, this arm's whole premise is gone");
-    const found = new Set([...built.matchAll(/refusalText\(\s*'([A-Z0-9_]+)'/g)].map(hit => hit[1]));
+    assert.ok(/const readRefusal[\s\S]*?refusalText\(reason, detail\)/.test(built),
+        'the D6 warning wrapper must still forward literal Reader reasons through refusalText');
+    const found = new Set([...built.matchAll(/(?:refusalText|readRefusal)\(\s*'([A-Z0-9_]+)'/g)].map(hit => hit[1]));
     assert.ok(found.size > 0, 'no literal refusal reason was found in dist/server.js — the scan has stopped matching');
     return found;
 }
@@ -1422,6 +1457,7 @@ const REFUSALS = {
     MISSING: { surfaced: /does not exist/i },
     NOT_A_FILE: { surfaced: /NOT_A_FILE/ },
     NOT_TEXT: { surfaced: /NOT_TEXT/ },
+    PLACEHOLDER: { surfaced: /cloud placeholder is refused by default/i },
     RESERVED_NAME: { surfaced: /reserved device name/i },
     // ⚠ `/data stream/`, NOT `/colon/`. The looser pattern was satisfied by the sentence about
     // DRIVE-RELATIVE names, which also contains the word "colon" — so this row would have read as
@@ -1454,24 +1490,25 @@ const REFUSALS = {
 
     /* --- not reachable through this server at all --- */
     NOT_A_DIRECTORY: {
-        exempt: 'returned only by `listDirInGrant`. This server registers exactly one tool, `read`, so no request through it can produce this refusal; `E2-one-tool` is what keeps that true.'
+        exempt: 'returned only by `listDirInGrant`. This server registers only read-only tools, so no request through them can produce this refusal; `E2-two-tools` pins that tool set.'
     },
+    DIGEST_MISMATCH: { exempt: "returned only by the fence's `overwriteFileInGrant`, which the Reader never calls; its first caller is the Scribe's tier-B `overwrite_page`, whose own disclosure will state it." },
     EXISTS: {
-        exempt: 'returned only by `createFileInGrant`. This server registers no tool that creates, so no request through it can produce this refusal; `E2-one-tool` is what keeps that true.'
+        exempt: 'returned only by `createFileInGrant`. This server registers no tool that creates, so no request through it can produce this refusal; `E2-two-tools` is what keeps that true.'
     },
     // ⚠ THE EXEMPTION IS THE UNREACHABILITY, NOT THE OBSCURITY, AND THE DISTINCTION IS WHAT MAKES
     // IT REVISITABLE. `TARGET_CHANGED` is a genuinely interesting refusal — it says the file the
     // fence opened is not the file it looked at — and if this server ever registered a tool that
     // appended, it would need STATING rather than exempting, on the same footing as ESCAPES.
     TARGET_CHANGED: {
-        exempt: 'returned only by `appendLineInGrant`. This server registers exactly one tool, `read`, so no request through it can reach the append path at all; `E2-one-tool` is what keeps that true. ⚠ Revisit the moment this server gains a tool that writes: unlike the other unreachable codes, this one describes a containment observation a caller would want stated, not a fact about the local filesystem.'
+        exempt: 'returned only by `appendLineInGrant`. This server registers only read-only tools, so no request can reach the append path; `E2-two-tools` pins that tool set. ⚠ Revisit the moment this server gains a tool that writes: unlike the other unreachable codes, this one describes a containment observation a caller would want stated, not a fact about the local filesystem.'
     },
     // ⚠ SAME CLASS AS `EXISTS` AND `TARGET_CHANGED`, AND EXEMPTED ON THE SAME GROUND — the
     // unreachability, never the obscurity. `PARENT_ALIAS` is returned only by the two WRITE paths,
-    // `createFileInGrant` and `appendLineInGrant`; this server registers exactly one tool, `read`,
+    // `createFileInGrant` and `appendLineInGrant`; this server registers two read-only tools, `read` and `search`,
     // so no request through it can produce this refusal.
     PARENT_ALIAS: {
-        exempt: 'returned only by the fence\'s two write paths, `createFileInGrant` and `appendLineInGrant`, when a request\'s parent directory resolves somewhere other than where it was spelled. This server registers no tool that writes, so no request through it can produce this refusal; `E2-one-tool` is what keeps that true. ⚠ Revisit the moment this server gains a tool that writes: like `TARGET_CHANGED`, this one describes a containment observation a caller would want STATED rather than exempted — it says the write would have landed somewhere the caller did not name, which is a scope fact and not a fact about the local filesystem. The READ path resolves through in-grant aliases deliberately and is unaffected, so no surface claim changes while this server reads only.'
+        exempt: 'returned only by the fence\'s two write paths, `createFileInGrant` and `appendLineInGrant`, when a request\'s parent directory resolves somewhere other than where it was spelled. This server registers no tool that writes, so no request through it can produce this refusal; `E2-two-tools` is what keeps that true. ⚠ Revisit the moment this server gains a tool that writes: like `TARGET_CHANGED`, this one describes a containment observation a caller would want STATED rather than exempted — it says the write would have landed somewhere the caller did not name, which is a scope fact and not a fact about the local filesystem. The READ path resolves through in-grant aliases deliberately and is unaffected, so no surface claim changes while this server reads only.'
     },
 
     /* --- the Reader's own, returned by `src/server.ts` and by nothing in the fence --- */
@@ -1562,13 +1599,11 @@ test('E15-refusal-vocabulary — every refusal the program can return is stated 
  * Not proof. The row NAMES those arms in `evidence.arms`, and the root aggregation requires every
  * one of those registrations in the run being gated — see the stage-2 block below.
  * `unverified` — NO ARM IN THIS SUITE ASSERTS IT. That is the whole meaning: not an accusation of
- * falsehood, not a defect, and not a debt anyone owes. ⚠ THREE OF THE FIVE CANNOT BE ASSERTED BY
- * ANY ARM THAT COULD EVER BE WRITTEN — `READABLE_NARROWER_THAN_REACHABLE` and
+ * falsehood, not a defect, and not a debt anyone owes. Three of the four current unverified
+ * claims cannot be asserted by an arm: `READABLE_NARROWER_THAN_REACHABLE` and
  * `LIMITS_NOT_EXHAUSTIVE` are universal negatives, and `HARDLINK_INVISIBLE_TO_INSPECTION` is a
- * claim about file managers rather than about wyrd. A fourth, `NOTHING_KEPT`, describes what the
- * code does not contain: there is no cache, no index and no database because none was written, and
- * no test can prove the absence of a thing nobody wrote. Reading the source is how that one is
- * checked, and the source is short.
+ * claim about file managers rather than about wyrd.
+ * The bounded search-cache claim is derived from the engine and SR11's cache shape.
  *
  * This stage grades the table and keeps its denominator visible. It does not establish that any
  * claim is true.
@@ -1627,15 +1662,13 @@ test('E16-claim-evidence — every claim declares an evidence grade and a substa
         // worth keeping. They were added to stop `unverified` rows becoming wallpaper, which
         // assumed every row is a debt someone must discharge. Most are not.
         //
-        // `NOTHING_KEPT` says there is no cache, no index and no database. That is a DESCRIPTION OF
-        // THE CODE, readable in the code, and no test can prove the absence of a thing nobody
-        // wrote. `READABLE_NARROWER_THAN_REACHABLE` and `LIMITS_NOT_EXHAUSTIVE` are universal
+        // `SEARCH_TERM_CACHE_NO_DISK` describes the term cache and lack of search disk writes.
+        // Its grade is derived from code and the bounded cache arm, within the stated limit.
+        // `READABLE_NARROWER_THAN_REACHABLE` and `LIMITS_NOT_EXHAUSTIVE` are universal
         // negatives; `HARDLINK_INVISIBLE_TO_INSPECTION` is about file managers, not about wyrd.
         // A review date on any of these schedules a meeting with a fact that will not have changed.
         //
-        // Ruled 2026-09-15: we are not trying to prove a negative, and a claim does not need a test
-        // to be true. Either the thing is kept or it is not; it is not. Anything past that is
-        // over-complication — layers of waste calling themselves sophistication.
+        // Ruled 2026-09-15: unverified claims are not automatically debts to test.
         //
         // What `unverified` means here is therefore narrow and final: NO ARM ASSERTS THIS. It is
         // not a defect, not a debt, and not a promise that someone will come back to it.
@@ -1742,7 +1775,6 @@ test('E16-claim-evidence — every claim declares an evidence grade and a substa
     const expectedUnverified = [
         'HARDLINK_INVISIBLE_TO_INSPECTION',
         'LIMITS_NOT_EXHAUSTIVE',
-        'NOTHING_KEPT',
         'OBSERVE_RECORDS_PATHS_NOT_CONTENT',
         'READABLE_NARROWER_THAN_REACHABLE'
     ];
@@ -1911,4 +1943,86 @@ test('E19-transport-network-accounting — every derived transport has network b
         problems.length === 0,
         `\n${problems.length} transport-network-accounting problem(s):\n\n${problems.join('\n\n')}\n`
     );
+});
+
+function d6CallGate(summary, readFileInGrant, currentDetection = () => summary.placeholder_detection) {
+    const fsgate = {
+        disclosedRoot: () => 'test-grant',
+        placeholderDetection: currentDetection,
+        grantPlaceholderSummary: async () => summary,
+        readFileInGrant
+    };
+    const instance = server.createServer({ fsgate, transport: 'stdio' });
+    const handler = instance._getRequestHandler('tools/call');
+    return args => handler({ method: 'tools/call', params: { name: 'read', arguments: args } },
+        { mcpReq: { requestState: () => undefined } });
+}
+
+function d6Slice(text, dehydrated = false) {
+    const bytes = Buffer.from(text);
+    return { ok: true, bytes, offset: 0, nextOffset: bytes.length, truncated: false,
+        size: bytes.length, dehydrated, placeholder_detection: 'available' };
+}
+
+test('SR1-placeholder-one-of-many — one known placeholder warns on an ordinary read', async () => {
+    arm('SR1-placeholder-one-of-many');
+    const summary = { placeholder_detection: 'available', placeholder_count: 1, file_count: 20,
+        placeholder_fraction: 0.05, warning: '1 of 20 files in the grant are cloud placeholders (5.00%).' };
+    const call = d6CallGate(summary, async () => d6Slice('ordinary'));
+    const result = await call({ path: 'ordinary.md' });
+    assert.equal(result.isError, undefined);
+    assert.equal(result.content[1].text, 'ordinary');
+    assert.match(result.content[0].text, /1 of 20 files.*5\.00%/);
+    assert.deepEqual(result.structuredContent, summary);
+});
+
+test('SR3-read-opt-in — default refusal names the download and only true hydrates', async () => {
+    arm('SR3-read-opt-in');
+    const summary = { placeholder_detection: 'available', placeholder_count: 1, file_count: 2,
+        placeholder_fraction: 0.5, warning: '1 of 2 files in the grant are cloud placeholders (50.00%).' };
+    const seen = [];
+    const call = d6CallGate(summary, async (_path, _offset, _limit, hydrate) => {
+        seen.push(hydrate);
+        return hydrate ? d6Slice('downloaded', true) : {
+            ok: false, reason: 'PLACEHOLDER', resolvedPath: '',
+            detail: 'reading cloud.md would download its cloud placeholder. Retry with hydrate: true.'
+        };
+    });
+    const blocked = await call({ path: 'cloud.md' });
+    assert.equal(blocked.isError, true);
+    assert.match(blocked.content[0].text, /would download its cloud placeholder/);
+    assert.match(blocked.content[0].text, /1 of 2 files.*50\.00%/);
+    assert.equal(blocked.structuredContent.placeholder_count, 1);
+    assert.equal(blocked.structuredContent.dehydrated, true);
+    const allowed = await call({ path: 'cloud.md', hydrate: true });
+    assert.equal(allowed.isError, undefined);
+    assert.equal(allowed.content[1].text, 'downloaded');
+    assert.equal(allowed.structuredContent.dehydrated, true);
+    assert.deepEqual(seen, [false, true]);
+});
+
+test('SR4-unsupported-platform — unavailable is carried on passing and refusing reads', async () => {
+    arm('SR4-unsupported-platform');
+    const summary = { placeholder_detection: 'unavailable', placeholder_count: null,
+        file_count: null, placeholder_fraction: null };
+    const call = d6CallGate(summary, async path => path === 'missing.md'
+        ? { ok: false, reason: 'MISSING', resolvedPath: '', detail: 'missing.md does not exist' }
+        : { ...d6Slice('available'), dehydrated: null, placeholder_detection: 'unavailable' });
+    const passing = await call({ path: 'normal.md' });
+    const refusing = await call({ path: 'missing.md' });
+    assert.equal(passing.content[1].text, 'available');
+    assert.equal(refusing.isError, true);
+    assert.equal(passing.structuredContent.placeholder_detection, 'unavailable');
+    assert.equal(refusing.structuredContent.placeholder_detection, 'unavailable');
+    assert.equal(passing.structuredContent.placeholder_count, null);
+    assert.equal(refusing.structuredContent.placeholder_count, null);
+    let detection = 'available';
+    const lateFailure = d6CallGate({ placeholder_detection: 'available', placeholder_count: 0,
+        file_count: 1, placeholder_fraction: 0 }, async () => {
+        detection = 'unavailable';
+        return { ...d6Slice('local'), dehydrated: null, placeholder_detection: 'unavailable' };
+    }, () => detection);
+    const afterFailure = await lateFailure({ path: 'normal.md' });
+    assert.equal(afterFailure.structuredContent.placeholder_detection, 'unavailable');
+    assert.equal(afterFailure.structuredContent.placeholder_count, null);
 });

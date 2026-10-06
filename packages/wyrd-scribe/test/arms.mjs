@@ -128,7 +128,7 @@ export const STAMP_ARMS = {
     'ST3-config-invalid': 'an unknown key, a wrong schema, a non-UUID id and a non-boolean flag each refuse SCRIBE_CONFIG_INVALID, and each refusal carries config_created false — the config EXISTS, so the exclusive create refused EXISTS and this call minted nothing',
     'ST4-config-too-large': 'a config over the 16,384-byte read window refuses SCRIBE_CONFIG_TOO_LARGE carrying config_created false, and the one-byte-under pair refuses INVALID carrying it too, so the size branch is a SIZE branch',
     'ST5-arc-immutable-before-sources': 'an Arc/ target refuses ARC_IMMUTABLE with the primitive spy showing NO source was read — the oracle leg',
-    'ST6-source-escape-reads-nothing-appends-nothing': 'a source resolving outside the grant refuses under the FENCE\'s reason; target not created, appender never called',
+    'ST6-source-escape-reads-nothing-appends-nothing': 'a source resolving outside the grant refuses under the FENCE\'s reason; target not created, appender never called; a cloud placeholder source refuses before content open while a local source passes',
     'ST7-source-changed': 'primitives serving different bytes to the window loop and the hash refuse SOURCE_CHANGED_DURING_READ, creating no PAGE while reporting through config_created true the config step 4 minted before the loop ran — the invocation is not a no-op and the arm no longer says it is',
     'ST8-record-shape': 'a successful write: the appended line parses and matches the wire shape key-for-key, vault_id on every identity, forward-slash paths, quote.sha256 over the FULL quote',
     'ST9-quote-truncated': 'a 3,000-byte multibyte quote stores ≤1024 bytes cut on a UTF-8 boundary, truncated true, original_utf8_bytes 3000, sha256 still over the whole quote',
@@ -174,7 +174,16 @@ export const STAMP_ARMS = {
     // own object, so `writePage` re-read `content`, `derivedFrom` and every span off it across two
     // awaits — the validated thing and the used thing were different reads of a mutable object.
     'ST42-request-mutation-after-validation-is-not-observed': 'a getter serving one value to its FIRST read and a substitute to every later read is not observed: content, derivedFrom and a SPAN inside it are each read EXACTLY ONCE, at validation, so the substitute is never fetched; the page bytes and the ledger record carry the validated content (asserted on both), and the ledger record carries the validated derivedFrom and span (asserted on the ledger; nothing on the page carries them). The option hooks mark the steps the second read WOULD have happened at; they mutate nothing',
-    'ST43-refusal-discrimination-is-not-caller-supplied': 'a request whose PROTOTYPE carries { ok: false } is a request, not a refusal — it writes its page and appends its line, and the caller\'s forged reason never comes back; the own-property leg refuses BAD_INPUT at the strict key screen, which is a different reason and is asserted as one'
+    'ST43-refusal-discrimination-is-not-caller-supplied': 'a request whose PROTOTYPE carries { ok: false } is a request, not a refusal — it writes its page and appends its line, and the caller\'s forged reason never comes back; the own-property leg refuses BAD_INPUT at the strict key screen, which is a different reason and is asserted as one',
+    'ST44-overwrite-success-lineage': 'a real replacement writes one page_overwritten line with previous and page and the actual tool name',
+    'ST45-overwrite-source-fence-and-precondition': 'escaped source and mismatched digest refuse before replacement',
+    'ST46-overwrite-arc-immutable': 'Arc targets refuse before config and source IO',
+    'ST47-overwrite-ledger-failure': 'failed append reports the completed replacement and cause',
+    'ST48-overwrite-frontmatter': 'generated lineage is replaced once and malformed or duplicate keys refuse',
+    'ST49-overwrite-internal-subtree': '.wyrd targets refuse before config and source IO',
+    'ST50-overwrite-refusal-disk-invariance': 'pre-publication refusals leave target bytes, directory listing and ledger unchanged',
+    'ST51-overwrite-resolved-protected-namespaces': 'Win32 aliases and normalized names reaching protected subtrees refuse before config or page reads',
+    'ST52-write-page-arc-alias-characterization': 'tier A currently mints config before its fence detects an Arc parent alias'
 };
 
 /**
@@ -200,23 +209,43 @@ export const SERVER_ARMS = {
     'SV3-b-positive-list': 'the test-only B fixture uses the real planner and server builder, lists A plus overwrite_page, and dispatches the inert B registration through the planned map',
     'SV4-c-positive-list': 'the test-only C fixture uses the same builder, lists all four cumulative registrations, and dispatches both inert C registrations through the planned map',
     'SV5-invalid-tier-no-open': 'empty, lowercase, unknown and four padded tier values each name their raw value verbatim and refuse before either the injected gate or transport factory runs',
-    'SV6-known-tier-unavailable': 'production B and C each name the requested tier and refuse before opening a gate or transport rather than silently capping to A',
+    'SV6-known-tier-unavailable': 'production C names the requested tier and refuse before opening a gate or transport rather than silently capping to A',
     'SV7-disclosure-as-received': 'initialize.instructions received by the SDK client names the canonical grant, active tier, exact tool set, conditioned parent-alias boundary, unconditional root-identity recheck, residual races/open interval, append retention and retained-page outcome',
     'SV8-description-as-received': 'every listed production tool names active tier A; write_page first sentence is exactly 86 characters and describes an immediate create attempt while carrying the tier, Arc/ and fence',
     'SV9-write-and-lineage': 'a real stdio write_page call creates the supplied page and exactly one LF-terminated lineage record naming it',
     'SV10-refusals-on-wire': 'Arc/, occupied target, escaped target and escaped source refusals carry their complete exact result envelopes over MCP; no refused target lands and the ledger stays byte-identical',
-    'SV11-reader-unchanged': 'with both stdio servers configured and connected, the Reader lists exactly read while the Scribe lists exactly write_page',
+    'SV11-reader-unchanged': 'with both stdio servers configured and connected, the Reader lists exactly read and search while the Scribe lists exactly write_page',
     'SV12-schema-enforced-on-wire': 'over real stdio, an extra property, negative offset, empty spans, missing source and zero length in a three-key span each name the first schema violation and call the injected Scribe port zero times',
     'SV13-rich-results-on-wire': 'a first write carries config_created true and a ledger failure carries reason, nested cause and created with each JSON body byte-identical to the injected port result; the ledger-failure prefix says the page was created and directs the caller to cause.retained',
     'SV14-fence-claims-are-the-fences': 'initialize instructions and the write_page description carry the conditioned alias claim, unconditional root-identity recheck, residual races/open interval, append retention, the fence README limits heading verbatim and pointers to both write API contracts',
-    'SV15-v1-raw-baseline': 'an SDK-free raw JSON-RPC corpus pins tier refusals, pre-initialize and duplicate-initialize behavior, non-empty client capabilities and list cursor, the v1 -32603 invalid-name characterization baseline, selected static stdout bytes, exact schemas/descriptions, deterministic write and ledger bytes, schema and fence refusals, fixture B/C registrations, per-stream line ordering and filesystem outcomes'
+    'SV15-v1-raw-baseline': 'an SDK-free raw JSON-RPC corpus pins tier refusals, pre-initialize and duplicate-initialize behavior, non-empty client capabilities and list cursor, the v1 -32603 invalid-name characterization baseline, selected static stdout bytes, exact schemas/descriptions, deterministic write and ledger bytes, schema and fence refusals, fixture B/C registrations, per-stream line ordering and filesystem outcomes',
+    'SV16-factory-validates-once': 'the configured-server factory can build three distinct servers while tier and grant startup work runs exactly once',
+    'SV17-factory-writes-nothing': 'three configured-server factory calls leave every recursive grant entry, file size, timestamp, symlink target and content hash unchanged, including .wyrd',
+    'SV18-invalid-tier-before-factory-work': 'an invalid tier refuses before grant, configured-server serving or transport work begins',
+    'SV19-production-b-list': 'production A lists exactly write_page, B lists exactly write_page and overwrite_page, and C remains unavailable'
 };
 
 export const PACKAGE_ARMS = {
-    'PK1-manifest-surface': 'the published 0.1.1 manifest has the exact binary, files, metadata and Fence dependency surface without publish material',
+    'PK1-manifest-surface': 'the published 0.2.0 manifest has the exact binary, files, metadata and Fence dependency surface without publish material',
     'PK2-packed-files': 'npm pack derives package metadata, docs, the bin and every expected dist output while excluding source, scripts, tests and build metadata',
     'PK3-version-single-source': 'the generated runtime version equals package.json and server.ts owns no second literal',
-    'PK4-readme-contract': 'the README states the Tier-A, configuration, input, lineage, recovery, security and privacy contracts and links to the Fence window'
+    'PK4-readme-contract': 'the README states the Tier-A, configuration, input, lineage, recovery, security and privacy contracts and links to the Fence window',
+    'PK5-internal-dependency-preflight': 'different exact, workspace:, file: and link: internal specs each refuse naming the declaration and local version; the exact local version passes',
+    'PK6-internal-dependency-identity': 'on Windows a differently cased spelling of a workspace fixture package succeeds by filesystem identity, while a same-named directory outside the workspace still refuses'
+};
+
+export const HTTP_PREPARATION_ARMS = {
+    'SH1-stdio-factory-invariance': 'stdio receives the configured factory and multiple constructions remain distinct while the v1 raw transcript arm pins wire bytes',
+    'SH2-prelisten-policy-refusals': 'bad Scribe token sources and tier policy inputs refuse before listener construction',
+    'SH3-refusal-zero-effects': 'each Scribe refusal envelope and unauthenticated decision leaves page, ledger and directory listing unchanged',
+    'SH4-disconnect-drain': 'an admitted write completes after request abort and close waits without a deadline for page and ledger completion',
+    'SH5-http-write-on-disk': 'a real authorized MCP write over HTTP creates the page and lineage row',
+    'SH6-http-refusals-no-disk-effects': 'socket refusals and network TLS refusal preserve the vault tree and ledger',
+    'SH7-https-write-on-disk': 'a trusted HTTPS request writes the page and lineage row',
+    'SH8-http-disconnect-drain': 'a disconnected HTTP write completes its held ledger append before listener shutdown resolves',
+    'SH9-http-close-awaits-tracker': 'the Scribe listener close waits for pending work registered with its write tracker',
+    'SH10-runtime-server-error-drain': 'a live listener error reports a Scribe diagnostic and exits non-zero only after the admitted page and ledger row finish',
+    'SH11-https-admitted-write-response-during-close': 'an admitted HTTPS write receives its full success response after shutdown begins and its held ledger append completes'
 };
 
 /** MCP Registry manifest arms — `test/manifest-schema.test.js`. */
@@ -226,7 +255,8 @@ export const MANIFEST_ARMS = {
 };
 
 export const ALL_ARMS = {
-    ...SPAN_ARMS, ...STAMP_ARMS, ...SERVER_ARMS, ...PACKAGE_ARMS, ...MANIFEST_ARMS
+    ...SPAN_ARMS, ...STAMP_ARMS, ...SERVER_ARMS, ...PACKAGE_ARMS, ...MANIFEST_ARMS,
+    ...HTTP_PREPARATION_ARMS
 };
 
 /**

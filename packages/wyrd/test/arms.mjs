@@ -76,7 +76,7 @@ export const STARTUP_ARMS = {
  */
 export const E2E_ARMS = {
     'E1-handshake': 'initialize handshake over stdio',
-    'E2-one-tool': 'exactly one tool, `read`, with a real description',
+    'E2-two-tools': 'exactly read and search, each with a real description and read-only hint',
     'E3-read-and-refuse': 'serves in-grant, refuses an escape, end to end',
     'E5-disclosure': 'initialize.instructions discloses the CANONICAL grant, names no outside path, and qualifies the no-network claim as stdio-only',
     'E6-preflight': 'the suite preflight refuses on denied symlink privilege, and separates the probe stages',
@@ -92,6 +92,74 @@ export const E2E_ARMS = {
     'E17-v1-raw-baseline': 'an SDK-free raw JSON-RPC corpus pins no-grant exit and stderr, grant precedence, pre-initialize and duplicate-initialize behavior, non-empty client capabilities and list cursor, the v1 -32603 invalid-name characterization baseline, selected static stdout bytes, the exact tool declaration, normal, paged, non-text and error reads, per-stream line ordering and unchanged fixture bytes',
     'E18-recapture-refused': 'the recapture guard refuses to overwrite an existing v1 golden and permits a first capture where none exists, and the real corpus file is byte-identical after a refused attempt; it pins THIS entry point only and does not prove no other code can write that file',
     'E19-transport-network-accounting': 'every transport derived by path from the Reader\'s built ServerTransport declaration is represented exactly once in a two-way accounting table and has network behaviour stated on a loaded surface or substantively exempted. ⚠ Set accounting only; it does not establish that a stated sentence is true'
+};
+
+export const SEARCH_SLICE1_ARMS = {
+    'SR1-placeholder-one-of-many': 'one known placeholder among twenty warns on an ordinary read with count and fraction',
+    'SR3-read-opt-in': 'default placeholder refusal names the download and only hydrate true returns bytes',
+    'SR4-unsupported-platform': 'unavailable detection and null counts accompany passing and refusing reads'
+};
+
+export const SEARCH_SLICE2_ARMS = {
+    'SR23-search-wire-shape': 'stdio tools/list declares read and search and a real test-vault query returns measured hit fields and contextual excerpts',
+    'SR24-cap-and-truncation': 'ten wire hits are not truncated and eleven are capped at ten with truncation',
+    'SR25-no-outside-result': 'a sibling outside the grant and a junction alias cannot appear in search hits while an in-grant page passes',
+    'SR26-disclosure': 'stdio instructions and the tool declaration disclose the two read-only tools and lazy term-only memory cache',
+    'SR27-two-tool-raw-baseline': 'current two-tool raw JSON-RPC corpus matches its versioned baseline while the frozen v1 corpus remains preserved',
+    'SR28-hardlink-search-limit': 'an in-grant hard link to outside Markdown is searched and excerpted with the outside file size as the documented limit',
+    'SR10-fresh-add-delete': 'every search re-walks the grant and observes additions and deletions',
+    'SR11-zero-maintenance-reads': 'an unchanged scan uses no maintenance reads and at most one bounded excerpt read',
+    'SR12-narrow-grant': 'frontmatter detects an unknown Mage vocabulary without touching the grant parent',
+    'SR13-large-file-utf8': 'large UTF-8 content uses byte anchors and bounded reads; eleven hits truncate and ten do not',
+    'SR14-zero-files-vs-no-match': 'empty scope, no Markdown, no match, excluded placeholder, and unavailable detection are distinct',
+    'SR16-revalidate-excerpt': 'a deleted or changed candidate is revalidated and never content-opened for an excerpt',
+    'SR17-port-read-scope': 'backend read operations accept only current searchable files and bounded windows',
+    'SR18-long-match-excerpt': 'a long matched token stays in a bounded excerpt with exact byte offset, while a short match keeps leading context',
+    'SR31-read-observed-size': 'read headers and truncation use the opened file size observed after interposed growth or shrinkage, including pagination and UTF-8 trimming',
+    'SR33-sha256-hit': 'byte hashes accept passages without changing hit fields',
+    'SR34-sha256-mismatch': 'each candidate compares its own hash',
+    'SR35-sha256-backend-change': 'revalidation observes changes after the backend answer',
+    'SR36-sha256-one-pass': 'bounded hashing is shared only within a query',
+    'SR37-malformed-version': 'invalid version declarations are dropped and counted before content opens',
+    'SR38-source-range': 'every invalid exclusive range is dropped and counted',
+    'SR39-sha256-window-refusal': 'failed, resized and stalled hash windows fail closed',
+    'SR40-sha256-read-change': 'metadata revalidates captured excerpts including reuse',
+    'SR41-sha256-snapshot-scope': 'hashing cannot open files outside the searchable snapshot',
+    'SR43-sha256-withheld-change': 'a changing eleventh hash cannot declare truncation',
+    'SR44-sha256-same-stat-swap': 'excerpts come from hashed bytes despite same-stat replacement',
+    'SR45-candidate-anchors': 'every candidate validates both numeric anchors',
+    'SR46-sha256-withheld-excerpt': 'uncuttable eleventh hash excerpts are counted drops',
+    'SR47-sha256-window-cap': 'uncaptured windows drop and duplicates share bounded capture',
+    'SR49-backend-default': 'absent and empty backend selections preserve default disclosure',
+    'SR50-backend-selection': 'command line backend selection wins and imports a file URL',
+    'SR51-backend-host': 'frozen six-key host follows grant validation and preserves disk layer spelling',
+    'SR52-backend-shared-search': 'one factory and backend serve two servers with ranked fenced results',
+    'SR53-backend-path': 'backend paths must be absolute existing files',
+    'SR54-backend-import': 'import failures refuse without a stack trace',
+    'SR55-backend-export': 'module factory export must be callable',
+    'SR56-backend-factory': 'factory throws and rejections refuse startup',
+    'SR57-backend-return': 'factory result must be an object',
+    'SR58-backend-search-guard': 'backend must have a search function',
+    'SR59-backend-lines-guard': 'disclosure must contain one to forty lines',
+    'SR60-backend-line-guard': 'disclosure lines reject empty overlong non-string and control values',
+    'SR61-backend-close-guard': 'optional close must be callable',
+    'SR62-backend-disclosure': 'human and model receive module scope and attributed disclosure',
+    "SR71-backend-retained-results": "later backend edits cannot change accepted search state",
+    "SR65-backend-private-inputs": "backend edits cannot change engine revalidation inputs",
+    "SR66-backend-stdio-close": "stdio EOF signals and startup refusals await module close once",
+    "SR67-backend-close-deadline": "pending close exits nonzero within the deadline on either transport",
+    "SR68-backend-disclosure-copy": "disclosure indexed values are copied once before validation",
+    "SR69-backend-lexical-facade": "only a frozen lexical search facade reaches the module",
+    "SR70-backend-host-fields": "opaque process UUID and engine scan bound reach the module",
+    'SR64-backend-http-shutdown': 'HTTP shutdown closes the module once reports failures and preserves existing nonzero exit codes',
+    'SR63-backend-real-import-close': 'real production file import and idempotent close work',
+    'SR48-sha256-utf8-window': 'captured windows trim trailing codepoints across hash reads',
+    'SR42-stat-version': 'declared stat candidates retain lexical behavior',
+    'SR32-read-download-observation': 'a placeholder observed before or after opening keeps the read download warning, while ordinary reads remain unmarked and default refusals never open',
+    'SR30-revalidation-dropped-count': 'candidates changed or unreadable after scanning are counted and cannot yield no_matches, while walk and scan counts remain unchanged',
+    'SR19-revalidated-truncation': 'only a valid eleventh candidate makes lexical results truncated, and an external hasMore is honored',
+    'SR20-cost-structure': 'the seeded fixture is byte-deterministic and oversized, the measurement runs at small size, and warm reads and cached values stay bounded without asserting elapsed time',
+    'SR21-mixed-anchor-parity': 'ASCII-only and mixed UTF-8 scan windows preserve the reference byte offset and excerpt start for ASCII and Unicode terms'
 };
 
 /** Streamable HTTP arms — `test/http.test.js`. */
@@ -128,7 +196,9 @@ export const HTTP_ARMS = {
     'H30-tls-disclosure': 'a real fixed-port network HTTPS start derives https metadata, Origins, fingerprint and expiry from its validated certificate, retains the does-not-know block, omits both clear-text-warning phrases, and warns for a sampled under-30-day expiry. ⚠ Pins output and correlation for this start, not routing facts or certificate reloads',
     'H31-tls-handshake-shutdown': 'a raw TCP client stalled before TLS handshake completion is tracked and destroyed so ordered close settles within 750 ms. ⚠ A shorter platform handshake timeout could also pass, and admitted encrypted-request draining is not exercised here',
     'H32-network-instructions-truth': 'the production main HTTP path on loopback, using the default Reader factory, returns authenticated server/discover instructions that say the server is listening, deny outbound connections, retain the client-forwarding locality caveat, and omit the retired transport-neutral no-network sentence',
-    'H33-certificate-der-minimal-integers': 'directed serial-boundary entropy produces a certificate whose non-zero positive serial and every DER INTEGER use the shortest signed representation. ⚠ INTEGER canonicality only; new entropy-derived DER fields need directed boundary inputs of their own'
+    'H33-certificate-der-minimal-integers': 'directed serial-boundary entropy produces a certificate whose non-zero positive serial and every DER INTEGER use the shortest signed representation. ⚠ INTEGER canonicality only; new entropy-derived DER fields need directed boundary inputs of their own',
+    'H34-token-source-diagnostics': 'every Reader HTTP token-source refusal reachable on the current platform reports its exact stderr line, exit code 2 and READ_TOKEN result before listen, including command-line, source-count, canonicality, file, and POSIX permission cases',
+    'H35-http-refusal-envelopes': 'the Reader listener pins exact status, body bytes and deliberately set content-type, connection, Allow, WWW-Authenticate and Cache-Control values for 404, 405, Origin 403, declared and streaming 413, 401, 503 and the injected handler-failure 500'
 };
 
 /**
@@ -151,7 +221,12 @@ export const MANIFEST_ARMS = {
     'MF3-version-single-source': 'the generated runtime version equals package.json, server.ts imports it, and the source owns no second version literal'
 };
 
-export const ALL_ARMS = { ...STARTUP_ARMS, ...E2E_ARMS, ...HTTP_ARMS, ...MANIFEST_ARMS };
+/** Suite-gate arms — `test/suite-gate.test.js`. */
+export const SUITE_GATE_ARMS = {
+    'SG1-local-package-case': 'suite path identity and local-package containment accept a differently cased spelling of the same Windows directory, while containment refuses a sibling-prefix directory and a genuinely different directory'
+};
+
+export const ALL_ARMS = { ...STARTUP_ARMS, ...E2E_ARMS, ...SEARCH_SLICE1_ARMS, ...SEARCH_SLICE2_ARMS, ...HTTP_ARMS, ...MANIFEST_ARMS, ...SUITE_GATE_ARMS };
 
 /**
  * TIER 2 — the arms that cannot run without the Windows symlink privilege.

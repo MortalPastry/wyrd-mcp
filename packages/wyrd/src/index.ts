@@ -62,17 +62,46 @@ if (argv.length === 1 && argv[0] === 'token') {
         }
     });
 
-    if (result.http !== null) {
-        const http = result.http;
-        const requestShutdown = (): void => {
-            process.exitCode ??= 0;
-            void http.close().catch(error => {
-                const detail = error instanceof Error ? error.message : String(error);
-                process.stderr.write(`wyrd: HTTP shutdown failed — ${detail}\n`);
-                process.exitCode = 1;
-            });
+    let shuttingDown: Promise<void> | null = null;
+    const requestShutdown = (): Promise<void> => shuttingDown ??= (async () => {
+        process.exitCode ??= 0;
+        let backendFailed = false;
+        const backendClose = async (): Promise<void> => {
+            if (result.closeSearchBackend !== null) {
+                try { await result.closeSearchBackend(); }
+                catch (error) {
+                    backendFailed = true;
+                    const detail = (error instanceof Error ? error.message : String(error)).replace(/[\x00-\x1f\x7f-\x9f\u2028\u2029]/g, ' ');
+                    await new Promise<void>(resolve => {
+                        process.stderr.write(`wyrd: search backend shutdown failed — ${detail}\n`, () => resolve());
+                    });
+                    if (process.exitCode === 0) process.exitCode = 1;
+                }
+            }
         };
-        process.on('SIGINT', requestShutdown);
-        process.on('SIGTERM', requestShutdown);
+        await Promise.all([backendClose(), result.http?.close().catch(error => {
+            const detail = error instanceof Error ? error.message : String(error);
+            process.stderr.write(`wyrd: HTTP shutdown failed — ${detail}\n`);
+            process.exitCode ||= 1;
+        })]);
+        if (backendFailed) process.exit();
+        if (result.http === null) process.stdin.destroy();
+    })();
+    if (result.http !== null || result.closeSearchBackend !== null) {
+        // A loaded module may leave a handle open after its close settles, so a signalled
+        // shutdown exits once it completes. The close deadline bounds the wait.
+        const onSignal = (): void => {
+            if (result.closeSearchBackend === null) { void requestShutdown(); return; }
+            void requestShutdown().then(() => process.exit());
+        };
+        process.on('SIGINT', onSignal);
+        process.on('SIGTERM', onSignal);
+        if (result.http === null) {
+            process.stdin.on('end', () => { void requestShutdown(); });
+            process.stdin.on('close', () => { void requestShutdown(); });
+            if (process.stdin.readableEnded || process.stdin.destroyed) void requestShutdown();
+            process.once('beforeExit', () => { void requestShutdown(); });
+        }
     }
+    if (!result.started && result.closeSearchBackend !== null) await requestShutdown();
 }

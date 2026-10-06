@@ -10,7 +10,7 @@ import { createFsGate } from 'wyrd-fence';
 import { writePage } from '../dist/stamp.js';
 import { gateAppender, refusingAppender } from '../dist/ledger.js';
 import { MAX_PAGE_PATH_BYTES } from '../dist/lineage.js';
-import { SourceCache } from '../dist/source.js';
+import { SourceCache, readSource } from '../dist/source.js';
 import { declare as arm } from './manifest.mjs';
 
 /**
@@ -501,6 +501,26 @@ test('ST6-source-escape-reads-nothing-appends-nothing — the fence\'s own reaso
         derivedFrom: [{ source: '../outside/nope.md', spans: [{ quote: 'x' }] }]
     });
     assert.equal(relMissing.reason, relExisting.reason, 'a traversal refuses identically either way');
+
+    // The Scribe source path hashes before reading. A cloud placeholder must stop both opens.
+    const cloudWorld = vault();
+    fs.writeFileSync(path.join(cloudWorld.grant, 'Mage', 'cloud.md'), 'cloud bytes');
+    fs.writeFileSync(path.join(cloudWorld.grant, 'Mage', 'local.md'), 'local bytes');
+    const opens = [];
+    const cloudGate = createFsGate({ rawGrant: cloudWorld.grant, primitives: {
+        open: (target, flags) => { opens.push(target); return fs.openSync(target, flags); },
+        placeholderAttributes: async target => ({
+            attributes: path.basename(target) === 'cloud.md' ? 0x1000 : 0,
+            reparseTag: 0
+        })
+    } });
+    const blocked = await readSource(cloudGate, 'Mage/cloud.md', new SourceCache());
+    assert.equal(blocked.reason, 'PLACEHOLDER');
+    assert.equal(opens.length, 0);
+    const local = await readSource(cloudGate, 'Mage/local.md', new SourceCache());
+    assert.equal(local.rel, 'Mage/local.md');
+    assert.equal(local.bytes.toString(), 'local bytes');
+    assert.ok(opens.length >= 2, 'the local counterpart hashes and reads');
 });
 
 test('ST7-source-changed — bytes that differ between the loop and the hash refuse', async () => {

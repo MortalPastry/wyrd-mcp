@@ -6,12 +6,12 @@
     "url": "https://github.com/MortalPastry/wyrd-mcp",
     "source": "github"
   },
-  "version": "0.2.0",
+  "version": "0.3.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "wyrd-mcp",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "transport": {
         "type": "stdio"
       },
@@ -23,12 +23,27 @@
           "isRequired": false,
           "format": "filepath",
           "isSecret": false
+        },
+        {
+          "type": "named",
+          "name": "--search-backend",
+          "description": "Optional. Absolute path to one module file that answers search instead of the built-in search. Wins over WYRD_SEARCH_BACKEND. The module runs inside the server process and is not confined to the granted folder; omit unless you trust it.",
+          "isRequired": false,
+          "format": "filepath",
+          "isSecret": false
         }
       ],
       "environmentVariables": [
         {
           "name": "WYRD_GRANT",
           "description": "Absolute path to the single folder to serve, read-only. Used when --grant is not passed. The server refuses to start if neither is set.",
+          "isRequired": false,
+          "format": "filepath",
+          "isSecret": false
+        },
+        {
+          "name": "WYRD_SEARCH_BACKEND",
+          "description": "Optional. Absolute path to one module file that answers search instead of the built-in search. Used when --search-backend is not passed. The module runs inside the server process and is not confined to the granted folder; leave unset unless you trust it.",
           "isRequired": false,
           "format": "filepath",
           "isSecret": false

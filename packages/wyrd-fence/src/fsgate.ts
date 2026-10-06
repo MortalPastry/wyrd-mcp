@@ -1,5 +1,6 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import path from 'node:path';
 
 /** The window `hashInGrant` streams a source through. Never slurp a source: they are transcripts. */
@@ -122,6 +123,160 @@ const UNSAFE_IN_DISCLOSURE =
 /** The Win32 device and UNC-device namespaces. A grant root spelled this way refuses its own children. */
 const NAMESPACED = /^[\\/][\\/][.?][\\/]/;
 
+/** Win32 metadata comes from FindFirstFileW; it does not open a content handle. */
+export interface PlaceholderAttributes {
+    readonly attributes: number;
+    readonly reparseTag: number;
+}
+
+export type PlaceholderProbe = (target: string) => Promise<PlaceholderAttributes | null>;
+
+const WINDOWS_PLACEHOLDER_SCRIPT = String.raw`
+$ErrorActionPreference = 'Stop'
+$source = @'
+using System;
+using System.Runtime.InteropServices;
+public static class WinFind {
+ [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+ public struct Data {
+  public uint attrs;
+  public struct FileTime { public uint low; public uint high; }
+  public FileTime creation; public FileTime access; public FileTime write;
+  public uint sizeHi; public uint sizeLo; public uint tag; public uint reserved;
+  [MarshalAs(UnmanagedType.ByValTStr, SizeConst=260)] public string name;
+  [MarshalAs(UnmanagedType.ByValTStr, SizeConst=14)] public string alternate;
+ }
+ [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true, EntryPoint="FindFirstFileW")]
+ public static extern IntPtr First(string name, out Data data);
+ [DllImport("kernel32.dll", SetLastError=true)] public static extern bool FindClose(IntPtr h);
+ public static Data Get(string name) {
+  Data d; IntPtr handle=First(name, out d);
+  if (handle==new IntPtr(-1)) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+  FindClose(handle); return d;
+ }
+}
+'@
+try { Add-Type -TypeDefinition $source }
+catch { Write-Output 'HELPER_LOAD_FAILED'; exit 1 }
+while ($null -ne ($line=[Console]::In.ReadLine())) {
+ try {
+  if ($line.StartsWith('B')) {
+   $names=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($line.Substring(1))).Split([char]0)
+   $answers=foreach ($name in $names) {
+    try {
+     $data=[WinFind]::Get($name)
+     $data.attrs.ToString() + ' ' + $data.tag.ToString() + ' ' + $data.sizeHi.ToString() + ' ' + $data.sizeLo.ToString()
+    } catch { 'ERR' }
+   }
+   [Console]::Out.WriteLine(($answers -join ';'))
+   continue
+  }
+  $name=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($line))
+  $data=[WinFind]::Get($name)
+  [Console]::Out.WriteLine(($data.attrs.ToString() + ' ' + $data.tag.ToString() + ' ' + $data.sizeHi.ToString() + ' ' + $data.sizeLo.ToString()))
+ } catch { [Console]::Out.WriteLine('ERR') }
+}
+`;
+
+interface PlaceholderSession {
+    child: ChildProcessWithoutNullStreams;
+    pending: Array<(line: string) => void>;
+    buffer: string;
+    idle?: NodeJS.Timeout;
+    startup?: NodeJS.Timeout;
+    answered: boolean;
+}
+let placeholderSession: PlaceholderSession | undefined;
+const HELPER_LOAD_FAILED = 'HELPER_LOAD_FAILED';
+const HELPER_LOAD_CAUSE = 'placeholder detection unavailable because PowerShell could not load the helper (Add-Type failed; Constrained Language Mode or an application-control policy are common causes)';
+let placeholderHelperLoadFailed = false;
+function helperLoadError(): Error {
+    return Object.assign(new Error(HELPER_LOAD_CAUSE), { code: 'ERR_PLACEHOLDER_HELPER_LOAD' });
+}
+
+function windowsPlaceholderRequest(input: string): Promise<string> {
+    if (placeholderHelperLoadFailed) return Promise.reject(helperLoadError());
+    let state = placeholderSession;
+    if (!state) {
+        const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', WINDOWS_PLACEHOLDER_SCRIPT], {
+            stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true
+        });
+        state = { child, pending: [], buffer: '', answered: false };
+        placeholderSession = state;
+        const own = state;
+        child.stdout.setEncoding('utf8');
+        child.stdout.on('data', (chunk: string) => {
+            own.buffer += chunk;
+            let end: number;
+            while ((end = own.buffer.indexOf('\n')) >= 0) {
+                const line = own.buffer.slice(0, end).trim();
+                own.buffer = own.buffer.slice(end + 1);
+                if (!own.answered) {
+                    own.answered = true;
+                    if (own.startup) clearTimeout(own.startup);
+                }
+                if (line === HELPER_LOAD_FAILED) {
+                    placeholderHelperLoadFailed = true;
+                    if (placeholderSession === own) placeholderSession = undefined;
+                    for (const pending of own.pending.splice(0)) pending(line);
+                    own.child.stdin.end();
+                } else own.pending.shift()?.(line);
+            }
+        });
+        const failed = () => {
+            if (own.startup) clearTimeout(own.startup);
+            if (placeholderSession === own) placeholderSession = undefined;
+            for (const pending of own.pending.splice(0)) pending('ERR');
+        };
+        own.startup = setTimeout(() => {
+            failed();
+            child.kill();
+        }, 5000);
+        own.startup.unref();
+        child.on('error', failed);
+        child.on('exit', failed);
+        child.stdin.on('error', failed);
+        child.stderr.resume();
+    }
+    if (state.idle) clearTimeout(state.idle);
+    const current = state;
+    return new Promise((resolve, reject) => {
+        current.pending.push(line => {
+            if (line === HELPER_LOAD_FAILED) reject(helperLoadError());
+            else resolve(line);
+            if (current.pending.length === 0) {
+                current.idle = setTimeout(() => {
+                    if (placeholderSession === current && current.pending.length === 0) {
+                        placeholderSession = undefined;
+                        current.child.stdin.end();
+                    }
+                }, 1000);
+                current.idle.unref();
+            }
+        });
+        current.child.stdin.write(input + '\n');
+    });
+}
+function parsePlaceholderLine(line: string): PlaceholderAttributes {
+    const match = /^(\d+) (\d+) (\d+) (\d+)$/.exec(line);
+    if (!match) throw new Error('Windows placeholder metadata unavailable');
+    return { attributes: Number(match[1]), reparseTag: Number(match[2]) };
+}
+async function windowsPlaceholderAttributes(target: string): Promise<PlaceholderAttributes> {
+    return parsePlaceholderLine(await windowsPlaceholderRequest(Buffer.from(target, 'utf16le').toString('base64')));
+}
+async function windowsPlaceholderAttributesBatch(targets: readonly string[]): Promise<(PlaceholderAttributes | null)[]> {
+    const input = 'B' + Buffer.from(targets.join('\0'), 'utf16le').toString('base64');
+    const lines = (await windowsPlaceholderRequest(input)).split(';');
+    if (lines.length !== targets.length) throw new Error('Windows placeholder batch response count differs from request');
+    return lines.map(line => line === 'ERR' ? null : parsePlaceholderLine(line));
+}
+function placeholderFromAttributes(info: PlaceholderAttributes): boolean {
+    const attrs = info.attributes;
+    const tag = info.reparseTag;
+    return (attrs & (0x00400000 | 0x00040000 | 0x00001000)) !== 0 ||
+        ((tag & 0xffff0fff) >>> 0) === 0x9000001a;
+}
 export type RequestRefusalReason =
     | 'BAD_INPUT'
     | 'CLAMPED'
@@ -135,6 +290,7 @@ export type RequestRefusalReason =
     | 'NAME_TOO_LONG'
     | 'ROOT_MOVED'
     | 'IO_ERROR'
+    | 'PLACEHOLDER'
     /**
      * A component carries a `:`. On Windows that is ALTERNATE DATA STREAM syntax, not part of the
      * filename — `note.md::$DATA` addresses the primary stream of `note.md`, and `link:s` addresses
@@ -202,6 +358,7 @@ export type RequestRefusalReason =
      * is not the one this call observed.
      */
     | 'TARGET_CHANGED'
+    | 'DIGEST_MISMATCH'
     /**
      * A write's PARENT DIRECTORY resolves to somewhere other than where it was spelled — the
      * spelling names one directory and the filesystem hands back another.
@@ -235,6 +392,8 @@ export type RequestRefusalReason =
      * fence holds no rule about any particular directory, and a rule sentence naming one would
      * read as a guarantee this module cannot make. The consumer's protected subtree appears here
      * only as the RATIONALE above, where it is a measured incident rather than a rule.
+     *
+     * 2026-09-28 addition: `overwriteFileInGrant` also uses this reason for an aliased parent.
      */
     | 'PARENT_ALIAS';
 
@@ -268,6 +427,33 @@ export interface Slice {
     readonly nextOffset: number;
     readonly truncated: boolean;
     readonly size: number;
+    readonly dehydrated: boolean | null;
+    readonly placeholder_detection: 'available' | 'unavailable';
+}
+
+export interface FileMetadata {
+    readonly ok: true;
+    readonly rel: string;
+    readonly size: number;
+    readonly mtimeMs: number;
+    readonly dehydrated: boolean | null;
+    readonly placeholder_detection: 'available' | 'unavailable';
+}
+
+export interface GrantPlaceholderSummary {
+    readonly placeholder_detection: 'available' | 'unavailable';
+    readonly placeholder_count: number | null;
+    readonly file_count: number | null;
+    readonly placeholder_fraction: number | null;
+    readonly warning?: string;
+}
+
+/** One fresh, fenced enumeration. No resolved pathname crosses this boundary. */
+export interface GrantWalk {
+    readonly files: readonly FileMetadata[];
+    readonly inaccessible_count: number;
+    readonly placeholder_detection: 'available' | 'unavailable';
+    readonly placeholder_count: number | null;
 }
 
 export interface Entry {
@@ -305,6 +491,28 @@ export interface Appended {
     readonly ok: true;
     readonly rel: string;
     readonly bytes: number;
+}
+
+/** Observed actions of this call; a retained stage hint is never deletion authority. */
+export type OverwriteEffect = {
+    readonly target: 'not_replaced' | 'replaced' | 'indeterminate';
+    readonly stage: { readonly state: 'none' } | {
+        readonly state: 'retained' | 'indeterminate';
+        readonly relHint: string;
+    };
+};
+
+export interface Overwritten {
+    readonly ok: true;
+    readonly rel: string;
+    readonly bytes: number;
+    readonly previousSha256: string;
+    readonly sha256: string;
+    readonly effect: OverwriteEffect & { readonly target: 'replaced' };
+}
+
+export interface OverwriteRefusal extends FenceRefusal {
+    readonly effect: OverwriteEffect;
 }
 
 /**
@@ -355,7 +563,11 @@ export interface Hashed {
 }
 
 export interface FsGate {
-    readFileInGrant(request: string, offset: number, limit: number): Promise<Slice | FenceRefusal>;
+    readFileInGrant(request: string, offset: number, limit: number, hydrate?: boolean): Promise<Slice | FenceRefusal>;
+    fileMetadataInGrant(request: string): Promise<FileMetadata | FenceRefusal>;
+    placeholderDetection(): 'available' | 'unavailable';
+    grantPlaceholderSummary(): Promise<GrantPlaceholderSummary>;
+    walkGrant(): Promise<GrantWalk | FenceRefusal>;
     listDirInGrant(request: string): Promise<Entry[] | FenceRefusal>;
     listGrantRoot(): Promise<Entry[] | FenceRefusal>;
     probeInGrant(request: string): Promise<Probe | FenceRefusal>;
@@ -413,6 +625,9 @@ export interface FsGate {
      *      success reported before the descriptor closed would be a success the fence cannot back.
      */
     createFileInGrant(request: string, bytes: Buffer): Promise<Created | WriteRefusal>;
+
+    /** Replace an existing single-named regular file when its observed bytes match the digest. */
+    overwriteFileInGrant(request: string, expectedSha256: string, bytes: Buffer): Promise<Overwritten | OverwriteRefusal>;
 
     /**
      * Append ONE already-serialised, LF-terminated line to a file under the grant, creating the
@@ -491,9 +706,14 @@ export interface Primitives {
     read(fd: number, buffer: Uint8Array, offset: number, length: number, position: number): number;
     fstat(fd: number): fs.Stats;
     lstat(target: string): fs.Stats;
+    /** Exact file IDs for overwrite; optional for older injected tables. */
+    lstatBigint?(target: string): fs.BigIntStats;
+    fstatBigint?(fd: number): fs.BigIntStats;
     readlink(target: string): string;
     realpathNative(target: string): string;
     readdir(target: string): fs.Dirent[];
+    /** Metadata-only Windows attribute probe; null means unsupported on this platform. */
+    placeholderAttributes?(target: string): Promise<PlaceholderAttributes | null>;
     /**
      * ⚠ THE CREATE PATH'S OPEN, AND IT IS CREATE-EXCLUSIVE BY CONSTRUCTION (`wx`).
      *
@@ -510,9 +730,15 @@ export interface Primitives {
      * non-destructive property the paragraph above states is real and survives the correction —
      * none of the four can truncate or overwrite an existing file's contents — but that is a claim
      * about what the write primitives CAN DO, not a claim that there is one of them.
+     *
+     * 2026-09-28 addition: conditional overwrite adds `stageFlush` and `replaceStaged` below.
+     * The four-primitive count above describes the earlier create/append surface; it is no longer
+     * the count of all write-capable primitives. `replaceStaged` can replace an existing file.
      */
     openExclusive(target: string): number;
     writeAll(fd: number, buffer: Buffer): number;
+    stageFlush(fd: number): void;
+    replaceStaged(stage: string, target: string): void;
     /**
      * The append path's open, in two modes, and the MODE IS THE CALLER'S DECISION rather than a
      * flag combination that covers both.
@@ -587,6 +813,8 @@ const _read: Primitives['read'] = (fd, buffer, offset, length, position) =>
     fs.readSync(fd, buffer, offset, length, position);
 const _fstat: Primitives['fstat'] = fd => fs.fstatSync(fd);
 const _lstat: Primitives['lstat'] = target => fs.lstatSync(target);
+const _lstatBigint = (target: string): fs.BigIntStats => fs.lstatSync(target, { bigint: true });
+const _fstatBigint = (fd: number): fs.BigIntStats => fs.fstatSync(fd, { bigint: true });
 const _readlink: Primitives['readlink'] = target => fs.readlinkSync(target, 'utf8');
 const _realpathNative: Primitives['realpathNative'] = target => fs.realpathSync.native(target);
 const _readdir: Primitives['readdir'] = target => fs.readdirSync(target, { withFileTypes: true });
@@ -607,6 +835,8 @@ const _writeAll: Primitives['writeAll'] = (fd, buffer) => {
     }
     return written;
 };
+const _stageFlush: Primitives['stageFlush'] = fd => fs.fsyncSync(fd);
+const _replaceStaged: Primitives['replaceStaged'] = (stage, target) => fs.renameSync(stage, target);
 
 /**
  * ⚠ THE EXISTING BRANCH CARRIES NO `O_CREAT`, AND ADDING ONE WOULD BE A SILENT-RECREATION DEFECT.
@@ -629,11 +859,15 @@ const DEFAULT_PRIMITIVES: Primitives = {
     read: _read,
     fstat: _fstat,
     lstat: _lstat,
+    lstatBigint: _lstatBigint,
+    fstatBigint: _fstatBigint,
     readlink: _readlink,
     realpathNative: _realpathNative,
     readdir: _readdir,
     openExclusive: _openExclusive,
     writeAll: _writeAll,
+    stageFlush: _stageFlush,
+    replaceStaged: _replaceStaged,
     openAppend: _openAppend,
     appendOnce: _appendOnce
 };
@@ -659,6 +893,8 @@ export function isRefusal(value: unknown): value is FenceRefusal {
 function mapFsError(error: unknown, what: string): FenceRefusal {
     const code = (error as { code?: unknown } | null)?.code;
     switch (code) {
+        case 'ERR_PLACEHOLDER_HELPER_LOAD':
+            return refuse('IO_ERROR', HELPER_LOAD_CAUSE);
         case 'ENOENT':
             return refuse('MISSING', `no such path in the grant: ${what}`);
         case 'ENOTDIR':
@@ -763,36 +999,27 @@ interface ObjectIdentity {
  * direction that matters. (Same defect class as the release gate's `exactFileId`, found there on
  * 2026-09-02, one package over and pointing the other way.)
  *
- * ⚠ IT READS THE FILESYSTEM DIRECTLY RATHER THAN THROUGH THE INJECTABLE TABLE, AND THAT IS A
- * DELIBERATE, NARROW EXCEPTION rather than an oversight. `Primitives.lstat` and `Primitives.fstat`
- * are typed `=> fs.Stats`, the number form, so no injected implementation can supply an exact id;
- * widening their signatures would change two LOCKED members of a published type surface to repair
- * a third. What the append path does instead is call the injected primitive for the TYPE PREDICATES
- * (`isFile`, `isSymbolicLink`) — so a test still drives what the fence concludes about the object's
- * KIND, and the containment guard still sees every path — and takes the identity from here.
- *
- * ⚠ WHAT THAT COSTS, STATED: identity cannot be staged by injection, so the `TARGET_CHANGED`
- * identity arms drive it with real files on the real filesystem instead. That is a weaker seam and
- * a stronger measurement.
- *
- * `null` when the filesystem supplies no inode (`0`, which network shares report) or when the call
- * throws. Every caller treats `null` as "cannot prove it unchanged" and refuses.
+ * The append path retains the old direct reading and null-on-error behavior. Overwrite supplies
+ * injectable bigint primitives; their errors propagate so inability to observe is mapped as an
+ * I/O refusal rather than reported as an observed object change.
  */
-function exactIdentityOf(target: string): ObjectIdentity | null {
+function exactIdentityOf(target: string, prim?: Primitives): ObjectIdentity | null {
     try {
-        const stats = fs.lstatSync(target, { bigint: true });
+        const stats = prim?.lstatBigint ? prim.lstatBigint(target) : fs.lstatSync(target, { bigint: true });
         return stats.ino === 0n ? null : { dev: stats.dev, ino: stats.ino, nlink: stats.nlink };
-    } catch {
+    } catch (error) {
+        if (prim) throw error;
         return null;
     }
 }
 
 /** The same reading, taken from a DESCRIPTOR — the only one that names an object rather than a name. */
-function exactIdentityOfDescriptor(fd: number): ObjectIdentity | null {
+function exactIdentityOfDescriptor(fd: number, prim?: Primitives): ObjectIdentity | null {
     try {
-        const stats = fs.fstatSync(fd, { bigint: true });
+        const stats = prim?.fstatBigint ? prim.fstatBigint(fd) : fs.fstatSync(fd, { bigint: true });
         return stats.ino === 0n ? null : { dev: stats.dev, ino: stats.ino, nlink: stats.nlink };
-    } catch {
+    } catch (error) {
+        if (prim) throw error;
         return null;
     }
 }
@@ -1494,11 +1721,17 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
     const readFn = supplied?.read ?? DEFAULT_PRIMITIVES.read;
     const fstatFn = supplied?.fstat ?? DEFAULT_PRIMITIVES.fstat;
     const lstatFn = supplied?.lstat ?? DEFAULT_PRIMITIVES.lstat;
+    const lstatBigintFn = supplied?.lstatBigint ?? DEFAULT_PRIMITIVES.lstatBigint!;
+    const fstatBigintFn = supplied?.fstatBigint ?? DEFAULT_PRIMITIVES.fstatBigint!;
     const readlinkFn = supplied?.readlink ?? DEFAULT_PRIMITIVES.readlink;
     const realpathNativeFn = supplied?.realpathNative ?? DEFAULT_PRIMITIVES.realpathNative;
     const readdirFn = supplied?.readdir ?? DEFAULT_PRIMITIVES.readdir;
+    const placeholderAttributesFn: PlaceholderProbe = supplied?.placeholderAttributes ??
+        (process.platform === 'win32' ? windowsPlaceholderAttributes : async () => null);
     const openExclusiveFn = supplied?.openExclusive ?? DEFAULT_PRIMITIVES.openExclusive;
     const writeAllFn = supplied?.writeAll ?? DEFAULT_PRIMITIVES.writeAll;
+    const stageFlushFn = supplied?.stageFlush ?? DEFAULT_PRIMITIVES.stageFlush;
+    const replaceStagedFn = supplied?.replaceStaged ?? DEFAULT_PRIMITIVES.replaceStaged;
     const openAppendFn = supplied?.openAppend ?? DEFAULT_PRIMITIVES.openAppend;
     const appendOnceFn = supplied?.appendOnce ?? DEFAULT_PRIMITIVES.appendOnce;
 
@@ -1509,15 +1742,27 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
             Reflect.apply(readFn, undefined, [fd, buffer, offset, length, position]) as number,
         fstat: fd => Reflect.apply(fstatFn, undefined, [fd]) as fs.Stats,
         lstat: target => Reflect.apply(lstatFn, undefined, [target]) as fs.Stats,
+        lstatBigint: target => Reflect.apply(lstatBigintFn, undefined, [target]) as fs.BigIntStats,
+        fstatBigint: fd => Reflect.apply(fstatBigintFn, undefined, [fd]) as fs.BigIntStats,
         readlink: target => Reflect.apply(readlinkFn, undefined, [target]) as string,
         realpathNative: target => Reflect.apply(realpathNativeFn, undefined, [target]) as string,
         readdir: target => Reflect.apply(readdirFn, undefined, [target]) as fs.Dirent[],
         openExclusive: target => Reflect.apply(openExclusiveFn, undefined, [target]) as number,
         writeAll: (fd, buffer) => Reflect.apply(writeAllFn, undefined, [fd, buffer]) as number,
+        stageFlush: fd => Reflect.apply(stageFlushFn, undefined, [fd]) as void,
+        replaceStaged: (stage, target) => Reflect.apply(replaceStagedFn, undefined, [stage, target]) as void,
         openAppend: (target, mode) => Reflect.apply(openAppendFn, undefined, [target, mode]) as number,
         appendOnce: (fd, buffer) => Reflect.apply(appendOnceFn, undefined, [fd, buffer]) as number
     };
     const prim: Primitives = Object.freeze(unbound);
+    let detection: 'available' | 'unavailable' = process.platform === 'win32' && !placeholderHelperLoadFailed ? 'available' : 'unavailable';
+    async function checkPlaceholder(target: string): Promise<boolean | null> {
+        let info: PlaceholderAttributes | null;
+        try { info = await Reflect.apply(placeholderAttributesFn, undefined, [target]) as PlaceholderAttributes | null; }
+        catch (error) { detection = 'unavailable'; throw error; }
+        detection = info === null ? 'unavailable' : 'available';
+        return info === null ? null : placeholderFromAttributes(info);
+    }
 
     let named_stats: fs.Stats;
     try {
@@ -1584,6 +1829,11 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
         );
     }
 
+    // Numeric NTFS file IDs can round distinct directories to the same value.
+    let rootExactIdentity: ObjectIdentity | null;
+    try { rootExactIdentity = exactIdentityOf(canonicalRoot, prim); }
+    catch { return refuse('GRANT_MISSING', `the granted folder identity could not be read: ${named}`, named); }
+
     const root = canonicalRoot;
 
     /**
@@ -1636,19 +1886,13 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
         //      written to PIN the gap, so closing it turns them red ON PURPOSE and that redness is
         //      the review event, not a regression.
         //
-        // Since 2026-09-03 the identity check is unconditional: `current` is only the path handed
-        // to `lstat`, and the `dev`/`ino` comparison below runs on every call. Those values are zero
-        // or unstable on some filesystems and network shares; when either side cannot supply them
-        // the code FAILS CLOSED. A spurious `ROOT_MOVED` is a usability failure, and serving
-        // through a swapped root is not.
+        // Since 2026-09-03 the identity check is unconditional. The numeric `lstat` still
+        // catches an injected or obvious replacement; the exact-ID reading also catches distinct
+        // NTFS objects whose numeric IDs round to the same value. An unavailable identity fails
+        // closed. A recreated grant refuses ROOT_MOVED until restart.
         //
-        // ⚠ COST, MEASURED 2026-09-03 rather than asserted: one `lstat` of the granted folder,
-        // 3.7 us — 1.5% of a single 5 KB file read, and 10% of the `realpathNative` this function
-        // ALREADY pays on every call. 37 ms added to a 10,000-file scan. The visible cost is not
-        // speed: if the operator deletes and recreates the granted folder by hand while the server
-        // runs, the recreated directory has a new inode and every request refuses ROOT_MOVED until
-        // restart. That is indistinguishable, from in here, from the attack — which is exactly why
-        // closing the gap produces it.
+        // The 2026-09-03 cost measurement covered one numeric `lstat`. This now also reads an
+        // exact ID on every call; the combined cost has not been measured.
         let now: fs.Stats;
         try {
             now = prim.lstat(current);
@@ -1658,9 +1902,13 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
         // Unchanged from the conditional version: when either side cannot supply a usable identity
         // the code FAILS CLOSED. A spurious ROOT_MOVED is a usability failure; serving through a
         // swapped root is not a failure this library is allowed to have.
+        let currentExactIdentity: ObjectIdentity | null;
+        try { currentExactIdentity = exactIdentityOf(current, prim); }
+        catch { return refuse('ROOT_MOVED', 'the granted folder identity could not be read'); }
         const identifiable =
             rootIdentity.ino !== 0 && now.ino !== 0 &&
-            rootIdentity.dev === now.dev && rootIdentity.ino === now.ino;
+            rootIdentity.dev === now.dev && rootIdentity.ino === now.ino &&
+            sameObject(rootExactIdentity, currentExactIdentity);
         if (!identifiable) {
             return refuse('ROOT_MOVED', 'the granted folder has been replaced since startup');
         }
@@ -1670,7 +1918,140 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
         return null;
     }
 
-    async function readFileInGrant(request: string, offset: number, limit: number): Promise<Slice | FenceRefusal> {
+    async function fileMetadataInGrant(request: string): Promise<FileMetadata | FenceRefusal> {
+        const moved = rootStillCanonical();
+        if (moved) return moved;
+        const resolved = resolveInGrant(root, prim, request, readScreens);
+        if (isRefusal(resolved)) return resolved;
+        try {
+            const stats = prim.lstat(resolved.actual);
+            if (!stats.isFile()) return refuse('NOT_A_FILE', `${resolved.rel} is not a file`);
+            const dehydrated = await checkPlaceholder(resolved.actual);
+            return Object.freeze({ ok: true as const, rel: resolved.rel.split(path.sep).join('/'), size: stats.size,
+                mtimeMs: stats.mtimeMs, dehydrated, placeholder_detection: detection });
+        } catch (error) {
+            detection = 'unavailable';
+            if ((error as { code?: unknown } | null)?.code === 'ERR_PLACEHOLDER_HELPER_LOAD') return mapFsError(error, resolved.rel);
+            return refuse('IO_ERROR', `placeholder metadata could not be checked for ${resolved.rel}: ${String(error)}`);
+        }
+    }
+
+    function placeholderDetection(): 'available' | 'unavailable' { return detection; }
+
+    async function grantPlaceholderSummary(): Promise<GrantPlaceholderSummary> {
+        const unavailable = (): GrantPlaceholderSummary => ({ placeholder_detection: 'unavailable',
+            placeholder_count: null, file_count: null, placeholder_fraction: null });
+        if (rootStillCanonical()) return unavailable();
+        try {
+            const rootPlaceholder = await checkPlaceholder(root);
+            if (rootPlaceholder === null || rootPlaceholder) return unavailable();
+        } catch {
+            detection = 'unavailable';
+            return unavailable();
+        }
+        const pending = [''];
+        let files = 0;
+        let placeholders = 0;
+        while (pending.length > 0) {
+            const directory = pending.pop()!;
+            const entries = directory === '' ? await listGrantRoot() : await listDirInGrant(directory);
+            if (isRefusal(entries)) return unavailable();
+            for (const entry of entries) {
+                const rel = directory === '' ? entry.name : `${directory}/${entry.name}`;
+                if (entry.kind === 'directory') pending.push(rel);
+                else if (entry.kind === 'file') {
+                    const metadata = await fileMetadataInGrant(rel);
+                    if (isRefusal(metadata) || metadata.dehydrated === null) return unavailable();
+                    files++;
+                    if (metadata.dehydrated) placeholders++;
+                }
+            }
+        }
+        return Object.freeze({ placeholder_detection: 'available' as const,
+            placeholder_count: placeholders, file_count: files,
+            placeholder_fraction: files === 0 ? 0 : placeholders / files,
+            ...(placeholders > 0 ? { warning: `${placeholders} of ${files} files in the grant are cloud placeholders (${(100 * placeholders / files).toFixed(2)}%). Reading one without hydrate: true would download it.` } : {}) });
+    }
+    async function walkGrant(): Promise<GrantWalk | FenceRefusal> {
+        const moved = rootStillCanonical();
+        if (moved) return moved;
+        const pending = [''];
+        const visited = new Set<string>();
+        const files: FileMetadata[] = [];
+        let inaccessible = 0;
+        let placeholders = 0;
+        let measured = detection === 'available';
+        while (pending.length > 0) {
+            const movedDuringWalk = rootStillCanonical();
+            if (movedDuringWalk) return movedDuringWalk;
+            const directory = pending.pop()!;
+            const resolved = directory === '' ? { actual: root } : resolveInGrant(root, prim, directory, readScreens);
+            if (isRefusal(resolved)) { inaccessible++; measured = false; continue; }
+            let entries: fs.Dirent[];
+            try {
+                const stat = prim.lstat(resolved.actual);
+                if (!stat.isDirectory()) { inaccessible++; measured = false; continue; }
+                const identity = process.platform === 'win32' ? resolved.actual.toLowerCase() : resolved.actual;
+                if (visited.has(identity)) continue;
+                visited.add(identity);
+                const dehydrated = await checkPlaceholder(resolved.actual);
+                if (dehydrated || (dehydrated === null && process.platform === 'win32')) {
+                    inaccessible++;
+                    measured = false;
+                    continue;
+                }
+                if (dehydrated === null) measured = false;
+                entries = prim.readdir(resolved.actual);
+            } catch { inaccessible++; measured = false; continue; }
+            const batched: Array<{ actual: string; rel: string; stat: fs.Stats }> = [];
+            for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+                const movedDuringEntry = rootStillCanonical();
+                if (movedDuringEntry) return movedDuringEntry;
+                const rel = directory === '' ? entry.name : `${directory}/${entry.name}`;
+                const child = resolveInGrant(root, prim, rel, readScreens);
+                if (isRefusal(child)) { inaccessible++; measured = false; continue; }
+                try {
+                    const stat = prim.lstat(child.actual);
+                    if (stat.isDirectory()) { pending.push(rel); continue; }
+                    if (!stat.isFile()) continue;
+                    if (process.platform === 'win32' && !supplied?.placeholderAttributes) {
+                        batched.push({ actual: child.actual, rel: child.rel, stat });
+                        continue;
+                    }
+                    const dehydrated = await checkPlaceholder(child.actual);
+                    if (dehydrated === null) measured = false;
+                    if (dehydrated) placeholders++;
+                    files.push(Object.freeze({ ok: true, rel: child.rel.split(path.sep).join('/'), size: stat.size,
+                        mtimeMs: stat.mtimeMs, dehydrated, placeholder_detection: detection }));
+                } catch { inaccessible++; measured = false; }
+            }
+            // One request carries several independent FindFirstFileW probes. Await each
+            // response before sending the next: no request pipelining or response pairing guess.
+            for (let at = 0; at < batched.length; at += 32) {
+                const group = batched.slice(at, at + 32);
+                const movedBeforeBatch = rootStillCanonical();
+                if (movedBeforeBatch) return movedBeforeBatch;
+                let results: (PlaceholderAttributes | null)[];
+                try { results = await windowsPlaceholderAttributesBatch(group.map(item => item.actual)); }
+                catch { detection = 'unavailable'; inaccessible += group.length; measured = false; continue; }
+                const movedAfterBatch = rootStillCanonical();
+                if (movedAfterBatch) return movedAfterBatch;
+                for (let i = 0; i < group.length; i++) {
+                    const item = group[i]!;
+                    const info = results[i];
+                    if (!info) { inaccessible++; measured = false; continue; }
+                    const dehydrated = placeholderFromAttributes(info);
+                    if (dehydrated) placeholders++;
+                    files.push(Object.freeze({ ok: true, rel: item.rel.split(path.sep).join('/'), size: item.stat.size,
+                        mtimeMs: item.stat.mtimeMs, dehydrated, placeholder_detection: 'available' as const }));
+                }
+            }
+        }
+        return Object.freeze({ files: Object.freeze(files), inaccessible_count: inaccessible,
+            placeholder_detection: detection,
+            placeholder_count: measured ? placeholders : null });
+    }
+    async function readFileInGrant(request: string, offset: number, limit: number, hydrate = false): Promise<Slice | FenceRefusal> {
         if (!Number.isSafeInteger(offset) || offset < 0) return refuse('BAD_INPUT', 'offset must be a non-negative integer');
         if (!Number.isSafeInteger(limit) || limit <= 0) return refuse('BAD_INPUT', 'limit must be a positive integer');
         const window = Math.min(limit, MAX_LIMIT);
@@ -1681,6 +2062,21 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
         const resolved = resolveInGrant(root, prim, request, readScreens);
         if (isRefusal(resolved)) return resolved;
 
+        let dehydrated: boolean | null;
+        try {
+            dehydrated = await checkPlaceholder(resolved.actual);
+        } catch (error) {
+            detection = 'unavailable';
+            if ((error as { code?: unknown } | null)?.code === 'ERR_PLACEHOLDER_HELPER_LOAD') return mapFsError(error, resolved.rel);
+            return refuse('IO_ERROR', `placeholder detection failed before opening ${resolved.rel}: ${String(error)}`);
+        }
+        if (dehydrated === null && process.platform === 'win32' && !hydrate) {
+            return refuse('IO_ERROR', `placeholder detection unavailable before opening ${resolved.rel}`);
+        }
+        if (dehydrated && !hydrate) {
+            return refuse('PLACEHOLDER', `reading ${resolved.rel} would download its cloud placeholder. Retry with hydrate: true to allow that download for this call.`);
+        }
+
         let fd: number;
         try {
             fd = prim.open(resolved.actual, 'r');
@@ -1688,6 +2084,19 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
             return mapFsError(error, resolved.rel);
         }
         try {
+            try {
+                const now = await checkPlaceholder(resolved.actual);
+                if (now === null && process.platform === 'win32' && !hydrate)
+                    return refuse('IO_ERROR', `placeholder detection unavailable after opening ${resolved.rel}`);
+                if (now && !hydrate)
+                    return refuse('PLACEHOLDER', `reading ${resolved.rel} would download its cloud placeholder. Retry with hydrate: true to allow that download for this call.`);
+                // Opening can hydrate the file; retain either positive observation.
+                dehydrated = dehydrated === true || now === true ? true : now;
+            } catch (error) {
+                detection = 'unavailable';
+                if ((error as { code?: unknown } | null)?.code === 'ERR_PLACEHOLDER_HELPER_LOAD') return mapFsError(error, resolved.rel);
+                return refuse('IO_ERROR', `placeholder detection failed after opening ${resolved.rel}: ${String(error)}`);
+            }
             const stats = prim.fstat(fd);
             if (stats.isDirectory()) return refuse('NOT_A_FILE', `${resolved.rel} is a directory`);
             const size = stats.size;
@@ -1697,13 +2106,17 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
             const read = prim.read(fd, buffer, 0, window, offset);
             const kept = read < window ? read : trimToCodepointBoundary(buffer, read);
             const nextOffset = offset + kept;
+            // The returned bytes existed when read; a later shrink cannot put the size below them.
+            const observedSize = Math.max(prim.fstat(fd).size, nextOffset);
             return Object.freeze({
                 ok: true as const,
                 bytes: Buffer.from(buffer.subarray(0, kept)),
                 offset,
                 nextOffset,
-                truncated: nextOffset < size,
-                size
+                truncated: nextOffset < observedSize,
+                size: observedSize,
+                dehydrated,
+                placeholder_detection: detection
             });
         } catch (error) {
             return mapFsError(error, resolved.rel);
@@ -1774,6 +2187,21 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
         const resolved = resolveInGrant(root, prim, request, readScreens);
         if (isRefusal(resolved)) return resolved;
 
+        let dehydrated: boolean | null;
+        try {
+            dehydrated = await checkPlaceholder(resolved.actual);
+        } catch (error) {
+            detection = 'unavailable';
+            if ((error as { code?: unknown } | null)?.code === 'ERR_PLACEHOLDER_HELPER_LOAD') return mapFsError(error, resolved.rel);
+            return refuse('IO_ERROR', `placeholder detection failed before opening ${resolved.rel}: ${String(error)}`);
+        }
+        if (dehydrated === null && process.platform === 'win32') {
+            return refuse('IO_ERROR', `placeholder detection unavailable before opening ${resolved.rel}`);
+        }
+        if (dehydrated) {
+            return refuse('PLACEHOLDER', `hashing ${resolved.rel} would download its cloud placeholder.`);
+        }
+
         let fd: number;
         try {
             fd = prim.open(resolved.actual, 'r');
@@ -1781,6 +2209,16 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
             return mapFsError(error, resolved.rel);
         }
         try {
+            try {
+                const now = await checkPlaceholder(resolved.actual);
+                if (now === null && process.platform === 'win32')
+                    return refuse('IO_ERROR', `placeholder detection unavailable after opening ${resolved.rel}`);
+                if (now) return refuse('PLACEHOLDER', `hashing ${resolved.rel} would download its cloud placeholder.`);
+            } catch (error) {
+                detection = 'unavailable';
+                if ((error as { code?: unknown } | null)?.code === 'ERR_PLACEHOLDER_HELPER_LOAD') return mapFsError(error, resolved.rel);
+                return refuse('IO_ERROR', `placeholder detection failed after opening ${resolved.rel}: ${String(error)}`);
+            }
             const stats = prim.fstat(fd);
             if (stats.isDirectory()) return refuse('NOT_A_FILE', `${resolved.rel} is a directory`);
 
@@ -1861,7 +2299,7 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
             // is a CONTAINMENT check, and an in-grant junction passes all of them: a junction
             // resolves inside the grant, so the walk is happy, the arbitration is happy, and the
             // write lands in a directory the caller never named. Measured 2026-09-04 against this
-            // gate with the Scribe's real vault (`Notes -> Arc`): `Notes/planted.md` created
+            // gate with a real vault layout (`Notes -> Arc`): `Notes/planted.md` created
             // `vault/Arc/planted.md`, inside the user's immutable provenance layer. Containment is
             // not the property being asserted here — the property is that a write goes where the
             // caller said.
@@ -2005,6 +2443,402 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
                     /* the refusal above already decided the outcome; a close error cannot improve it */
                 }
             }
+        }
+    }
+
+    async function overwriteFileInGrant(request: unknown, expectedSha256: unknown, bytes: unknown): Promise<Overwritten | OverwriteRefusal> {
+        const none: OverwriteEffect = { target: 'not_replaced', stage: { state: 'none' } };
+        let effect: OverwriteEffect = none;
+        const wrap = (base: FenceRefusal): OverwriteRefusal => Object.freeze({ ...base, effect });
+        const fail = (reason: FenceReason, detail: string): OverwriteRefusal => wrap(refuse(reason, detail));
+        const observedIdentityOf = (name: string): ObjectIdentity => {
+            const identity = exactIdentityOf(name, prim);
+            if (!identity) throw new Error(`exact identity unavailable for ${name}`);
+            return identity;
+        };
+        const observedIdentityOfDescriptor = (fd: number): ObjectIdentity => {
+            const identity = exactIdentityOfDescriptor(fd, prim);
+            if (!identity) throw new Error('exact descriptor identity unavailable');
+            return identity;
+        };
+        const samePath = (left: string, right: string): boolean => {
+            const normalizedLeft = path.normalize(left);
+            const normalizedRight = path.normalize(right);
+            return process.platform === 'win32'
+                ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+                : normalizedLeft === normalizedRight;
+        };
+        try {
+        if (typeof expectedSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(expectedSha256)) {
+            return fail('BAD_INPUT', 'expectedSha256 must be 64 lowercase hexadecimal characters');
+        }
+        if (!Buffer.isBuffer(bytes)) return fail('BAD_INPUT', 'the content must be a Buffer');
+        // Capture the caller's bytes before any asynchronous boundary or injected primitive runs.
+        const content = Buffer.from(bytes);
+        const sha256 = createHash('sha256').update(content).digest('hex');
+        const moved = rootStillCanonical();
+        if (moved) return wrap(moved);
+        const lexical = lexicalStage(root, request, createScreens);
+        if (isRefusal(lexical)) return wrap(lexical);
+        const leaf = path.basename(lexical.spelled);
+        if (leaf === '' || leaf === '.' || leaf === '..') return fail('BAD_INPUT', 'the path does not name a file to overwrite');
+        const parentSpelled = path.normalize(path.dirname(lexical.spelled));
+        const parentRequest = path.relative(root, parentSpelled);
+        let parentActual = root;
+        if (parentSpelled.toLowerCase() !== root.toLowerCase()) {
+            const parent = resolveInGrant(root, prim, parentRequest, createScreens);
+            if (isRefusal(parent)) return wrap(parent);
+            parentActual = parent.actual;
+        }
+        let parentStats: fs.Stats;
+        try { parentStats = prim.lstat(parentActual); }
+        catch (error) { return wrap(mapFsError(error, parentRequest)); }
+        if (!parentStats.isDirectory()) return fail('NOT_A_DIRECTORY', `${parentRequest} is not a directory`);
+        if (_parentIsAliased(parentSpelled, parentActual)) {
+            return fail('PARENT_ALIAS', `${parentRequest} resolves to a different directory than the one it names`);
+        }
+        const parentIdentity = observedIdentityOf(parentActual);
+        const actual = path.join(parentActual, leaf);
+        const rel = path.relative(root, actual);
+        const escaped = _validateDerivedAbsolute(root, actual);
+        if (escaped) return wrap(escaped);
+
+        const checkParent = (): FenceRefusal | null => {
+            const rootMoved = rootStillCanonical();
+            if (rootMoved) return rootMoved;
+            let now = root;
+            if (parentSpelled.toLowerCase() !== root.toLowerCase()) {
+                const resolved = resolveInGrant(root, prim, parentRequest, createScreens);
+                if (isRefusal(resolved)) return resolved;
+                now = resolved.actual;
+            }
+            try {
+                if (!prim.lstat(now).isDirectory()) return refuse('TARGET_CHANGED', `${parentRequest} is no longer a directory`);
+            } catch (error) { return mapFsError(error, parentRequest); }
+            if (!samePath(now, parentSpelled)) {
+                return refuse('PARENT_ALIAS', `${parentRequest} resolves to a different directory than the one it names`);
+            }
+            if (!sameObject(parentIdentity, observedIdentityOf(now))) {
+                return refuse('TARGET_CHANGED', `${parentRequest} changed since it was observed`);
+            }
+            return null;
+        };
+
+        let firstIdentity: ObjectIdentity | null = null;
+        const inspectTarget = async (final: boolean): Promise<{ digest: string } | FenceRefusal> => {
+            let before: fs.Stats;
+            try { before = prim.lstat(actual); }
+            catch (error) {
+                if (final && (error as { code?: unknown })?.code === 'ENOENT') return refuse('TARGET_CHANGED', `${rel} disappeared`);
+                return mapFsError(error, rel);
+            }
+            if (before.isSymbolicLink() || !before.isFile()) return refuse('NOT_A_FILE', `${rel} is not a regular file`);
+            const beforeIdentity = observedIdentityOf(actual);
+            if (final && !sameObject(firstIdentity, beforeIdentity)) {
+                return refuse('TARGET_CHANGED', `${rel} changed since it was observed`);
+            }
+            if (beforeIdentity.nlink !== 1n) return refuse('NOT_A_FILE', `${rel} has more than one name`);
+            let fd: number;
+            try {
+                const placeholder = await checkPlaceholder(actual);
+                if (placeholder === null && process.platform === 'win32') return refuse('IO_ERROR', `placeholder detection unavailable before opening ${rel}`);
+                if (placeholder) return refuse('PLACEHOLDER', `hashing ${rel} would download its cloud placeholder`);
+            } catch (error) { return mapFsError(error, rel); }
+            try { fd = prim.open(actual, 'r'); }
+            catch (error) { return mapFsError(error, rel); }
+            let result: { digest: string } | FenceRefusal;
+            try {
+                const placeholder = await checkPlaceholder(actual);
+                if (placeholder === null && process.platform === 'win32') result = refuse('IO_ERROR', `placeholder detection unavailable after opening ${rel}`);
+                else if (placeholder) result = refuse('PLACEHOLDER', `hashing ${rel} would download its cloud placeholder`);
+                else {
+                const opened = prim.fstat(fd);
+                const descriptor = observedIdentityOfDescriptor(fd);
+                const namedNow = prim.lstat(actual);
+                const namedIdentity = observedIdentityOf(actual);
+                const canonical = path.normalize(prim.realpathNative(actual));
+                if (!samePath(canonical, actual)) result = refuse('PARENT_ALIAS', `${rel} resolves to a different path than the one it names`);
+                else if (!opened.isFile() || namedNow.isSymbolicLink() || !namedNow.isFile()
+                    || !sameObject(beforeIdentity, descriptor) || !sameObject(descriptor, namedIdentity)
+                    || descriptor?.nlink !== 1n || namedIdentity?.nlink !== 1n) {
+                    result = refuse('TARGET_CHANGED', `${rel} changed while opening`);
+                } else {
+                    const hash = createHash('sha256');
+                    const window = Buffer.allocUnsafe(HASH_WINDOW);
+                    let position = 0;
+                    for (;;) {
+                        const count = prim.read(fd, window, 0, window.length, position);
+                        if (count === 0) break;
+                        if (count < 0 || count > window.length) throw new Error('invalid read progress');
+                        hash.update(window.subarray(0, count));
+                        position += count;
+                    }
+                    const after = prim.fstat(fd);
+                    const afterName = prim.lstat(actual);
+                    const afterCanonical = path.normalize(prim.realpathNative(actual));
+                    if (!samePath(afterCanonical, actual)) result = refuse('PARENT_ALIAS', `${rel} resolves to a different path than the one it names`);
+                    else if (!after.isFile() || afterName.isSymbolicLink() || !afterName.isFile()
+                        || !sameObject(descriptor, observedIdentityOfDescriptor(fd))
+                        || !sameObject(descriptor, observedIdentityOf(actual))
+                        || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
+                        || afterName.size !== after.size || position !== after.size
+                        || observedIdentityOfDescriptor(fd)?.nlink !== 1n || observedIdentityOf(actual)?.nlink !== 1n) {
+                        result = refuse('TARGET_CHANGED', `${rel} changed while hashing`);
+                    } else result = { digest: hash.digest('hex') };
+                }
+                }
+            } catch (error) { result = mapFsError(error, rel); }
+            try { prim.close(fd); }
+            catch { return refuse('IO_ERROR', `${rel} failed to close after hashing`); }
+            if (!isRefusal(result) && !final) firstIdentity = beforeIdentity;
+            return result;
+        };
+
+        const first = await inspectTarget(false);
+        if (isRefusal(first)) return wrap(first);
+        if (first.digest !== expectedSha256) return fail('DIGEST_MISMATCH', `${rel} does not match expectedSha256`);
+        const beforeStage = checkParent();
+        if (beforeStage) return wrap(beforeStage);
+
+        let stage = '';
+        let stageFd: number | undefined;
+        for (let attempt = 0; attempt < 8; attempt++) {
+            stage = path.join(parentActual, `.wyrd-stage-${randomBytes(16).toString('hex')}`);
+            try { stageFd = prim.openExclusive(stage); break; }
+            catch (error) {
+                if ((error as { code?: unknown })?.code === 'EEXIST') continue;
+                effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: path.relative(root, stage) } };
+                return wrap(mapFsError(error, path.relative(root, stage)));
+            }
+        }
+        if (stageFd === undefined) return fail('IO_ERROR', 'stage name collisions exhausted');
+        const stageHint = path.relative(root, stage);
+        effect = { target: 'not_replaced', stage: { state: 'retained', relHint: stageHint } };
+        let stageCloseAttempted = false;
+        let stageIdentity: ObjectIdentity | null = null;
+        // A name can be rebound between checks. Read through a fresh descriptor and require
+        // the same single-named object on both sides of the read.
+        const hashBoundStage = async (name: string): Promise<string | FenceRefusal> => {
+            const hint = path.relative(root, name);
+            let fd: number | undefined;
+            try {
+                const before = prim.lstat(name);
+                if (!before.isFile() || before.isSymbolicLink()
+                    || !sameObject(stageIdentity, observedIdentityOf(name)) || observedIdentityOf(name)?.nlink !== 1n) return refuse('TARGET_CHANGED', `${hint} changed during verification`);
+                const canonical = path.normalize(prim.realpathNative(name));
+                if (!samePath(canonical, name)) return refuse('TARGET_CHANGED', `${hint} changed during verification`);
+                const placeholder = await checkPlaceholder(name);
+                if (placeholder === null && process.platform === 'win32') return refuse('IO_ERROR', `placeholder detection unavailable before opening ${hint}`);
+                if (placeholder) return refuse('PLACEHOLDER', `hashing ${hint} would download its cloud placeholder`);
+                fd = prim.open(name, 'r');
+                const afterOpenPlaceholder = await checkPlaceholder(name);
+                if (afterOpenPlaceholder === null && process.platform === 'win32') return refuse('IO_ERROR', `placeholder detection unavailable after opening ${hint}`);
+                if (afterOpenPlaceholder) return refuse('PLACEHOLDER', `hashing ${hint} would download its cloud placeholder`);
+                const opened = prim.fstat(fd);
+                if (!opened.isFile() || !sameObject(stageIdentity, observedIdentityOfDescriptor(fd))
+                    || observedIdentityOfDescriptor(fd)?.nlink !== 1n
+                    || !sameObject(stageIdentity, observedIdentityOf(name))) return refuse('TARGET_CHANGED', `${hint} changed during verification`);
+                const hash = createHash('sha256');
+                const window = Buffer.allocUnsafe(HASH_WINDOW);
+                let position = 0;
+                for (;;) {
+                    const count = prim.read(fd, window, 0, window.length, position);
+                    if (count === 0) break;
+                    if (count < 0 || count > window.length) return refuse('IO_ERROR', `${hint} returned invalid read progress`);
+                    hash.update(window.subarray(0, count));
+                    position += count;
+                }
+                const after = prim.fstat(fd);
+                const afterName = prim.lstat(name);
+                if (!after.isFile() || !afterName.isFile() || afterName.isSymbolicLink()
+                    || !sameObject(stageIdentity, observedIdentityOfDescriptor(fd))
+                    || !sameObject(stageIdentity, observedIdentityOf(name))
+                    || observedIdentityOfDescriptor(fd)?.nlink !== 1n || observedIdentityOf(name)?.nlink !== 1n
+                    || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
+                    || afterName.size !== after.size || position !== after.size
+                    || !samePath(path.normalize(prim.realpathNative(name)), name)) return refuse('TARGET_CHANGED', `${hint} changed during verification`);
+                return hash.digest('hex');
+            } catch (error) { return mapFsError(error, hint); }
+            finally {
+                if (fd !== undefined) {
+                    try { prim.close(fd); } catch { return refuse('IO_ERROR', `${hint} failed to close after verification`); }
+                }
+            }
+        };
+        try {
+            stageIdentity = observedIdentityOfDescriptor(stageFd);
+            const stageName = prim.lstat(stage);
+            if (!stageName.isFile() || stageName.isSymbolicLink()
+                || !sameObject(stageIdentity, observedIdentityOf(stage)) || stageIdentity?.nlink !== 1n) {
+                effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                return fail('TARGET_CHANGED', `${stageHint} changed after creation`);
+            }
+            const stageParent = checkParent();
+            if (stageParent) {
+                effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                return wrap(stageParent);
+            }
+            const stageCanonical = path.normalize(prim.realpathNative(stage));
+            if (!samePath(stageCanonical, stage)) {
+                effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                return fail('TARGET_CHANGED', `${stageHint} resolves to a different target`);
+            }
+            const written = prim.writeAll(stageFd, content);
+            if (written !== content.length) return fail('IO_ERROR', `${stageHint} wrote ${written} of ${content.length} bytes`);
+            prim.stageFlush(stageFd);
+            stageCloseAttempted = true;
+            try { prim.close(stageFd); }
+            catch { return fail('IO_ERROR', `${stageHint} failed to close after writing`); }
+        } catch (error) { return wrap(mapFsError(error, stageHint)); }
+        finally {
+            if (!stageCloseAttempted) {
+                try { prim.close(stageFd); }
+                catch { effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } }; }
+            }
+        }
+
+        const finalParent = checkParent();
+        if (finalParent) return wrap(finalParent);
+        const finalTarget = await inspectTarget(true);
+        if (isRefusal(finalTarget)) return wrap(finalTarget);
+        if (finalTarget.digest !== expectedSha256) return fail('DIGEST_MISMATCH', `${rel} changed since the first hash`);
+        try {
+            const stageStats = prim.lstat(stage);
+            const stageCanonical = path.normalize(prim.realpathNative(stage));
+            if (!samePath(stageCanonical, stage)) {
+                effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                return fail('TARGET_CHANGED', `${stageHint} resolves to a different target`);
+            }
+            if (!stageStats.isFile() || stageStats.isSymbolicLink()
+                || !sameObject(stageIdentity, observedIdentityOf(stage)) || observedIdentityOf(stage)?.nlink !== 1n) {
+                effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                return fail('TARGET_CHANGED', `${stageHint} changed before publication`);
+            }
+            const checkedStage = await hashBoundStage(stage);
+            if (isRefusal(checkedStage)) {
+                if (checkedStage.reason === 'TARGET_CHANGED') effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                return wrap(checkedStage);
+            }
+            if (checkedStage !== sha256) {
+                effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                return fail('TARGET_CHANGED', `${stageHint} changed before publication`);
+            }
+        } catch (error) {
+            effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+            return wrap(mapFsError(error, stageHint));
+        }
+        // Keep a descriptor on the staged object across publication. Windows libuv permits this
+        // rename; after publication no file content is opened or read through a path.
+        let verificationFd: number | undefined;
+        try {
+            try {
+                const beforeOpen = prim.lstat(stage);
+                if (!beforeOpen.isFile() || beforeOpen.isSymbolicLink()
+                    || !sameObject(stageIdentity, observedIdentityOf(stage))
+                    || observedIdentityOf(stage)?.nlink !== 1n) {
+                    effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                    return fail('TARGET_CHANGED', `${stageHint} changed before publication`);
+                }
+                if (!samePath(path.normalize(prim.realpathNative(stage)), stage)) {
+                    effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                    return fail('TARGET_CHANGED', `${stageHint} resolves to a different target`);
+                }
+                const placeholder = await checkPlaceholder(stage);
+                if (placeholder === null && process.platform === 'win32') {
+                    effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                    return fail('IO_ERROR', `placeholder detection unavailable before opening ${stageHint}`);
+                }
+                if (placeholder) {
+                    effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                    return fail('PLACEHOLDER', `opening ${stageHint} would download its cloud placeholder`);
+                }
+                verificationFd = prim.open(stage, 'r');
+                const afterOpenPlaceholder = await checkPlaceholder(stage);
+                if (afterOpenPlaceholder === null && process.platform === 'win32') {
+                    effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                    return fail('IO_ERROR', `placeholder detection unavailable after opening ${stageHint}`);
+                }
+                if (afterOpenPlaceholder) {
+                    effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                    return fail('PLACEHOLDER', `opening ${stageHint} would download its cloud placeholder`);
+                }
+                const openedStage = prim.fstat(verificationFd);
+                const namedStage = prim.lstat(stage);
+                if (!openedStage.isFile() || !namedStage.isFile() || namedStage.isSymbolicLink()
+                    || !sameObject(stageIdentity, observedIdentityOfDescriptor(verificationFd))
+                    || !sameObject(stageIdentity, observedIdentityOf(stage))
+                    || observedIdentityOfDescriptor(verificationFd).nlink !== 1n
+                    || observedIdentityOf(stage).nlink !== 1n) {
+                    effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                    return fail('TARGET_CHANGED', `${stageHint} changed before publication`);
+                }
+            } catch (error) {
+                effect = { target: 'not_replaced', stage: { state: 'indeterminate', relHint: stageHint } };
+                return wrap(mapFsError(error, stageHint));
+            }
+            const finalRoot = rootStillCanonical();
+            if (finalRoot) return wrap(finalRoot);
+            try { prim.replaceStaged(stage, actual); }
+            catch (error) {
+                effect = { target: 'indeterminate', stage: { state: 'indeterminate', relHint: stageHint } };
+                return wrap(mapFsError(error, rel));
+            }
+            effect = { target: 'indeterminate', stage: { state: 'indeterminate', relHint: stageHint } };
+            const afterPublish = rootStillCanonical();
+            if (afterPublish) return wrap(afterPublish);
+            const afterParent = checkParent();
+            if (afterParent) return wrap(afterParent);
+            const installedStats = prim.lstat(actual);
+            const installedIdentity = observedIdentityOf(actual);
+            if (!installedStats.isFile() || installedStats.isSymbolicLink()
+                || !sameObject(stageIdentity, installedIdentity) || installedIdentity.nlink !== 1n) {
+                return fail('TARGET_CHANGED', `${rel} did not retain the staged object`);
+            }
+            const beforeBytes = prim.fstat(verificationFd);
+            const beforeDescriptor = observedIdentityOfDescriptor(verificationFd);
+            if (!beforeBytes.isFile() || !sameObject(stageIdentity, beforeDescriptor) || beforeDescriptor.nlink !== 1n) {
+                return fail('TARGET_CHANGED', `${rel} changed before descriptor verification`);
+            }
+            const hash = createHash('sha256');
+            const window = Buffer.allocUnsafe(HASH_WINDOW);
+            let position = 0;
+            for (;;) {
+                const count = prim.read(verificationFd, window, 0, window.length, position);
+                if (count === 0) break;
+                if (count < 0 || count > window.length) return fail('IO_ERROR', `${rel} returned invalid read progress`);
+                hash.update(window.subarray(0, count));
+                position += count;
+            }
+            const afterBytes = prim.fstat(verificationFd);
+            const afterDescriptor = observedIdentityOfDescriptor(verificationFd);
+            if (!afterBytes.isFile() || !sameObject(beforeDescriptor, afterDescriptor) || afterDescriptor.nlink !== 1n
+                || afterBytes.size !== beforeBytes.size || afterBytes.mtimeMs !== beforeBytes.mtimeMs
+                || position !== afterBytes.size || hash.digest('hex') !== sha256) {
+                return fail('TARGET_CHANGED', `${rel} staged bytes changed during descriptor verification`);
+            }
+            const postHashParent = checkParent();
+            if (postHashParent) return wrap(postHashParent);
+            if (!samePath(prim.realpathNative(actual), actual)) {
+                return fail('PARENT_ALIAS', `${rel} resolves to a different path than the one it names`);
+            }
+            const finalName = prim.lstat(actual);
+            const finalIdentity = observedIdentityOf(actual);
+            if (!finalName.isFile() || finalName.isSymbolicLink()
+                || !sameObject(stageIdentity, finalIdentity) || finalIdentity.nlink !== 1n) {
+                return fail('TARGET_CHANGED', `${rel} did not retain the staged object`);
+            }
+            prim.close(verificationFd);
+            verificationFd = undefined;
+            effect = { target: 'replaced', stage: { state: 'none' } };
+            return Object.freeze({ ok: true as const, rel, bytes: content.length, previousSha256: first.digest, sha256,
+                effect: effect as OverwriteEffect & { target: 'replaced' } });
+        } finally {
+            if (verificationFd !== undefined) {
+                try { prim.close(verificationFd); } catch { /* refusal already carries the observed effect */ }
+            }
+        }
+        } catch (error) {
+            return wrap(mapFsError(error, typeof request === 'string' ? request : 'overwrite'));
         }
     }
 
@@ -2180,6 +3014,20 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
             mode = 'exclusive-create';
         }
 
+        if (mode === 'existing') {
+            try {
+                const placeholder = await checkPlaceholder(actual);
+                if (placeholder === null && process.platform === 'win32') return writeRefuse('IO_ERROR', `placeholder detection unavailable before opening ${rel}`, null);
+                if (placeholder) return writeRefuse('PLACEHOLDER', `opening ${rel} for append would download its cloud placeholder`, null);
+            } catch (error) {
+                try { prim.lstat(actual); } catch (missing) {
+                    if ((missing as { code?: unknown })?.code === 'ENOENT')
+                        return writeRefuse('TARGET_CHANGED', `${rel} disappeared before the append open`, null);
+                }
+                return mapWriteError(error, rel, null);
+            }
+        }
+
         /* (7) THE OPEN. `ax` when the probe found nothing, append-only-no-create when it found a
          *     file — and the two race outcomes are the same answer from opposite directions. */
         let fd: number;
@@ -2201,6 +3049,17 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
 
         let appendCloseAttempted = false;
         try {
+            if (mode === 'existing') {
+                try {
+                    const placeholder = await checkPlaceholder(actual);
+                    if (placeholder === null && process.platform === 'win32')
+                        return writeRefuse('IO_ERROR', `placeholder detection unavailable after opening ${rel}`, retained(rel));
+                    if (placeholder)
+                        return writeRefuse('PLACEHOLDER', `opening ${rel} for append would download its cloud placeholder`, retained(rel));
+                } catch (error) {
+                    return mapWriteError(error, rel, retained(rel));
+                }
+            }
             /* (8) THE PRE-WRITE VERIFICATION — THREE READINGS THAT MUST AGREE, AND THIS IS THE ONLY
              *     PLACE THE DESCRIPTOR'S OWN IDENTITY IS AVAILABLE.
              *
@@ -2335,11 +3194,16 @@ export function createFsGate(options: CreateFsGateOptions): FsGate | FenceRefusa
     const gate = Object.create(null) as FsGate;
     Object.defineProperties(gate, {
         readFileInGrant: { value: Object.freeze(readFileInGrant), enumerable: true },
+        fileMetadataInGrant: { value: Object.freeze(fileMetadataInGrant), enumerable: true },
+        placeholderDetection: { value: Object.freeze(placeholderDetection), enumerable: true },
+        grantPlaceholderSummary: { value: Object.freeze(grantPlaceholderSummary), enumerable: true },
+        walkGrant: { value: Object.freeze(walkGrant), enumerable: true },
         listDirInGrant: { value: Object.freeze(listDirInGrant), enumerable: true },
         listGrantRoot: { value: Object.freeze(listGrantRoot), enumerable: true },
         probeInGrant: { value: Object.freeze(probeInGrant), enumerable: true },
         disclosedRoot: { value: Object.freeze(disclosedRoot), enumerable: true },
         createFileInGrant: { value: Object.freeze(createFileInGrant), enumerable: true },
+        overwriteFileInGrant: { value: Object.freeze(overwriteFileInGrant), enumerable: true },
         appendLineInGrant: { value: Object.freeze(appendLineInGrant), enumerable: true },
         hashInGrant: { value: Object.freeze(hashInGrant), enumerable: true }
     });

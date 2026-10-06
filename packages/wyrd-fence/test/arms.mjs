@@ -130,6 +130,28 @@ export const FENCE_ARMS = {
     'A69-probe-missing': 'probeInGrant reports an absent name with the existing MISSING refusal',
     'A70-probe-junction': 'probeInGrant follows an in-grant junction and reports its directory target as present',
     'A71-probe-escape': 'probeInGrant routes an escaping request through the shared resolver and returns ESCAPES',
+    'A72-overwrite-if-match': 'exact-byte conditional overwrite, input validation, no names created on the first mismatch or missing target, and create remains exclusive',
+    'A73-overwrite-leaf-no-follow': 'regular single-named leaf, parent alias and escape refusals, a real pre-open swap and a final same-inode digest change',
+    'A73b-overwrite-symlink': 'file and dangling symlinks and a directory-symlink parent refuse before staging',
+    'A74-overwrite-effect-reporting': 'stage collision and failures, replacement throw before and after rename, and the MEASURED residual last-check-to-rename race — not a passing safety proof',
+    'A75-overwrite-post-parent': 'descriptor-backed publication, path equality and separate parent and name samples are measured',
+    'A76-overwrite-verification-read': 'unreadable stage, parent, name and bigint identity probes report mapped reasons with truthful effects',
+    'A77-overwrite-between-samples': 'a physical parent swap and restoration between two post-rename samples is observed on POSIX',
+    'A78-overwrite-stage-preopen': 'a stage name swapped to an outside hard link is refused before the outside object is opened',
+    'SR2-no-open-without-opt-in': 'one placeholder among twenty is counted and never content-opened by read or hash without opt-in, while ordinary and opted-in reads pass',
+    'SR5-native-placeholder-layout': 'the shipped Windows helper returns real logical sizes and offline attributes through the visible command line',
+    'SR6-post-open-placeholder': 'a detector flip after open refuses before read and hash consume bytes',
+    'SR7-write-placeholder-guards': 'overwrite verification, staged verification and append refuse placeholders before content opens',
+    'SR8-detector-startup-bound': 'a blocked Windows helper refuses before any file content opens within the startup bound',
+    'SR9-write-post-open-placeholder': 'a detector flip after open refuses before overwrite and stage verification reads or append writes',
+    'SR22-walk-batch-fail-closed': 'the native walk probes every file in a batch and excludes a file whose attribute probe fails',
+    'SR29-clm-helper-load': 'a constrained PowerShell child reports helper load failure; existing content refuses with its cause, a fresh gate inherits the latch, a batch does not restart the child, and create succeeds',
+    'SR15-walk-alias-cycle': 'fresh walk de-duplicates aliases and cycles despite colliding numeric inodes, refuses an outside alias and skips a dehydrated directory without content access',
+    'A79-overwrite-alias-reason': 'a spelling-only real-path mismatch reports an alias refusal on non-Windows paths',
+    'A83-metadata-rel-slashes': 'nested file metadata returns a forward-slash rel equal to the grant walk spelling',
+    'A82-create-exclusive-open-race': 'a file appearing after the leaf probe is refused by the production exclusive open and its content is unchanged',
+    'A81-root-numeric-snapshot': 'a changed numeric root observation refuses even when the later exact snapshot matches',
+    'A80-root-observation-fail-closed': 'unavailable real path, numeric root identity and exact root identity observations refuse',
     'META-primitives': 'per-primitive: each injected implementation is called at its site',
     'META-this-unbound': 'an injected callback receives `this === undefined`',
     'META-no-outside-names': 'no arm, refusal OR pass, names a path outside the root',
@@ -282,6 +304,7 @@ export const SYMLINK_PRIVILEGE_ARMS = new Set([
     // junction half of the append path is exercised on a machine without Developer Mode, which is
     // where an unattended fence is most likely to be running.
     'A58-append-leaf-no-follow', // s_out / s_in / dangle_out — the arm needs them to EXIST
+    'A73b-overwrite-symlink', // file, dangling and parent symlink leaves
     'A29-unc',              // unc_out — the only arm reaching !isAbsolute(rel)
     'A30-no-arbitration',   // probes s_out, sc_a, unc_out
     'A34-listing',          // listing\a_link — a symlink, and the arm asserts kind === 'link'

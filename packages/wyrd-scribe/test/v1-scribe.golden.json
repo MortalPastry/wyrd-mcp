@@ -164,25 +164,300 @@
           }
         ]
       },
-      "unavailable-b": {
+      "available-b": {
         "command": {
           "runtime": "node",
           "entrypoint": "dist/index.js",
           "args": [],
           "env": {
-            "WYRD_GRANT": "must-not-open",
+            "WYRD_GRANT": "<TEMP>\\production-b\\grant",
             "WYRD_SCRIBE_TIER": "B"
           }
         },
         "byteStrictStaticStdoutLines": [],
         "normalizedEvents": [
           {
-            "stream": "stderr",
-            "text": "TIER_UNAVAILABLE: tier B is recognised but unavailable in this build\n"
+            "stream": "stdin",
+            "message": {
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_1>",
+              "method": "initialize",
+              "params": {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {},
+                "clientInfo": {
+                  "name": "wyrd-v1-baseline-oracle",
+                  "version": "1.0.0"
+                }
+              }
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdout",
+            "message": {
+              "result": {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {
+                  "tools": {}
+                },
+                "serverInfo": {
+                  "name": "wyrd-scribe",
+                  "version": "0.0.0"
+                },
+                "instructions": "wyrd-scribe is serving exactly one canonical grant: <TEMP>\\production-b\\grant\nThe active write tier is B. Exactly these tools are registered: `write_page`, `overwrite_page`.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nEvery write target and every derived_from source is grant-relative and is sent through\nthe imported `wyrd-fence` operations. Tier A creates files exclusively; an occupied leaf refuses\nEXISTS. A successful write_page creates the page and appends one lineage line, and the\nvault configuration may also project lineage into frontmatter. If the ledger fails after\nthe page is created, the page stays in place and the refusal reports that outcome.\nTier B also registers overwrite_page. It requires the existing page SHA-256, stages\nreplacement through the fence, and appends one page_overwritten lineage line after\nreplacement. Inspect effect on a fence refusal and cause on a ledger failure."
+              },
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_1>"
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdin",
+            "message": {
+              "jsonrpc": "2.0",
+              "method": "notifications/initialized"
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdin",
+            "message": {
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_2>",
+              "method": "tools/list",
+              "params": {}
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdout",
+            "message": {
+              "result": {
+                "tools": [
+                  {
+                    "name": "write_page",
+                    "title": "Create a page with lineage",
+                    "description": "Tier B: attempt to create a page outside Arc/; target and sources use the grant fence.\n\nThe target is created exclusively. An occupied leaf refuses EXISTS; this tool does not\noverwrite, delete or rename. The target and every derived_from.source are grant-relative\nand go through the imported wyrd-fence implementation.\n\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\n\nSuccess creates the page and appends one lineage line. The vault configuration may also\nproject lineage into frontmatter. If the ledger fails after creation, the page stays in\nplace and the refusal includes both the created page and the underlying cause.",
+                    "inputSchema": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "content": {
+                          "type": "string"
+                        },
+                        "derived_from": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "spans": {
+                                "type": "array",
+                                "minItems": 1,
+                                "items": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "offset": {
+                                          "type": "integer",
+                                          "minimum": 0
+                                        },
+                                        "length": {
+                                          "type": "integer",
+                                          "minimum": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "offset",
+                                        "length"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "quote": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "quote"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "offset": {
+                                          "type": "integer",
+                                          "minimum": 0
+                                        },
+                                        "length": {
+                                          "type": "integer",
+                                          "minimum": 1
+                                        },
+                                        "quote": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "offset",
+                                        "length",
+                                        "quote"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "spans"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "content",
+                        "derived_from"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  {
+                    "name": "overwrite_page",
+                    "title": "Replace a page with lineage",
+                    "description": "Tier B: replace an existing page outside Arc/ and .wyrd/ when its stored SHA-256 matches.\nThe path and every derived_from.source are grant-relative. expected_sha256 is the\nlowercase SHA-256 of the exact existing file bytes. The fence stages the replacement\nand reports effect.target and effect.stage on every fence outcome. A refusal can retain\na stage or leave the target effect indeterminate; inspect effect before retrying.\nDirect normalized `Arc/` targets are refused. The fence rejects a pre-existing parent alias\nwhen its spelled and resolved paths differ after case-folding; its documented fold-equal-alias\nlimit still applies. The fence rechecks root object identity before each operation that\ntouches the filesystem;\ncomponent/leaf/link/rename races and the interval between that recheck and opening the file\nremain. Append refusals may retain a partial or complete line. See the `wyrd-fence` README\nsection \"Security boundary and limits\" and the `createFileInGrant` / `appendLineInGrant` API\ndocumentation for the authoritative contracts.\nA confirmed replacement appends one page_overwritten lineage line. If that append\nfails, the replacement remains and the result carries overwritten and cause.",
+                    "inputSchema": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "content": {
+                          "type": "string"
+                        },
+                        "derived_from": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "source": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "spans": {
+                                "type": "array",
+                                "minItems": 1,
+                                "items": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "offset": {
+                                          "type": "integer",
+                                          "minimum": 0
+                                        },
+                                        "length": {
+                                          "type": "integer",
+                                          "minimum": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "offset",
+                                        "length"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "quote": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "quote"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "offset": {
+                                          "type": "integer",
+                                          "minimum": 0
+                                        },
+                                        "length": {
+                                          "type": "integer",
+                                          "minimum": 1
+                                        },
+                                        "quote": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "required": [
+                                        "offset",
+                                        "length",
+                                        "quote"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "source",
+                              "spans"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "expected_sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "content",
+                        "derived_from",
+                        "expected_sha256"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                ]
+              },
+              "jsonrpc": "2.0",
+              "id": "<REQUEST_ID_2>"
+            },
+            "ending": "\n"
+          },
+          {
+            "stream": "stdin",
+            "end": true
           },
           {
             "stream": "exit",
-            "code": 2,
+            "code": 0,
             "signal": null
           }
         ]

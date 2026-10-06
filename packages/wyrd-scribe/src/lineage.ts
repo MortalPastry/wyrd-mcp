@@ -11,8 +11,8 @@
  *     to make a reader guess. A page with no stable id is PERMANENTLY `kind: 'path'`; it is never
  *     `id: null`, and never a value with an explanatory suffix.
  *   · `vault_id` exists because `.wyrd/lineage.jsonl` scopes identity IMPLICITLY, and implicit
- *     scoping survives only while the record stays home. Magi is mage-to-mage, so a record WILL
- *     travel, and the moment it does a bare path is ambiguous across two granted vaults —
+ *     scoping survives only while the record stays home. Records can travel between vaults,
+ *     and the moment a record does, a bare path is ambiguous across two granted vaults —
  *     the same defect the ruling exists to prevent, one layer up. The identity block gave two
  *     acceptable answers and named picking neither as the failure. This is the first: the identity
  *     carries its vault explicitly.
@@ -107,7 +107,7 @@ export interface LineagePage {
 export interface LineageWriter {
     readonly server: 'wyrd-scribe';
     readonly version: string;
-    readonly tool: 'write_page';
+    readonly tool: 'write_page' | 'overwrite_page';
 }
 
 export interface LineageRecord {
@@ -136,6 +136,21 @@ export interface LineageRecord {
     readonly page: LineagePage;
     readonly sources: readonly LineageSource[];
 }
+
+/** A replacement records both the precondition that was met and the new page. */
+export interface OverwriteRecord {
+    readonly schema: typeof LINEAGE_SCHEMA;
+    readonly event: 'page_overwritten';
+    readonly event_id: string;
+    readonly recorded_at: string;
+    readonly writer: LineageWriter & { readonly tool: 'overwrite_page' };
+    readonly vault: { readonly kind: 'uuid'; readonly id: string };
+    readonly previous: LineagePage;
+    readonly page: LineagePage;
+    readonly sources: readonly LineageSource[];
+}
+
+export type AnyLineageRecord = LineageRecord | OverwriteRecord;
 
 export function identity(vaultId: string, path: string): PageIdentity {
     return Object.freeze({ kind: 'path' as const, vault_id: vaultId, path });
@@ -215,7 +230,7 @@ export function lineageSpan(span: ResolvedSpan): LineageSpan {
  * a consumer parses JSON — but a format whose byte layout drifts between versions makes every diff
  * of the ledger unreadable for no gain.
  */
-export function serialiseRecord(record: LineageRecord): Buffer {
+export function serialiseRecord(record: AnyLineageRecord): Buffer {
     return Buffer.from(`${JSON.stringify(record)}\n`, 'utf8');
 }
 

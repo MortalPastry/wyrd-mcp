@@ -799,8 +799,92 @@ function corpusCarriesStdioDisclosure(corpus) {
     return typeof value === 'string' && value.includes(V1_NETWORK_DISCLOSURE_SENTENCE);
 }
 
+/** Keep the frozen v1 wire while checking only the D6 additions allowed in this slice. */
+function withApprovedD6Delta(actual) {
+    const adjusted = structuredClone(actual);
+    const addedDescription = 'A cloud placeholder is refused by default because reading it would download the file.\n' +
+        'Set `hydrate: true` on this call only to permit that download.\n\n';
+    const hydrateSchema = { type: 'boolean', description:
+        'Allow this call to download a cloud placeholder before reading it. Defaults to false.' };
+    function scrubMessage(message) {
+        if (message?.result?.tools) {
+            assert.equal(message.result.tools.length, 2, 'search adds exactly one tool');
+            assert.equal(message.result.tools[1].name, 'search');
+            message.result.tools.pop();
+            const tool = message.result.tools[0];
+            assert.equal(tool.name, 'read');
+            tool.description = tool.description.replace(
+                'false: a hard link created inside the folder makes an outside file readable and searchable;\n' +
+                'a folder or path component swapped after validation may be read instead of the one checked; and some',
+                'false: a hard link created inside the folder can reach a file outside it; a folder or path\n' +
+                'component swapped after validation may be read instead of the one checked; and some'
+            );
+            assert.equal(tool.description.split(addedDescription).length - 1, 1,
+                'the only description delta is the D6 placeholder paragraph');
+            tool.description = tool.description.replace(addedDescription, '');
+            assert.deepStrictEqual(tool.inputSchema.properties.hydrate, hydrateSchema);
+            delete tool.inputSchema.properties.hydrate;
+        }
+        if (message?.result?.structuredContent) {
+            const status = message.result.structuredContent;
+            assert.ok(['available', 'unavailable'].includes(status.placeholder_detection));
+            if (status.placeholder_detection === 'unavailable') {
+                assert.equal(status.placeholder_count, null);
+                assert.equal(status.placeholder_fraction, null);
+            }
+            delete message.result.structuredContent;
+        }
+        return message;
+    }
+    function visit(value) {
+        if (value === null || typeof value !== 'object') return;
+        if (Array.isArray(value)) { for (const member of value) visit(member); return; }
+        if (value.message) scrubMessage(value.message);
+        if (Array.isArray(value.byteStrictStaticStdoutLines)) {
+            for (const line of value.byteStrictStaticStdoutLines) {
+                if (line.label !== 'pre-initialize tools/list response') continue;
+                const original = line.utf8ForReview;
+                assert.equal(Buffer.from(line.base64, 'base64').toString('utf8'), original);
+                const ending = original.endsWith('\n') ? '\n' : '';
+                const message = JSON.parse(original);
+                scrubMessage(message);
+                const bytes = Buffer.from(JSON.stringify(message) + ending);
+                line.byteLength = bytes.length;
+                line.base64 = bytes.toString('base64');
+                line.utf8ForReview = bytes.toString('utf8');
+            }
+        }
+        for (const member of Object.values(value)) visit(member);
+    }
+    visit(adjusted);
+    return adjusted;
+}
+function withApprovedSearchDelta(actual) {
+    const adjusted = structuredClone(actual);
+    const substitutions = [
+        ['Its tools are `read` and `search`; both are read-only.', 'Its only tool is `read`, so the tool surface is read-only.'],
+        ['It registers `read` and `search`; neither writes, moves', 'The only tool it registers is `read`; none writes, moves'],
+        ['Search builds a lazy in-memory cache of normalized terms and anchors; it holds no raw', 'Nothing read here is retained. There is no cache, no index and no database, and the'],
+        ['text and writes no search data to disk. The grant is fixed until restart.', 'granted folder is fixed until this process is restarted.'],
+        ['readable and searchable wherever on the disk that file lives, and ordinary folder inspection will not show',
+            'readable wherever on the disk that file lives, and ordinary folder inspection will not show'],
+        ['readable and searchable, wherever on the disk that file lives, and ordinary folder inspection will',
+            'readable, wherever on the disk that file lives, and ordinary folder inspection will'],
+        ['false: a hard link created inside the folder makes an outside file readable and searchable;\na folder or path component swapped after validation may be read instead of the one checked; and some',
+            'false: a hard link created inside the folder can reach a file outside it; a folder or path\ncomponent swapped after validation may be read instead of the one checked; and some']
+    ];
+    function visit(node) {
+        if (Array.isArray(node)) return node.map(visit);
+        if (node && typeof node === 'object') { for (const key of Object.keys(node)) if (key !== 'utf8ForReview') node[key] = visit(node[key]); return node; }
+        if (typeof node !== 'string') return node;
+        for (const [live, frozen] of substitutions) node = node.replaceAll(live, frozen);
+        return node;
+    }
+    return visit(adjusted);
+}
 function withApprovedV2Delta(expected, actual) {
-    let adjusted = withApprovedInvalidToolNameDelta(expected, actual);
+    let adjusted = withApprovedInvalidToolNameDelta(expected, withApprovedSearchDelta(actual));
+    if (corpusCarriesReaderServerVersion(expected)) adjusted = withApprovedD6Delta(adjusted);
     if (corpusCarriesReaderServerVersion(expected)) {
         adjusted = withApprovedReaderServerVersionDelta(expected, adjusted);
     }

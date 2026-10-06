@@ -7,7 +7,7 @@ record, but it cannot overwrite, rename, or delete a page, and it exposes no lin
 ## Installation and configuration
 
 Install it with `npm install -g wyrd-scribe`.
-The executable is `wyrd-scribe`. It communicates over stdio, so an MCP client configuration can
+The executable is `wyrd-scribe`. Stdio is the default, so an MCP client configuration can
 launch it directly:
 
 ```json
@@ -19,12 +19,43 @@ launch it directly:
 
 The granted folder may instead be supplied as `WYRD_GRANT`. An explicit `--grant` argument takes
 precedence over `WYRD_GRANT`. `WYRD_SCRIBE_TIER` selects the tier and defaults to `A` when absent.
-This build recognises tiers B and C but refuses to start with either because those tiers are not
-implemented.
+Tier B adds `overwrite_page`; tier C is recognised but unavailable.
+
+### HTTP and HTTPS
+
+HTTP starts only with `--http <port>` or `--http <host>:<port>`. A port alone binds to
+`127.0.0.1`; `--http 127.0.0.1:0` asks the system for a free loopback port and prints the
+actual endpoint to stderr. A concrete non-loopback address also requires `--http-public` and
+valid TLS material; startup refuses before listening without both. The route is POST `/mcp`.
+
+Generate a fresh Scribe token with `wyrd-mcp token`, independently of the Reader token. Supply
+exactly one source: `WYRD_WRITE_TOKEN` or `--write-token-file <absolute-path>`. The token must be
+one canonical, unpadded base64url encoding of 32 bytes. Token files may end with one LF or CRLF;
+on POSIX they must not permit group or world access. The Scribe never reads `WYRD_READ_TOKEN`.
+
+```sh
+WYRD_WRITE_TOKEN=<Scribe-token> wyrd-scribe --grant /absolute/path/to/vault --http 127.0.0.1:8788
+```
+
+For network access, generate a certificate with `wyrd-mcp cert --host <hostname-or-IP>` and
+configure a concrete interface address. The certificate must be trusted by the client and cover
+the hostname or IP the client uses. The Reader README documents certificate generation and
+platform trust steps.
+
+```sh
+WYRD_WRITE_TOKEN=<Scribe-token> wyrd-scribe --grant /absolute/path/to/vault --http 192.168.1.20:8788 --http-public --tls-cert /absolute/path/to/wyrd-cert.pem --tls-key /absolute/path/to/wyrd-key.pem
+```
+
+Every request needs `Authorization: Bearer <Scribe-token>`. Origin, when present, must exactly
+match a startup-disclosed allowed Origin. HTTP request bodies are capped at 1 MiB including the
+encoded JSON envelope; stdio has no such cap. A write already admitted finishes even when its
+client disconnects, and graceful shutdown waits for its page and ledger append without a timeout.
+Every cited source remains inside the same granted folder. Firewall, VPN, container and virtual
+machine routing can expose a bound address; the Scribe checks the address once at startup.
 
 ## `write_page`
 
-The server exposes one tool with this exact input shape:
+Tier A exposes `write_page` with this exact input shape:
 
 ```json
 {
@@ -85,14 +116,16 @@ complete ledger record.
 All granted-folder reads and writes go through `wyrd-fence`. The containment guarantees, hard-link
 limits, residual filesystem races, and recovery consequences are defined in the Fence's
 [authoritative Security boundary and limits section](https://github.com/MortalPastry/wyrd-mcp/blob/main/packages/wyrd-fence/README.md#security-boundary-and-limits).
-The Scribe additionally refuses directly addressed `Arc/` targets and performs create-only page
-writes. These controls are a scoped filesystem boundary, not an operating-system sandbox.
+The Scribe additionally refuses directly addressed `Arc/` targets. Tier A creates pages
+exclusively; Tier B can replace a page only with its expected SHA-256. These controls are a
+scoped filesystem boundary, not an operating-system sandbox.
 
 ## Privacy and data flow
 
-The server uses stdio only; it does not open a network transport. It reads the vault configuration
-and cited source bytes inside the granted folder, and writes only the new page, the minted config
-when needed, and the lineage ledger there. The connected MCP client receives tool metadata and the
+The server uses stdio by default and opens a network listener only with `--http`. It reads the vault
+configuration and cited source bytes inside the granted folder. Tier A writes the new page, the
+minted config when needed, and the lineage ledger there; Tier B can also replace a page. The
+connected MCP client receives tool metadata and the
 structured result or refusal, including lineage and recovery information; it does not receive
 absolute host paths or uncited source-file contents from the Scribe.
 

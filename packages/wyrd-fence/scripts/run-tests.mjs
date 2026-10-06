@@ -43,8 +43,11 @@ import { preflightJunctionSupport, preflightSymlinkPrivilege } from './preflight
 // was written and this harness reaches it. The public export preserves both package directories,
 // and since 2026-09-09 the harness and its complete cross-package dependency closure all ship.
 import { loadContract, verifyArmInventory, refuse } from '../../wyrd/scripts/verify-relocation-contract.mjs';
+import { guardBattery, batteryLockFixture } from './battery-lock.mjs';
 
 const pkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+guardBattery('fence suite');
+batteryLockFixture();
 
 /**
  * ⚠⚠ THE RELOCATION CONTRACT, AND IT RUNS FIRST — before the version gate, before the preflight,
@@ -221,7 +224,8 @@ function fenceVersionGate() {
     // There, `self` is a CONSUMER and the claim is that it declares the fence. Here `self` IS the
     // fence, so the claim that carries the same weight is that the derived set contains this
     // package AND that the package it found by name is this one.
-    const self = workspace.find(entry => path.resolve(entry.directory) === path.resolve(pkg));
+    const self = workspace.find(entry =>
+        fs.realpathSync.native(entry.directory) === fs.realpathSync.native(pkg));
     if (!self) {
         problems.push(`the workspace declaration at ${rel(root.rootDir)}/package.json does not enumerate ${rel(pkg)}, which is this package — the derived set is not this workspace's`);
     } else if (self.manifest.name !== FENCE) {
@@ -284,8 +288,10 @@ if (preflight) {
 }
 
 const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wyrd-fence-arms-'));
+process.once('exit', () => fs.rmSync(logDir, { recursive: true, force: true }));
 
-const child = spawn(process.execPath, ['--test', ...FILES], {
+const child = spawn(process.execPath, [fileURLToPath(new URL('./battery-lock.mjs', import.meta.url)),
+    'exec', 'fence test subprocess', '--', process.execPath, '--test', ...FILES], {
     cwd: pkg,
     env: {
         ...process.env,

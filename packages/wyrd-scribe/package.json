@@ -1,6 +1,6 @@
 {
   "name": "wyrd-scribe",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "mcpName": "com.wyrdmcp/wyrd-scribe",
   "private": false,
   "license": "Apache-2.0",
@@ -38,21 +38,20 @@
   "//mutants": "⚠ USE `npm run mutate`. Do NOT hand-roll a mutation run that shells out to `npm test` — `test` runs `npm run build` first, which recompiles dist/ from src/ and ERASES a dist-patched mutant before the suite sees it, so every mutant SURVIVES and reads as a weak guard rather than as a dead instrument. Measured 2026-08-31. `scripts/mutate.mjs` is that rule as a mechanism: it builds once, drives the runner directly, asserts each anchor matches exactly once, and restores by hash.",
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "mutate": "node scripts/mutate.mjs",
+    "mutate": "node ../wyrd-fence/scripts/battery-lock.mjs run mutate -- \"node scripts/mutate.mjs\"",
     "prebuild": "node scripts/clean.mjs",
     "build": "tsc -b && node scripts/generate-version.mjs",
     "start": "node dist/index.js",
     "prepack": "npm run build",
-    "pretest": "npm --prefix ../wyrd run build",
-    "test": "npm run build && node scripts/run-tests.mjs",
-    "pretest:portable": "npm --prefix ../wyrd run build",
-    "test:portable": "npm run build && node scripts/run-tests.mjs --portable"
+    "test": "node ../wyrd-fence/scripts/battery-lock.mjs run test -- \"node ../wyrd-fence/scripts/internal-dependency-preflight.mjs . && npm --prefix ../wyrd run build && npm run build && node scripts/run-tests.mjs\"",
+    "test:portable": "node ../wyrd-fence/scripts/battery-lock.mjs run test:portable -- \"node ../wyrd-fence/scripts/internal-dependency-preflight.mjs . && npm --prefix ../wyrd run build && npm run build && node scripts/run-tests.mjs --portable\""
   },
   "//dependencies": "⚠ `wyrd-mcp` WAS HERE AND IS DELIBERATELY GONE, 2026-08-31. It was never imported by a line of code — it was declared so that the write path could reach `createFsGate` through the Reader, which is exactly the coupling the fence extraction removes. Two things make restoring it wrong rather than merely redundant: the fence is now `wyrd-fence`, and the Reader declares an empty `exports` map, so `import ... from 'wyrd-mcp'` no longer resolves to anything at all. A private, unpublished package must also not pin a PUBLISHED version of a sibling it does not use. ⚠ THE FENCE IS IMPORTED, NEVER REIMPLEMENTED (spec D8) — that rule is unchanged; only the package that satisfies it has.",
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
     "ajv": "^8.17.1",
-    "wyrd-fence": "0.2.0"
+    "wyrd-fence": "0.3.0",
+    "wyrd-http": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

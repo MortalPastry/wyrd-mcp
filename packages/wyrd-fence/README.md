@@ -11,10 +11,10 @@ if (isRefusal(gate)) throw new Error(`${gate.reason}: ${gate.detail}`);
 const slice = await gate.readFileInGrant('subdir/note.md', 0, 64 * 1024);
 ```
 
-The four operations that name a path (`readFileInGrant`, `listDirInGrant`, `hashInGrant`,
-`createFileInGrant`) take an **untrusted request string** and fence it themselves. The other two
-take no argument: `listGrantRoot()` lists the granted folder, and `disclosedRoot()` returns that
-folder's canonical path as resolved when the gate was built. Nothing exported accepts an
+Every operation that names a path, including `readFileInGrant`, `fileMetadataInGrant` and
+`hashInGrant`, takes an **untrusted request string** and fences it itself. `listGrantRoot()`
+lists the granted folder, `grantPlaceholderSummary()` counts file placeholders without opening
+content, and `disclosedRoot()` returns that folder's canonical path as resolved when the gate was built. Nothing exported accepts an
 already-resolved path, and apart from `disclosedRoot`, which returns the grant itself, no operation
 returns an absolute one: a result names its target relative to the granted folder.
 The filesystem primitives are module-private by default, and `createFsGate` also accepts a
@@ -22,6 +22,21 @@ The filesystem primitives are module-private by default, and `createFsGate` also
 
 A refusal is a value, never a thrown error: `isRefusal` narrows it, and `reason` names the class
 (`ESCAPES`, `CLAMPED`, `IS_ROOT`, `ELOOP`, `MISSING`, `STREAM_SYNTAX`, and the rest).
+
+On Windows, placeholder detection uses `FindFirstFileW` through a persistent built-in PowerShell
+helper. It checks the offline and recall attributes and cloud reparse tags before a content open;
+no native npm dependency is added. `readFileInGrant` refuses a detected placeholder unless its
+fourth argument is `true`, an opt-in for that call only. `hashInGrant` refuses one before hashing.
+`fileMetadataInGrant` returns grant-relative `rel` with forward slashes, logical byte `size`, `mtimeMs`,
+`dehydrated` and `placeholder_detection`. The summary reports a count and fraction, or null
+counts with `placeholder_detection: unavailable` if detection did not complete. On platforms
+without a detector, reads remain possible but detection is reported unavailable. A path swapped
+after metadata inspection and before open remains subject to the documented race below.
+If PowerShell cannot load the helper (`Add-Type` fails), it reports that failure and exits.
+Constrained Language Mode and application-control policies are common causes. Windows reads,
+hashes, overwrites and appends of existing content refuse with `IO_ERROR` and that cause. Creating
+a new file, including appending to an absent target, does not consult the helper because there is
+no existing content to open. Search reports `placeholder_detection: unavailable` and no files.
 
 ## Security boundary and limits
 
@@ -36,6 +51,11 @@ complete filesystem containment control.
   outside the grant rather than a read of one: see its own item below.
 - A path component can be replaced after validation and before the operation opens it, so the
   operation can act on a different object than the one that was checked.
+- The Windows placeholder check runs before opening content and again after the descriptor is
+  opened, before its first read or append. A sync provider can dehydrate a file between the first
+  check and the open; opening a recall-on-open file can itself start a download before the second
+  check. It can also change state between the second path-based check and the content operation.
+  Node does not expose the placeholder attributes of an open descriptor, so these intervals remain.
 - Before each operation that touches the filesystem, the fence re-resolves the granted folder's
   canonical path and re-checks its object identity (matching device and inode numbers). It refuses
   if the folder is no longer reachable, if its identity differs, or if the filesystem cannot supply
@@ -106,6 +126,41 @@ complete filesystem containment control.
   no-follow create, which is not available in pure Node on this platform.
 - Component screening splits a request on both `/` and `\` on every host. The path that is actually
   resolved is built by joining the request onto the granted folder under the host's own path rules.
+- `overwriteFileInGrant` requires a lowercase SHA-256 digest of the existing file's exact bytes and
+  stages the replacement in the same directory. A missing target or mismatch seen at the first
+  check refuses before any stage exists. A mismatch seen at the final recheck refuses without
+  replacing the target, but the stage is retained and reported; its relative hint is a recovery
+  clue, never authority to delete. The precondition protects cooperating Wyrd writers when they
+  serialize publication and detects external edits at every check it makes; it is not an
+  unconditional compare-and-swap. Concurrent Wyrd calls without serialization share the same race.
+  Node has no atomic replace-if-digest operation: a non-Wyrd writer can change the target between
+  the final recheck and rename, and a parent swap in that window can redirect the path-based rename.
+  The stage's exclusive create also inherits the Windows dangling-reparse behavior documented above:
+  a dangling reparse name occupying a generated stage name can be followed outside the grant.
+  The post-open binding refuses before writing the replacement bytes, but an empty outside file
+  can have been created.
+  Refusals never delete a stage by pathname. `effect` reports this call's observed actions, not a
+  promise about the disk after return.
+  The generated stage name inherits the create path's Windows exclusive-create window described
+  in the `appendLineInGrant` item above: a dangling reparse point raced into that name can leave
+  an empty file outside the grant before the post-open check refuses. The first target hash read
+  also inherits the read path's root-check-to-open window described in the root re-check and path
+  component items above: a grant root swapped after the first check can make that read reach a file
+  in the replacement directory before `ROOT_MOVED` is detected; it writes no bytes there.
+  After rename, the operation checks the grant root, then samples the parent directory, target
+  name identity and link count, the staged object's bytes through a descriptor opened before
+  rename, the parent again, the target's real path for equality with the expected path, and the
+  target name identity and link count again. It closes the held descriptor before returning `ok`.
+  No file content is opened for reading or read through a path after rename; metadata and real-path
+  queries still resolve paths. The descriptor byte guard compares identity, size and
+  `mtimeMs` around its hash; a same-size rewrite that restores `mtimeMs` can pass that guard.
+  These post-rename checks are separate, non-atomic samples, not a binding: a parent swapped and
+  restored between samples can pass unnoticed. A separate path-based publication race can reach
+  another file.
+  Node has no handle-relative lookup (`openat`) or descriptor-to-final-path query to close that
+  window. An `ok` result reports only that the individual samples passed; it cannot promise the
+  target still names the staged object or that no other file was replaced. The window between
+  post-rename samples joins the final-check-to-rename race and the later-swap race above.
 
 This section is the authoritative account. The source header records how the limits were measured;
 it does not restate them.
