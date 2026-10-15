@@ -758,20 +758,30 @@ async function executableCloseFixture({ grant, modulePath, base }, { mode = 'std
                 ${fail ? "throw new Error('bad\\nclose');" : ''}
             } }; }`);
     const preload = 'data:text/javascript,' + encodeURIComponent([
-        // Inject the timer seam in the real process; keep all other timers unchanged.
-        `const nativeTimer = globalThis.setTimeout; globalThis.setTimeout = (fn, ms, ...args) => nativeTimer(fn, ms === 10000 ? 250 : ms, ...args);`,
+        // Only the hung-close fixture needs a shortened product deadline.
+        ...(hung ? [`const nativeTimer = globalThis.setTimeout; globalThis.setTimeout = (fn, ms, ...args) => nativeTimer(fn, ms === 10000 ? 250 : ms, ...args);`] : []),
         `process.on('message', () => { process.emit(${JSON.stringify(signal || 'SIGINT')}); process.emit('SIGTERM'); process.disconnect(); });`
     ].join('\n'));
     const args = ['--import', preload, entrypoint, '--grant', grant, '--search-backend', modulePath,
         ...(mode === 'http' ? ['--http', '0'] : []), ...(refuse ? ['--tls-cert', 'missing'] : [])];
+    const startupBudget = 6000; // SR64 allows 6000 ms; H12 allows 5000 ms for readiness.
+    const shutdownBudget = 2500; // The hung deadline is 250 ms, plus 2250 ms of margin.
+    const start = Date.now();
     const child = spawn(process.execPath, args, { env: { ...process.env, WYRD_OBSERVE: '',
         WYRD_READ_TOKEN: Buffer.alloc(32, 1).toString('base64url') }, stdio: ['pipe', 'ignore', 'pipe', 'ipc'] });
     let stderr = '', sent = false;
+    let timer, shutdownStart;
+    let rejectTimeout;
+    const timedOut = new Promise((_, reject) => { rejectTimeout = reject; });
+    timer = setTimeout(() => rejectTimeout(new Error(`child startup timed out: ${stderr}`)), startupBudget - (Date.now() - start));
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', chunk => {
         stderr += chunk;
-        if (!sent && (stderr.includes('wyrd is serving exactly one folder:') || stderr.includes('wyrd Reader is listening'))) {
+        if (!refuse && !sent && (stderr.includes('wyrd is serving exactly one folder:') || stderr.includes('wyrd Reader is listening'))) {
             sent = true;
+            clearTimeout(timer);
+            shutdownStart = Date.now();
+            timer = setTimeout(() => rejectTimeout(new Error(`child close timed out: ${stderr}`)), shutdownBudget);
             if (signal || mode === 'http') child.send('shutdown');
             else { child.stdin.end(); child.disconnect(); }
         }
@@ -780,12 +790,9 @@ async function executableCloseFixture({ grant, modulePath, base }, { mode = 'std
     const exited = new Promise((resolve, reject) => {
         child.once('exit', (code, signal) => resolve({ code, signal })); child.once('error', reject);
     });
-    let timer;
-    const start = Date.now();
     try {
-        const result = await Promise.race([exited, new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Error(`child close timed out: ${stderr}`)), 2500);
-        })]);
+        const result = await Promise.race([exited, timedOut]);
+        if (!refuse) assert.equal(sent, true, stderr);
         assert.equal(result.signal, null, stderr);
         assert.equal(result.code, refuse ? 2 : hung || fail ? 1 : 0, stderr);
         assert.equal(fs.readFileSync(closed, 'utf8'), hung ? 'begin' : 'beginend');
@@ -793,7 +800,8 @@ async function executableCloseFixture({ grant, modulePath, base }, { mode = 'std
             assert.equal(stderr.split('\n').filter(line => line.includes('search backend shutdown failed')).length, 1);
             assert.match(stderr, hung ? /deadline exceeded/ : /bad close/);
         } else assert.doesNotMatch(stderr, /shutdown failed/);
-        assert.ok(Date.now() - start < 2500);
+        if (refuse) assert.ok(Date.now() - start < startupBudget);
+        else assert.ok(Date.now() - shutdownStart < shutdownBudget);
     } finally {
         clearTimeout(timer);
         if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');

@@ -1,6 +1,58 @@
 # wyrd
 
-**An MCP server that exposes one folder to an AI client, read-only.**
+**An MCP server that lets any AI client read and search a folder of notes, read-only, fenced to the one folder you grant.**
+
+## Quick start
+
+Requires Node 20 or newer. Replace `<absolute folder>` with the full path to your notes folder.
+The grant lets the server read only inside the folder you name, read-only; see the known limits below.
+
+**Claude Code** — run:
+
+```sh
+claude mcp add wyrd -- npx -y wyrd-mcp --grant "<absolute folder>"
+```
+
+**Cursor** — add this to `~/.cursor/mcp.json` (Windows: `%USERPROFILE%\.cursor\mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "wyrd": {
+      "command": "npx",
+      "args": ["-y", "wyrd-mcp", "--grant", "<absolute folder>"]
+    }
+  }
+}
+```
+
+**Claude Desktop** — add this to `claude_desktop_config.json` at
+`%APPDATA%\Claude\claude_desktop_config.json` on Windows or
+`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS:
+
+```json
+{
+  "mcpServers": {
+    "wyrd": {
+      "command": "npx",
+      "args": ["-y", "wyrd-mcp", "--grant", "<absolute folder>"]
+    }
+  }
+}
+```
+
+The app reads this file only at startup; fully quit and reopen Claude Desktop after saving.
+In JSON, use forward slashes in Windows folder paths or escape each backslash as `\\`.
+On Windows, if a desktop client cannot start the server, use `"command": "cmd"` with
+`"/c", "npx"` at the front of `args`.
+
+**Try it** — ask your client: "Use wyrd to search my notes for <a word you know is in them>, then
+read the best match." Search returns the matching paths with excerpts and byte offsets. Each read
+opens with a header naming the file and the bytes returned, then the file's text:
+
+```text
+wyrd read notes/kettle.md — bytes 0..37 of 37 · truncated: false
+```
 
 Point Claude Code, Codex, Cursor, ChatGPT or Claude Desktop at a folder of notes and let it read
 them. Wyrd checks every file request against the folder you grant.
