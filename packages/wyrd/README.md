@@ -54,7 +54,7 @@ opens with a header naming the file and the bytes returned, then the file's text
 wyrd read notes/kettle.md — bytes 0..37 of 37 · truncated: false
 ```
 
-Point Claude Code, Codex, Cursor, ChatGPT or Claude Desktop at a folder of notes and let it read
+Point Claude Code, Codex, Cursor or Claude Desktop at a folder of notes and let it read
 them. Wyrd checks every file request against the folder you grant.
 
 If the folder happens to be a Mage vault, one organised into `Arc/` and `Mage/` layers, wyrd
@@ -136,45 +136,48 @@ restriction.
 
 Cloud placeholders are detected on Windows before the `read` tool opens content. A placeholder
 read refuses by default and names the download it would trigger; `hydrate: true` permits that
-one call to download it. Every `read` result includes `placeholder_detection`, a count and
-fraction when measured, and a warning if the grant contains a known placeholder. Unsupported
-platforms report `unavailable` with null counts rather than claiming none were found.
+one call to download it. Every `read` result ends with a `placeholder status` text block carrying
+`placeholder_detection`, the counts and fraction when measured, and a warning if the grant contains
+a known placeholder. Unsupported platforms report `unavailable` with null counts rather than
+claiming none were found.
+
 ## Install
 
-```
-npm install -g wyrd-mcp
+Requires Node 20 or newer. Use the published npm package with npx:
+
+```sh
+npx -y wyrd-mcp --grant "<absolute folder>"
 ```
 
-Node 20 or newer.
+Optionally, install globally with `npm install -g wyrd-mcp`. Then use
+`"command": "wyrd-mcp"` and omit `"-y", "wyrd-mcp"` from the npx arguments below.
 
 ## Use
 
-Wyrd refuses to start until you grant it a folder. Grant one on the command line or in the
-environment:
+Wyrd refuses to start without a grant. Grant exactly one folder with
+`--grant "<absolute folder>"`, or set `WYRD_GRANT` to `<absolute folder>` in the
+server's environment and run `npx -y wyrd-mcp` without `--grant`.
 
-```
-wyrd-mcp --grant /absolute/path/to/notes
-WYRD_GRANT=/absolute/path/to/notes wyrd-mcp
-```
-
-**Claude Code**: save as `wyrd.mcp.json` and pass `--mcp-config wyrd.mcp.json`:
+**Claude Code headless runs**: save this as `wyrd.mcp.json` and pass
+`--mcp-config wyrd.mcp.json` to the headless command:
 
 ```json
 {
   "mcpServers": {
     "wyrd": {
-      "command": "wyrd-mcp",
-      "args": ["--grant", "/absolute/path/to/notes"]
+      "command": "npx",
+      "args": ["-y", "wyrd-mcp", "--grant", "<absolute folder>"]
     }
   }
 }
 ```
 
-**Codex**: MCP servers arrive as config overrides:
+**Codex**: add this to `~/.codex/config.toml`:
 
-```
-codex exec -c 'mcp_servers.wyrd.command="wyrd-mcp"' \
-           -c 'mcp_servers.wyrd.args=["--grant","/absolute/path/to/notes"]' "..."
+```toml
+[mcp_servers.wyrd]
+command = "npx"
+args = ["-y", "wyrd-mcp", "--grant", "<absolute folder>"]
 ```
 
 Other clients take a `command` and `args` in their own MCP configuration; the shape is the same.

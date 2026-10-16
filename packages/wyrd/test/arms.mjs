@@ -91,7 +91,8 @@ export const E2E_ARMS = {
     'E16-claim-evidence': 'every disclosure claim declares one of three evidence grades and a substantive limit, claim ids are unique, and the exact set of unverified ids is pinned and printed in full on green. ⚠ Declaration and denominator only; it does not establish truth, that any grade is correct, or that any evidence ran',
     'E17-v1-raw-baseline': 'an SDK-free raw JSON-RPC corpus pins no-grant exit and stderr, grant precedence, pre-initialize and duplicate-initialize behavior, non-empty client capabilities and list cursor, the v1 -32603 invalid-name characterization baseline, selected static stdout bytes, the exact tool declaration, normal, paged, non-text and error reads, per-stream line ordering and unchanged fixture bytes',
     'E18-recapture-refused': 'the recapture guard refuses to overwrite an existing v1 golden and permits a first capture where none exists, and the real corpus file is byte-identical after a refused attempt; it pins THIS entry point only and does not prove no other code can write that file',
-    'E19-transport-network-accounting': 'every transport derived by path from the Reader\'s built ServerTransport declaration is represented exactly once in a two-way accounting table and has network behaviour stated on a loaded surface or substantively exempted. ⚠ Set accounting only; it does not establish that a stated sentence is true'
+    'E19-transport-network-accounting': 'every transport derived by path from the Reader\'s built ServerTransport declaration is represented exactly once in a two-way accounting table and has network behaviour stated on a loaded surface or substantively exempted. ⚠ Set accounting only; it does not establish that a stated sentence is true',
+    'E20-read-result-equivalence': 'clients that prefer structured content receive exact ordinary, empty, Unicode and paged file text and the refusal explanation over stdio'
 };
 
 export const SEARCH_SLICE1_ARMS = {

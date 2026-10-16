@@ -301,8 +301,8 @@ const ROWS = [
     { id: 'M93-undocumented-refusal-reason', file: 'server',
         what: 'return a refusal reason no disclosure surface accounts for',
         plan: 'E15-refusal-vocabulary',
-        from: "content: [{ type: 'text', text: readRefusal('BAD_INPUT', '`path` must be a string.') }]",
-        to: "content: [{ type: 'text', text: readRefusal('PATH_NOT_A_STRING', '`path` must be a string.') }]" },
+        from: "content: [{ type: 'text', text: readRefusal('BAD_INPUT', '`path` must be a string.') },",
+        to: "content: [{ type: 'text', text: readRefusal('PATH_NOT_A_STRING', '`path` must be a string.') }," },
     // ⚠⚠ THIS COMMENT'S PREMISE WENT STALE ON 2026-09-14 AND THE MEASUREMENT SAYS SO. It read:
     // "THE TRANSPORT IS CHOSEN BECAUSE `MF2` NEVER READS IT." MF2 reads it now — the Reader gaining
     // HTTP is exactly when that could start drifting, so `manifest-schema.test.js:177` asserts the

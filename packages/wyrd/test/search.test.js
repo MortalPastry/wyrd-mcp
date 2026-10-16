@@ -359,12 +359,17 @@ test('SR32-read-download-observation — opening cannot erase the download warni
             assert.equal(opens, 1, label);
             assert.equal(result.isError, undefined, label);
             assert.equal(result.content[1].text, 'downloaded text', label);
-            assert.equal(result.structuredContent.dehydrated, downloaded ? true : undefined, label);
-            assert.equal(/This read downloaded a cloud placeholder\./.test(result.structuredContent.warning ?? ''), downloaded, label);
-            assert.equal(result.structuredContent.placeholder_count, after === null ? null : Number(before), label);
-            assert.equal(result.structuredContent.file_count, after === null ? null : 1, label);
-            assert.equal(result.structuredContent.placeholder_fraction, after === null ? null : Number(before), label);
-            assert.equal(result.structuredContent.placeholder_detection, after === null ? 'unavailable' : 'available', label);
+            assert.equal(Object.hasOwn(result, 'structuredContent'), false, label);
+            const block = result.content.at(-1);
+            assert.equal(block.type, 'text', label);
+            assert.match(block.text, /^placeholder status: /, label);
+            const status = JSON.parse(block.text.slice('placeholder status: '.length));
+            assert.equal(status.dehydrated, downloaded ? true : undefined, label);
+            assert.equal(/This read downloaded a cloud placeholder\./.test(status.warning ?? ''), downloaded, label);
+            assert.equal(status.placeholder_count, after === null ? null : Number(before), label);
+            assert.equal(status.file_count, after === null ? null : 1, label);
+            assert.equal(status.placeholder_fraction, after === null ? null : Number(before), label);
+            assert.equal(status.placeholder_detection, after === null ? 'unavailable' : 'available', label);
         }, { primitives: {
             open(target, flags) {
                 opens++;

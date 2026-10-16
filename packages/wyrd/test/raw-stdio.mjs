@@ -825,14 +825,17 @@ function withApprovedD6Delta(actual) {
             assert.deepStrictEqual(tool.inputSchema.properties.hydrate, hydrateSchema);
             delete tool.inputSchema.properties.hydrate;
         }
-        if (message?.result?.structuredContent) {
-            const status = message.result.structuredContent;
+        const block = message?.result?.content?.at(-1);
+        if (block?.text?.startsWith('placeholder status: ')) {
+            assert.equal(Object.hasOwn(message.result, 'structuredContent'), false);
+            assert.equal(block.type, 'text');
+            const status = JSON.parse(block.text.slice('placeholder status: '.length));
             assert.ok(['available', 'unavailable'].includes(status.placeholder_detection));
             if (status.placeholder_detection === 'unavailable') {
                 assert.equal(status.placeholder_count, null);
                 assert.equal(status.placeholder_fraction, null);
             }
-            delete message.result.structuredContent;
+            message.result.content.pop();
         }
         return message;
     }

@@ -451,13 +451,15 @@ export function createServer(options: CreateServerOptions): Server {
                 file_count: null, placeholder_fraction: null,
                 ...(summary.warning ? { warning: summary.warning } : {}) }
             : summary;
+        const statusBlock = (value: object) => ({ type: 'text' as const,
+            text: `placeholder status: ${JSON.stringify(value)}` });
         const readRefusal = (reason: string, detail: string) =>
             refusalText(reason, detail) + (summary.warning ? `\nwarning: ${summary.warning}` : '');
         if (request.params.name !== 'read') {
             return {
                 isError: true,
-                structuredContent: status(),
-                content: [{ type: 'text' as const, text: `wyrd has no tool named ${request.params.name}.` }]
+                content: [{ type: 'text' as const, text: `wyrd has no tool named ${request.params.name}.` },
+                    statusBlock(status())]
             };
         }
 
@@ -466,8 +468,8 @@ export function createServer(options: CreateServerOptions): Server {
         if (typeof target !== 'string') {
             return {
                 isError: true,
-                structuredContent: status(),
-                content: [{ type: 'text' as const, text: readRefusal('BAD_INPUT', '`path` must be a string.') }]
+                content: [{ type: 'text' as const, text: readRefusal('BAD_INPUT', '`path` must be a string.') },
+                    statusBlock(status())]
             };
         }
         const offset = typeof args['offset'] === 'number' ? args['offset'] : 0;
@@ -479,9 +481,9 @@ export function createServer(options: CreateServerOptions): Server {
         if (isRefusal(slice)) {
             return {
                 isError: true,
-                structuredContent: { ...status(), ...(slice.reason === 'PLACEHOLDER' ? { dehydrated: true } : {}) },
                 content: [{ type: 'text' as const, text: refusalText(slice.reason, slice.detail) +
-                    (summary.warning ? `\nwarning: ${summary.warning}` : '') }]
+                    (summary.warning ? `\nwarning: ${summary.warning}` : '') },
+                    statusBlock({ ...status(), ...(slice.reason === 'PLACEHOLDER' ? { dehydrated: true } : {}) })]
             };
         }
 
@@ -505,7 +507,6 @@ export function createServer(options: CreateServerOptions): Server {
         if (slice.bytes.length === 0 && slice.truncated && slice.nextOffset <= slice.offset) {
             return {
                 isError: true,
-                structuredContent: status(),
                 content: [
                     {
                         type: 'text' as const,
@@ -515,7 +516,8 @@ export function createServer(options: CreateServerOptions): Server {
                                 `${slice.offset}, so the read cannot advance. Retry with a larger ` +
                                 `limit — a single character can need up to 4 bytes.`
                         )
-                    }
+                    },
+                    statusBlock(status())
                 ]
             };
         }
@@ -529,7 +531,6 @@ export function createServer(options: CreateServerOptions): Server {
         if (first !== undefined && (first & 0xc0) === 0x80) {
             return {
                 isError: true,
-                structuredContent: status(),
                 content: [
                     {
                         type: 'text' as const,
@@ -539,7 +540,8 @@ export function createServer(options: CreateServerOptions): Server {
                                 `slice cannot be decoded. Use the \`next_offset\` from a previous ` +
                                 `response rather than choosing an offset directly.`
                         )
-                    }
+                    },
+                    statusBlock(status())
                 ]
             };
         }
@@ -548,7 +550,6 @@ export function createServer(options: CreateServerOptions): Server {
         if (Buffer.compare(slice.bytes, Buffer.from(decoded, 'utf8')) !== 0) {
             return {
                 isError: true,
-                structuredContent: status(),
                 content: [
                     {
                         type: 'text' as const,
@@ -560,7 +561,8 @@ export function createServer(options: CreateServerOptions): Server {
                                 `the bytes, not the file name — the file is in scope, its ` +
                                 `encoding is not something this tool can return faithfully.`
                         )
-                    }
+                    },
+                    statusBlock(status())
                 ]
             };
         }
@@ -574,10 +576,10 @@ export function createServer(options: CreateServerOptions): Server {
         return {
             content: [
                 { type: 'text' as const, text: header },
-                { type: 'text' as const, text: decoded }
-            ],
-            structuredContent: { ...status(),
-                ...(slice.dehydrated ? { dehydrated: true, warning: `${summary.warning ?? ''} This read downloaded a cloud placeholder.`.trim() } : {}) }
+                { type: 'text' as const, text: decoded },
+                statusBlock({ ...status(),
+                    ...(slice.dehydrated ? { dehydrated: true, warning: `${summary.warning ?? ''} This read downloaded a cloud placeholder.`.trim() } : {}) })
+            ]
         };
     });
 

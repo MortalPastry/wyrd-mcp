@@ -449,7 +449,7 @@
               },
               "serverInfo": {
                 "name": "wyrd",
-                "version": "0.3.1"
+                "version": "0.3.2"
               },
               "instructions": "wyrd is serving exactly one folder: <TEMP>\\argument-grant\nIts tools are `read` and `search`; both are read-only.\n\nWhat that means:\n  · Every request is checked against that folder before a file is opened. A path that\n    resolves outside it is refused, and the refusal names the rule that fired rather\n    than pretending the file is absent. The known limits below say where that check\n    does not hold.\n  · No tool here writes, moves or deletes anything. There is none that can. The PROCESS\n    can write in exactly one case: with WYRD_OBSERVE set it ATTEMPTS, at exit, to log the\n    pathnames it touches, never file contents, to exactly the path that variable names,\n    which is not checked and may be a network share or a synchronised folder. The write\n    is attempted, not guaranteed — if it fails it fails silently.\n  · In stdio mode, this server opens no network connection of its own. That is NOT a promise your\n    content stays local: what the client driving this conversation does with what it\n    reads is between you and that client, under its terms and not wyrd's. A client\n    talking to a hosted model will send your content there; one running a model locally,\n    or one that never forwards a particular result, will not. Wyrd cannot see which.\n  · Search builds a lazy in-memory cache of normalized terms and anchors; it holds no raw\n    text and writes no search data to disk. The grant is fixed until restart.\n\n\nWhat is in scope: ANY PATH INSIDE that folder can be requested, hidden entries included,\nsuch as .env and .git/config. There is no extension filter, no ignore-file support, and no\ncap on how much may be read in total. The folder is the whole of the restriction: grant a\nsubfolder containing only what you mean to share.\n\nA handful of NAME SPELLINGS are refused as input before anything is opened, so a file whose\nname takes one sits on the disk and cannot be requested: a name beginning with a drive\nletter and a colon, such as C:notes, on every host — including the hosts where that is an\nordinary filename — and, on Windows, a component containing a colon (which names a data\nstream rather than a file) or a reserved device name such as NUL.md or COM1.\n\n(What comes back is narrower than what can be requested.\nA DIRECTORY is refused, so .git and .ssh are refused as directories\nwhile the files inside them are readable; and bytes that are not valid UTF-8 are refused\nrather than altered. Both limit what is READABLE, not what is REACHABLE.)\n\nKnown limits, each needing different conditions:\n  · A hard link that already exists inside this folder makes the file it points at\n    readable and searchable, wherever on the disk that file lives, and ordinary folder inspection will\n    not show it as a link. Granting a folder the files were freshly COPIED into avoids\n    it, because copying makes new files rather than new links.\n  · A path component swapped between validation and opening may be read instead of the\n    one checked. That needs write access to this folder.\n  · Some filesystem reparse points cannot be classified by this runtime, and this one\n    NEEDS NO ATTACKER: an ordinary cloud-synced or WSL-mounted folder can contain one in\n    normal use. A path resolving through one is still checked against this folder, so it\n    cannot be used to read outside it; what remains is that a refusal for a file outside\n    this folder can distinguish missing from unreadable.\n  · A refusal distinguishes \"outside the grant\" from \"does not exist\", which tells a\n    caller one bit about whether a file outside this folder exists.\nThis list is what is known, not a proof that nothing else exists. The limits were measured\non Windows; behaviour on macOS and Linux is reasoned but unmeasured."
             },
@@ -493,14 +493,12 @@
                 {
                   "type": "text",
                   "text": "selected by --grant\n"
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":1,\"placeholder_fraction\":0}"
                 }
-              ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 1,
-                "placeholder_fraction": 0
-              }
+              ]
             },
             "jsonrpc": "2.0",
             "id": "<REQUEST_ID_2>"
@@ -1116,7 +1114,7 @@
                 },
                 "serverInfo": {
                   "name": "wyrd",
-                  "version": "0.3.1"
+                  "version": "0.3.2"
                 },
                 "instructions": "wyrd is serving exactly one folder: <TEMP>\\reader-grant\nIts tools are `read` and `search`; both are read-only.\n\nWhat that means:\n  · Every request is checked against that folder before a file is opened. A path that\n    resolves outside it is refused, and the refusal names the rule that fired rather\n    than pretending the file is absent. The known limits below say where that check\n    does not hold.\n  · No tool here writes, moves or deletes anything. There is none that can. The PROCESS\n    can write in exactly one case: with WYRD_OBSERVE set it ATTEMPTS, at exit, to log the\n    pathnames it touches, never file contents, to exactly the path that variable names,\n    which is not checked and may be a network share or a synchronised folder. The write\n    is attempted, not guaranteed — if it fails it fails silently.\n  · In stdio mode, this server opens no network connection of its own. That is NOT a promise your\n    content stays local: what the client driving this conversation does with what it\n    reads is between you and that client, under its terms and not wyrd's. A client\n    talking to a hosted model will send your content there; one running a model locally,\n    or one that never forwards a particular result, will not. Wyrd cannot see which.\n  · Search builds a lazy in-memory cache of normalized terms and anchors; it holds no raw\n    text and writes no search data to disk. The grant is fixed until restart.\n\n\nWhat is in scope: ANY PATH INSIDE that folder can be requested, hidden entries included,\nsuch as .env and .git/config. There is no extension filter, no ignore-file support, and no\ncap on how much may be read in total. The folder is the whole of the restriction: grant a\nsubfolder containing only what you mean to share.\n\nA handful of NAME SPELLINGS are refused as input before anything is opened, so a file whose\nname takes one sits on the disk and cannot be requested: a name beginning with a drive\nletter and a colon, such as C:notes, on every host — including the hosts where that is an\nordinary filename — and, on Windows, a component containing a colon (which names a data\nstream rather than a file) or a reserved device name such as NUL.md or COM1.\n\n(What comes back is narrower than what can be requested.\nA DIRECTORY is refused, so .git and .ssh are refused as directories\nwhile the files inside them are readable; and bytes that are not valid UTF-8 are refused\nrather than altered. Both limit what is READABLE, not what is REACHABLE.)\n\nKnown limits, each needing different conditions:\n  · A hard link that already exists inside this folder makes the file it points at\n    readable and searchable, wherever on the disk that file lives, and ordinary folder inspection will\n    not show it as a link. Granting a folder the files were freshly COPIED into avoids\n    it, because copying makes new files rather than new links.\n  · A path component swapped between validation and opening may be read instead of the\n    one checked. That needs write access to this folder.\n  · Some filesystem reparse points cannot be classified by this runtime, and this one\n    NEEDS NO ATTACKER: an ordinary cloud-synced or WSL-mounted folder can contain one in\n    normal use. A path resolving through one is still checked against this folder, so it\n    cannot be used to read outside it; what remains is that a refusal for a file outside\n    this folder can distinguish missing from unreadable.\n  · A refusal distinguishes \"outside the grant\" from \"does not exist\", which tells a\n    caller one bit about whether a file outside this folder exists.\nThis list is what is known, not a proof that nothing else exists. The limits were measured\non Windows; behaviour on macOS and Linux is reasoned but unmeasured."
               },
@@ -1164,7 +1162,7 @@
                 },
                 "serverInfo": {
                   "name": "wyrd",
-                  "version": "0.3.1"
+                  "version": "0.3.2"
                 },
                 "instructions": "wyrd is serving exactly one folder: <TEMP>\\reader-grant\nIts tools are `read` and `search`; both are read-only.\n\nWhat that means:\n  · Every request is checked against that folder before a file is opened. A path that\n    resolves outside it is refused, and the refusal names the rule that fired rather\n    than pretending the file is absent. The known limits below say where that check\n    does not hold.\n  · No tool here writes, moves or deletes anything. There is none that can. The PROCESS\n    can write in exactly one case: with WYRD_OBSERVE set it ATTEMPTS, at exit, to log the\n    pathnames it touches, never file contents, to exactly the path that variable names,\n    which is not checked and may be a network share or a synchronised folder. The write\n    is attempted, not guaranteed — if it fails it fails silently.\n  · In stdio mode, this server opens no network connection of its own. That is NOT a promise your\n    content stays local: what the client driving this conversation does with what it\n    reads is between you and that client, under its terms and not wyrd's. A client\n    talking to a hosted model will send your content there; one running a model locally,\n    or one that never forwards a particular result, will not. Wyrd cannot see which.\n  · Search builds a lazy in-memory cache of normalized terms and anchors; it holds no raw\n    text and writes no search data to disk. The grant is fixed until restart.\n\n\nWhat is in scope: ANY PATH INSIDE that folder can be requested, hidden entries included,\nsuch as .env and .git/config. There is no extension filter, no ignore-file support, and no\ncap on how much may be read in total. The folder is the whole of the restriction: grant a\nsubfolder containing only what you mean to share.\n\nA handful of NAME SPELLINGS are refused as input before anything is opened, so a file whose\nname takes one sits on the disk and cannot be requested: a name beginning with a drive\nletter and a colon, such as C:notes, on every host — including the hosts where that is an\nordinary filename — and, on Windows, a component containing a colon (which names a data\nstream rather than a file) or a reserved device name such as NUL.md or COM1.\n\n(What comes back is narrower than what can be requested.\nA DIRECTORY is refused, so .git and .ssh are refused as directories\nwhile the files inside them are readable; and bytes that are not valid UTF-8 are refused\nrather than altered. Both limit what is READABLE, not what is REACHABLE.)\n\nKnown limits, each needing different conditions:\n  · A hard link that already exists inside this folder makes the file it points at\n    readable and searchable, wherever on the disk that file lives, and ordinary folder inspection will\n    not show it as a link. Granting a folder the files were freshly COPIED into avoids\n    it, because copying makes new files rather than new links.\n  · A path component swapped between validation and opening may be read instead of the\n    one checked. That needs write access to this folder.\n  · Some filesystem reparse points cannot be classified by this runtime, and this one\n    NEEDS NO ATTACKER: an ordinary cloud-synced or WSL-mounted folder can contain one in\n    normal use. A path resolving through one is still checked against this folder, so it\n    cannot be used to read outside it; what remains is that a refusal for a file outside\n    this folder can distinguish missing from unreadable.\n  · A refusal distinguishes \"outside the grant\" from \"does not exist\", which tells a\n    caller one bit about whether a file outside this folder exists.\nThis list is what is known, not a proof that nothing else exists. The limits were measured\non Windows; behaviour on macOS and Linux is reasoned but unmeasured."
               },
@@ -1549,7 +1547,7 @@
               },
               "serverInfo": {
                 "name": "wyrd",
-                "version": "0.3.1"
+                "version": "0.3.2"
               },
               "instructions": "wyrd is serving exactly one folder: <TEMP>\\reader-grant\nIts tools are `read` and `search`; both are read-only.\n\nWhat that means:\n  · Every request is checked against that folder before a file is opened. A path that\n    resolves outside it is refused, and the refusal names the rule that fired rather\n    than pretending the file is absent. The known limits below say where that check\n    does not hold.\n  · No tool here writes, moves or deletes anything. There is none that can. The PROCESS\n    can write in exactly one case: with WYRD_OBSERVE set it ATTEMPTS, at exit, to log the\n    pathnames it touches, never file contents, to exactly the path that variable names,\n    which is not checked and may be a network share or a synchronised folder. The write\n    is attempted, not guaranteed — if it fails it fails silently.\n  · In stdio mode, this server opens no network connection of its own. That is NOT a promise your\n    content stays local: what the client driving this conversation does with what it\n    reads is between you and that client, under its terms and not wyrd's. A client\n    talking to a hosted model will send your content there; one running a model locally,\n    or one that never forwards a particular result, will not. Wyrd cannot see which.\n  · Search builds a lazy in-memory cache of normalized terms and anchors; it holds no raw\n    text and writes no search data to disk. The grant is fixed until restart.\n\n\nWhat is in scope: ANY PATH INSIDE that folder can be requested, hidden entries included,\nsuch as .env and .git/config. There is no extension filter, no ignore-file support, and no\ncap on how much may be read in total. The folder is the whole of the restriction: grant a\nsubfolder containing only what you mean to share.\n\nA handful of NAME SPELLINGS are refused as input before anything is opened, so a file whose\nname takes one sits on the disk and cannot be requested: a name beginning with a drive\nletter and a colon, such as C:notes, on every host — including the hosts where that is an\nordinary filename — and, on Windows, a component containing a colon (which names a data\nstream rather than a file) or a reserved device name such as NUL.md or COM1.\n\n(What comes back is narrower than what can be requested.\nA DIRECTORY is refused, so .git and .ssh are refused as directories\nwhile the files inside them are readable; and bytes that are not valid UTF-8 are refused\nrather than altered. Both limit what is READABLE, not what is REACHABLE.)\n\nKnown limits, each needing different conditions:\n  · A hard link that already exists inside this folder makes the file it points at\n    readable and searchable, wherever on the disk that file lives, and ordinary folder inspection will\n    not show it as a link. Granting a folder the files were freshly COPIED into avoids\n    it, because copying makes new files rather than new links.\n  · A path component swapped between validation and opening may be read instead of the\n    one checked. That needs write access to this folder.\n  · Some filesystem reparse points cannot be classified by this runtime, and this one\n    NEEDS NO ATTACKER: an ordinary cloud-synced or WSL-mounted folder can contain one in\n    normal use. A path resolving through one is still checked against this folder, so it\n    cannot be used to read outside it; what remains is that a refusal for a file outside\n    this folder can distinguish missing from unreadable.\n  · A refusal distinguishes \"outside the grant\" from \"does not exist\", which tells a\n    caller one bit about whether a file outside this folder exists.\nThis list is what is known, not a proof that nothing else exists. The limits were measured\non Windows; behaviour on macOS and Linux is reasoned but unmeasured."
             },
@@ -1674,14 +1672,12 @@
                 {
                   "type": "text",
                   "text": "ordinary text\n"
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
-              ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              }
+              ]
             },
             "jsonrpc": "2.0",
             "id": "<REQUEST_ID_3>"
@@ -1717,14 +1713,12 @@
                 {
                   "type": "text",
                   "text": "A😀"
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
-              ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              }
+              ]
             },
             "jsonrpc": "2.0",
             "id": "<REQUEST_ID_4>"
@@ -1760,14 +1754,12 @@
                 {
                   "type": "text",
                   "text": "Z"
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
-              ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              }
+              ]
             },
             "jsonrpc": "2.0",
             "id": "<REQUEST_ID_5>"
@@ -1797,14 +1789,12 @@
                 {
                   "type": "text",
                   "text": "wyrd refused this read.\nreason: NOT_TEXT\nthe requested slice of non-text.bin is not valid UTF-8, so it cannot be returned without altering it. wyrd refuses rather than returning content that looks complete and is not. This is a property of the bytes, not the file name — the file is in scope, its encoding is not something this tool can return faithfully."
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
               ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              },
               "isError": true
             },
             "jsonrpc": "2.0",
@@ -1835,14 +1825,12 @@
                 {
                   "type": "text",
                   "text": "wyrd refused this read.\nreason: MISSING\nno such path in the grant: missing.md"
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
               ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              },
               "isError": true
             },
             "jsonrpc": "2.0",
@@ -1873,14 +1861,12 @@
                 {
                   "type": "text",
                   "text": "wyrd refused this read.\nreason: NOT_A_FILE\nfolder is a directory"
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
               ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              },
               "isError": true
             },
             "jsonrpc": "2.0",
@@ -1911,14 +1897,12 @@
                 {
                   "type": "text",
                   "text": "wyrd refused this read.\nreason: ESCAPES\nthe path leaves the granted folder"
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
               ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              },
               "isError": true
             },
             "jsonrpc": "2.0",
@@ -1949,14 +1933,12 @@
                 {
                   "type": "text",
                   "text": "wyrd refused this read.\nreason: BAD_INPUT\n`path` must be a string."
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
               ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              },
               "isError": true
             },
             "jsonrpc": "2.0",
@@ -1989,14 +1971,12 @@
                 {
                   "type": "text",
                   "text": "wyrd refused this read.\nreason: LIMIT_TOO_SMALL\nlimit 1 is too small to return even one character at offset 1, so the read cannot advance. Retry with a larger limit — a single character can need up to 4 bytes."
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
               ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              },
               "isError": true
             },
             "jsonrpc": "2.0",
@@ -2029,14 +2009,12 @@
                 {
                   "type": "text",
                   "text": "wyrd refused this read.\nreason: BAD_OFFSET\noffset 2 falls inside a multi-byte character, so the slice cannot be decoded. Use the `next_offset` from a previous response rather than choosing an offset directly."
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
               ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              },
               "isError": true
             },
             "jsonrpc": "2.0",
@@ -2065,14 +2043,12 @@
                 {
                   "type": "text",
                   "text": "wyrd has no tool named not-a-tool."
+                },
+                {
+                  "type": "text",
+                  "text": "placeholder status: {\"placeholder_detection\":\"available\",\"placeholder_count\":0,\"file_count\":3,\"placeholder_fraction\":0}"
                 }
               ],
-              "structuredContent": {
-                "placeholder_detection": "available",
-                "placeholder_count": 0,
-                "file_count": 3,
-                "placeholder_fraction": 0
-              },
               "isError": true
             },
             "jsonrpc": "2.0",

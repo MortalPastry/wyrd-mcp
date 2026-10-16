@@ -196,6 +196,64 @@ test('E3-read-and-refuse — `read` serves an in-grant file and refuses an escap
     }
 });
 
+test('E20-read-result-equivalence - clients that prefer structured content receive file text and refusals', { timeout: TEST_TIMEOUT_MS }, async () => {
+    arm('E20-read-result-equivalence');
+    const vault = makeVault();
+    const unicode = 'café 東京 😀\n';
+    const paged = 'A😀Z';
+    fs.writeFileSync(path.join(vault.grant, 'empty.md'), '');
+    fs.writeFileSync(path.join(vault.grant, 'unicode.md'), unicode);
+    fs.writeFileSync(path.join(vault.grant, 'paged.md'), paged);
+    try {
+        await withClient(vault.grant, async client => {
+            const checkShown = (result, expected) => {
+                const shown = result.structuredContent ?? result.content;
+                assert.ok(Array.isArray(shown) && shown.some(block =>
+                    block.type === 'text' && block.text === expected),
+                    'the preferred result channel must contain the exact text block');
+                readStatus(result);
+            };
+            for (const [file, expected] of [
+                ['subdir/note.md', 'E2E-NOTE-CANARY'],
+                ['empty.md', ''],
+                ['unicode.md', unicode]
+            ]) {
+                const result = await client.callTool({ name: 'read', arguments: { path: file } });
+                assert.notEqual(result.isError, true, file);
+                checkShown(result, expected);
+                assert.equal(result.content.length, 3, file);
+                assert.equal(result.content[1].text, expected, file);
+            }
+            const pages = [];
+            let offset = 0;
+            for (const expected of ['A😀', 'Z']) {
+                const result = await client.callTool({ name: 'read', arguments: { path: 'paged.md', offset, limit: 5 } });
+                assert.notEqual(result.isError, true);
+                checkShown(result, expected);
+                assert.equal(result.content.length, 3);
+                assert.equal(result.content[1].text, expected);
+                pages.push(result.content[1].text);
+                if (offset === 0) {
+                    assert.match(result.content[0].text, /truncated: true/);
+                    const next = result.content[0].text.match(/next_offset: (\d+)/);
+                    assert.notEqual(next, null);
+                    offset = Number(next[1]);
+                    assert.equal(offset, 5);
+                } else {
+                    assert.match(result.content[0].text, /truncated: false/);
+                }
+            }
+            assert.equal(pages.join(''), paged);
+            const refused = await client.callTool({ name: 'read', arguments: { path: 'missing.md' } });
+            assert.equal(refused.isError, true);
+            checkShown(refused, 'wyrd refused this read.\nreason: MISSING\nno such path in the grant: missing.md');
+            assert.equal(refused.content.length, 2);
+        });
+    } finally {
+        fs.rmSync(vault.base, { recursive: true, force: true });
+    }
+});
+
 test('E5-disclosure — initialize.instructions discloses the canonical grant and names nothing outside it', { ...tier2('E5-disclosure'), timeout: TEST_TIMEOUT_MS }, async () => {
     arm('E5-disclosure');
     // ⚠ REGRESSION ARM. Measured 2026-08-28 by driving the built server with a real client:
@@ -1945,6 +2003,14 @@ test('E19-transport-network-accounting — every derived transport has network b
     );
 });
 
+function readStatus(result) {
+    assert.equal(Object.hasOwn(result, 'structuredContent'), false);
+    const block = result.content.at(-1);
+    assert.equal(block.type, 'text');
+    assert.match(block.text, /^placeholder status: /);
+    return JSON.parse(block.text.slice('placeholder status: '.length));
+}
+
 function d6CallGate(summary, readFileInGrant, currentDetection = () => summary.placeholder_detection) {
     const fsgate = {
         disclosedRoot: () => 'test-grant',
@@ -1973,7 +2039,7 @@ test('SR1-placeholder-one-of-many — one known placeholder warns on an ordinary
     assert.equal(result.isError, undefined);
     assert.equal(result.content[1].text, 'ordinary');
     assert.match(result.content[0].text, /1 of 20 files.*5\.00%/);
-    assert.deepEqual(result.structuredContent, summary);
+    assert.deepEqual(readStatus(result), summary);
 });
 
 test('SR3-read-opt-in — default refusal names the download and only true hydrates', async () => {
@@ -1992,12 +2058,12 @@ test('SR3-read-opt-in — default refusal names the download and only true hydra
     assert.equal(blocked.isError, true);
     assert.match(blocked.content[0].text, /would download its cloud placeholder/);
     assert.match(blocked.content[0].text, /1 of 2 files.*50\.00%/);
-    assert.equal(blocked.structuredContent.placeholder_count, 1);
-    assert.equal(blocked.structuredContent.dehydrated, true);
+    assert.deepEqual(readStatus(blocked), { ...summary, dehydrated: true });
     const allowed = await call({ path: 'cloud.md', hydrate: true });
     assert.equal(allowed.isError, undefined);
     assert.equal(allowed.content[1].text, 'downloaded');
-    assert.equal(allowed.structuredContent.dehydrated, true);
+    assert.deepEqual(readStatus(allowed), { ...summary, dehydrated: true,
+        warning: `${summary.warning} This read downloaded a cloud placeholder.` });
     assert.deepEqual(seen, [false, true]);
 });
 
@@ -2012,10 +2078,8 @@ test('SR4-unsupported-platform — unavailable is carried on passing and refusin
     const refusing = await call({ path: 'missing.md' });
     assert.equal(passing.content[1].text, 'available');
     assert.equal(refusing.isError, true);
-    assert.equal(passing.structuredContent.placeholder_detection, 'unavailable');
-    assert.equal(refusing.structuredContent.placeholder_detection, 'unavailable');
-    assert.equal(passing.structuredContent.placeholder_count, null);
-    assert.equal(refusing.structuredContent.placeholder_count, null);
+    assert.deepEqual(readStatus(passing), summary);
+    assert.deepEqual(readStatus(refusing), summary);
     let detection = 'available';
     const lateFailure = d6CallGate({ placeholder_detection: 'available', placeholder_count: 0,
         file_count: 1, placeholder_fraction: 0 }, async () => {
@@ -2023,6 +2087,5 @@ test('SR4-unsupported-platform — unavailable is carried on passing and refusin
         return { ...d6Slice('local'), dehydrated: null, placeholder_detection: 'unavailable' };
     }, () => detection);
     const afterFailure = await lateFailure({ path: 'normal.md' });
-    assert.equal(afterFailure.structuredContent.placeholder_detection, 'unavailable');
-    assert.equal(afterFailure.structuredContent.placeholder_count, null);
+    assert.deepEqual(readStatus(afterFailure), summary);
 });
